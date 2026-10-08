@@ -393,6 +393,7 @@ final class PDFReaderViewController: UIViewController {
     var onPageChanged: ((Int) -> Void)?
     var onLocalAnnotationEdit: (@MainActor (MnemosyneLocalAnnotationEdit) throws -> Void)?
     var onAnnotationSuggestion: ((Data) -> Void)?
+    var onTextSelectionChanged: (@MainActor () -> Void)?
 
     /// Optional restore target: when set in `load(url:restorePageIndex:)`,
     /// the document is scrolled to this page after parsing.
@@ -444,6 +445,12 @@ final class PDFReaderViewController: UIViewController {
             self,
             selector: #selector(handlePDFViewPageChanged),
             name: .PDFViewPageChanged,
+            object: pdfView
+        )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handlePDFViewSelectionChanged(_:)),
+            name: .PDFViewSelectionChanged,
             object: pdfView
         )
     }
@@ -584,6 +591,17 @@ final class PDFReaderViewController: UIViewController {
             "response_language": "ko"
         ]
         return try JSONSerialization.data(withJSONObject: context, options: [.sortedKeys])
+    }
+
+    @objc private func handlePDFViewSelectionChanged(_ notification: Notification) {
+        onTextSelectionChanged?()
+    }
+
+    func selectedText() throws -> String? {
+        guard pdfView.document != nil else { throw MnemosyneReaderError.cacheMissing }
+        guard let selection = pdfView.currentSelection?.string,
+              !selection.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
+        return selection
     }
 
     func search(text: String) throws -> [Data] {
@@ -820,7 +838,18 @@ final class PDFReaderViewController: UIViewController {
                 note.userName = annotationID.uuidString.lowercased()
                 textAnnotations.append((page, note))
             case "bookmark":
-                continue
+                let label = payload["label"] as? String ?? ""
+                let cropBox = page.bounds(for: .cropBox)
+                let markerSize = min(20, min(cropBox.width, cropBox.height))
+                guard markerSize > 0 else { throw MnemosyneReaderError.documentMismatch }
+                let marker = PDFAnnotation(
+                    bounds: CGRect(x: cropBox.minX, y: cropBox.maxY - markerSize,
+                                   width: markerSize, height: markerSize),
+                    forType: .text, withProperties: nil
+                )
+                marker.contents = label.isEmpty ? "Bookmark" : label
+                marker.userName = annotationID.uuidString.lowercased()
+                textAnnotations.append((page, marker))
             default:
                 throw MnemosyneReaderError.malformedContractData
             }
@@ -977,12 +1006,16 @@ final class PDFReaderViewController: UIViewController {
                     note.userName = annotationID.uuidString.lowercased()
                     page.addAnnotation(note)
                 case "bookmark":
-                    let bounds = page.bounds(for: .cropBox)
+                    let label = payload["label"] as? String ?? ""
+                    let cropBox = page.bounds(for: .cropBox)
+                    let markerSize = min(20, min(cropBox.width, cropBox.height))
+                    guard markerSize > 0 else { throw MnemosyneReaderError.documentMismatch }
                     let marker = PDFAnnotation(
-                        bounds: CGRect(x: bounds.minX, y: bounds.maxY - 20, width: 20, height: 20),
+                        bounds: CGRect(x: cropBox.minX, y: cropBox.maxY - markerSize,
+                                       width: markerSize, height: markerSize),
                         forType: .text, withProperties: nil
                     )
-                    marker.contents = (payload["label"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? "Bookmark"
+                    marker.contents = label.isEmpty ? "Bookmark" : label
                     marker.userName = annotationID.uuidString.lowercased()
                     page.addAnnotation(marker)
                 default:

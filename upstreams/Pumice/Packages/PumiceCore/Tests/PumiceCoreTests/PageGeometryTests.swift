@@ -122,6 +122,45 @@ struct MnemosyneGeometryTests {
     }
 }
 
+@MainActor
+private final class StubMnemosyneReaderEngine: MnemosyneReaderEngine {
+    var context: Data
+    var selection: String?
+    private var editHandler: (@MainActor (MnemosyneLocalAnnotationEdit) throws -> Void)?
+    private var selectionChangeHandler: (@MainActor () -> Void)?
+
+    init(context: Data, selection: String?) {
+        self.context = context
+        self.selection = selection
+    }
+
+    func openDocument(at url: URL, documentID: UUID, versionID: String,
+                      restoring context: Data?, annotations: [Data]) async throws {
+        if let context { self.context = context }
+    }
+    func currentReaderContext() throws -> Data { context }
+    func selectedText() throws -> String? { selection }
+    func setLocalEditHandler(_ handler: (@MainActor (MnemosyneLocalAnnotationEdit) throws -> Void)?) {
+        editHandler = handler
+    }
+    func setSelectionChangeHandler(_ handler: (@MainActor () -> Void)?) {
+        selectionChangeHandler = handler
+    }
+    func updateSelection(_ selection: String?) {
+        self.selection = selection
+        selectionChangeHandler?()
+    }
+    func search(text: String) throws -> [Data] { [] }
+    func tableOfContents() throws -> Data { Data("{}".utf8) }
+    func goToPage(index: Int) throws {}
+    func applyReaderEvent(_ event: Data) throws {}
+    func replaceAnnotations(_ annotations: [Data]) throws {}
+    func undo() throws {}
+    func redo() throws {}
+    func exportAnnotatedCopy(originalURL: URL, annotations: [Data],
+                             to destination: URL) async throws {}
+}
+
 @Suite("Mnemosyne local persistence")
 @MainActor
 struct MnemosyneLocalStoreTests {
@@ -160,6 +199,78 @@ struct MnemosyneLocalStoreTests {
         #expect(try reopened.cachedOriginalURL(documentID: documentID, versionID: versionID) == cached)
         #expect(try reopened.cachedVersionID(documentID: documentID) == versionID)
         #expect(try reopened.readerContext(documentID: documentID, versionID: versionID) != nil)
+    }
+
+    @Test("Verified selection anchors round-trip only for the active document version and page")
+    func verifiedSelectionContext() async throws {
+        let root = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let source = root.appendingPathComponent("selection-fixture.pdf")
+        let bytes = Data("synthetic PDF selection fixture".utf8)
+        try bytes.write(to: source)
+        let versionID = "sha256:" + SHA256.hash(data: bytes).map {
+            String(format: "%02x", $0)
+        }.joined()
+        let store = try FileMnemosyneLocalStore(rootDirectory: root.appendingPathComponent("store"))
+        _ = try store.installOriginal(from: source, documentID: documentID, versionID: versionID)
+        let engineContext = try json([
+            "document_id": documentID.uuidString.lowercased(),
+            "version_id": versionID,
+            "page_index": 1,
+            "viewport_rect": [10, 20, 300, 400],
+            "selection": NSNull(),
+            "content_language": "und",
+            "response_language": "ko"
+        ])
+        let engine = StubMnemosyneReaderEngine(context: engineContext, selection: "energy")
+        let facade = PersistentMnemosyneReaderFacade(localStore: store, engine: engine)
+        try await facade.openCached(documentID: documentID, versionID: versionID)
+        #expect(try facade.selectedText() == "energy")
+
+        let anchor: [String: Any] = [
+            "document_id": documentID.uuidString.lowercased(),
+            "version_id": versionID,
+            "page_index": 1,
+            "parse_revision": "parser-nfc-v1",
+            "text_sha256": String(repeating: "a", count: 64),
+            "start_scalar": 2,
+            "end_scalar": 8,
+            "quote": "energy",
+            "rects": [[10, 20, 100, 12]]
+        ]
+        try facade.setVerifiedSelectionAnchor(json(anchor))
+        let saved = try JSONSerialization.jsonObject(with: facade.readerContext()) as! [String: Any]
+        let savedAnchor = try #require(saved["selection"] as? [String: Any])
+        #expect(savedAnchor["quote"] as? String == "energy")
+        #expect(try store.readerContext(documentID: documentID, versionID: versionID) != nil)
+
+        let restartedStore = try FileMnemosyneLocalStore(rootDirectory: root.appendingPathComponent("store"))
+        let restartedEngine = StubMnemosyneReaderEngine(context: engineContext, selection: nil)
+        let restartedFacade = PersistentMnemosyneReaderFacade(localStore: restartedStore,
+                                                               engine: restartedEngine)
+        try await restartedFacade.openCached(documentID: documentID, versionID: versionID)
+        let restartedContext = try JSONSerialization.jsonObject(with: restartedFacade.readerContext()) as! [String: Any]
+        #expect((restartedContext["selection"] as? [String: Any])?["quote"] as? String == "energy")
+
+        restartedEngine.updateSelection(nil)
+        let clearedAfterSelectionChange = try JSONSerialization.jsonObject(with: restartedFacade.readerContext()) as! [String: Any]
+        #expect(clearedAfterSelectionChange["selection"] is NSNull)
+
+        #expect(try facade.selectedText() == "energy")
+        let cleared = try JSONSerialization.jsonObject(with: facade.readerContext()) as! [String: Any]
+        #expect(cleared["selection"] is NSNull)
+
+        var wrongPage = anchor
+        wrongPage["page_index"] = 0
+        #expect(throws: MnemosyneReaderError.self) {
+            try facade.setVerifiedSelectionAnchor(json(wrongPage))
+        }
+        var malformedObject = try JSONSerialization.jsonObject(with: engineContext) as! [String: Any]
+        malformedObject["selection"] = "unverified text"
+        let malformedContext = try json(malformedObject)
+        #expect(throws: MnemosyneReaderError.self) {
+            try store.saveReaderContext(malformedContext, documentID: documentID, versionID: versionID)
+        }
     }
 
     @Test("Local drafts survive remote changes, failure, retry, and applied receipt")

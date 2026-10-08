@@ -158,12 +158,16 @@ extension PDFReaderController {
 @MainActor final class PumiceReaderEngine: MnemosyneReaderEngine {
     private weak var reader: PDFReaderViewController?
     private var localEditHandler: (@MainActor (MnemosyneLocalAnnotationEdit) throws -> Void)?
+    private var selectionChangeHandler: (@MainActor () -> Void)?
     var onAnnotationSuggestion: ((Data) -> Void)?
 
     func attach(to reader: PDFReaderViewController) {
         self.reader = reader
         reader.onLocalAnnotationEdit = { [weak self] edit in
             try self?.localEditHandler?(edit)
+        }
+        reader.onTextSelectionChanged = { [weak self] in
+            self?.selectionChangeHandler?()
         }
         reader.onAnnotationSuggestion = { [weak self] event in
             self?.onAnnotationSuggestion?(event)
@@ -176,6 +180,10 @@ extension PDFReaderController {
         localEditHandler = handler
     }
 
+    func setSelectionChangeHandler(_ handler: (@MainActor () -> Void)?) {
+        selectionChangeHandler = handler
+    }
+
     func openDocument(at url: URL, documentID: UUID, versionID: String,
                       restoring context: Data?, annotations: [Data]) async throws {
         guard let reader else { throw MnemosyneReaderError.cacheMissing }
@@ -186,6 +194,11 @@ extension PDFReaderController {
     func currentReaderContext() throws -> Data {
         guard let reader else { throw MnemosyneReaderError.cacheMissing }
         return try reader.readerContextData()
+    }
+
+    func selectedText() throws -> String? {
+        guard let reader else { throw MnemosyneReaderError.cacheMissing }
+        return try reader.selectedText()
     }
 
     func search(text: String) throws -> [Data] {

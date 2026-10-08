@@ -47,7 +47,10 @@ public struct MnemosyneLocalAnnotationEdit {
     func openDocument(at url: URL, documentID: UUID, versionID: String,
                       restoring context: Data?, annotations: [Data]) async throws
     func currentReaderContext() throws -> Data
+    /// Returns raw PDFKit selection text. It is not a verified citation anchor.
+    func selectedText() throws -> String?
     func setLocalEditHandler(_ handler: (@MainActor (MnemosyneLocalAnnotationEdit) throws -> Void)?)
+    func setSelectionChangeHandler(_ handler: (@MainActor () -> Void)?)
     func search(text: String) throws -> [Data]
     func tableOfContents() throws -> Data
     func goToPage(index: Int) throws
@@ -65,6 +68,10 @@ public struct MnemosyneLocalAnnotationEdit {
                                    versionID: String) async throws
     func downloadState(documentID: UUID, versionID: String) throws -> MnemosyneDownloadState
     func readerContext() throws -> Data
+    func selectedText() throws -> String?
+    /// Accepts only a server-verified TextAnchor for the currently selected page.
+    /// Passing nil clears the anchor; PDFKit selection changes clear it automatically.
+    func setVerifiedSelectionAnchor(_ anchor: Data?) throws
     func search(_ text: String) throws -> [Data]
     func tableOfContents() throws -> Data
     func goToPage(_ index: Int) throws
@@ -262,14 +269,38 @@ public struct MnemosyneLocalAnnotationEdit {
     public func saveReaderContext(_ context: Data, documentID: UUID,
                                   versionID: String) throws {
         let object = try Self.object(context)
-        guard object["document_id"] as? String == documentID.uuidString.lowercased(),
+        guard Self.hasExactlyKeys(object, ["document_id", "version_id", "page_index", "viewport_rect",
+                                           "selection", "content_language", "response_language"]),
+              object["document_id"] as? String == documentID.uuidString.lowercased(),
               object["version_id"] as? String == versionID,
-              ((object["page_index"] as? Int) ?? -1) >= 0 else {
+              let pageIndex = object["page_index"] as? Int,
+              pageIndex >= 0, pageIndex <= 9_007_199_254_740_991 else {
             throw MnemosyneReaderError.documentMismatch
+        }
+        guard let viewport = object["viewport_rect"] as? [NSNumber], viewport.count == 4,
+              viewport.allSatisfy({ $0.doubleValue.isFinite }),
+              viewport[2].doubleValue > 0, viewport[3].doubleValue > 0,
+              let contentLanguage = object["content_language"] as? String,
+              Self.isValidLanguageTag(contentLanguage),
+              let responseLanguage = object["response_language"] as? String,
+              Self.isValidLanguageTag(responseLanguage),
+              let selection = object["selection"] else {
+            throw MnemosyneReaderError.malformedContractData
+        }
+        if let anchor = selection as? [String: Any] {
+            try Self.checkTextAnchor(anchor, documentID: documentID,
+                                     versionID: versionID, pageIndex: pageIndex)
+        } else if !(selection is NSNull) {
+            throw MnemosyneReaderError.malformedContractData
         }
         try withTransaction {
             state.contexts[Self.key(documentID, versionID)] = try Self.canonicalJSON(object)
         }
+    }
+
+    private static func isValidLanguageTag(_ value: String) -> Bool {
+        value.range(of: #"^(und|[A-Za-z]{2,8}(-[A-Za-z0-9]{1,8})*)$"#,
+                    options: .regularExpression) != nil
     }
 
     public func annotations(documentID: UUID, versionID: String) throws -> [Data] {
@@ -684,7 +715,7 @@ public struct MnemosyneLocalAnnotationEdit {
                        annotationID: annotationID)
     }
 
-    private static func checkTextAnchor(_ anchor: [String: Any], documentID: UUID,
+    static func checkTextAnchor(_ anchor: [String: Any], documentID: UUID,
                                         versionID: String, pageIndex: Int) throws {
         guard Self.hasExactlyKeys(anchor, ["document_id", "version_id", "page_index", "parse_revision",
                                            "text_sha256", "start_scalar", "end_scalar", "quote", "rects"]),
@@ -752,12 +783,16 @@ public struct MnemosyneLocalAnnotationEdit {
     private let localStore: any MnemosyneLocalStore
     private let engine: any MnemosyneReaderEngine
     private var activeDocument: (id: UUID, versionID: String)?
+    private var verifiedSelectionAnchor: Data?
 
     public init(localStore: any MnemosyneLocalStore, engine: any MnemosyneReaderEngine) {
         self.localStore = localStore
         self.engine = engine
         engine.setLocalEditHandler { [weak self] edit in
             try self?.commit(edit)
+        }
+        engine.setSelectionChangeHandler { [weak self] in
+            self?.verifiedSelectionAnchor = nil
         }
     }
 
@@ -766,10 +801,13 @@ public struct MnemosyneLocalAnnotationEdit {
             throw MnemosyneReaderError.cacheMissing
         }
         let context = try localStore.readerContext(documentID: documentID, versionID: versionID)
+        let restoredAnchor = try Self.selectionAnchor(in: context, documentID: documentID,
+                                                      versionID: versionID)
         let annotations = try localStore.annotations(documentID: documentID, versionID: versionID)
         try await engine.openDocument(at: url, documentID: documentID, versionID: versionID,
                                       restoring: context, annotations: annotations)
         activeDocument = (documentID, versionID)
+        verifiedSelectionAnchor = restoredAnchor
     }
 
     public func installDownloadedOriginal(from temporaryURL: URL, documentID: UUID,
@@ -789,10 +827,79 @@ public struct MnemosyneLocalAnnotationEdit {
 
     public func readerContext() throws -> Data {
         guard let activeDocument else { throw MnemosyneReaderError.cacheMissing }
-        let context = try engine.currentReaderContext()
-        try localStore.saveReaderContext(context, documentID: activeDocument.id,
+        var context = try FileMnemosyneLocalStore.object(engine.currentReaderContext())
+        guard context["document_id"] as? String == activeDocument.id.uuidString.lowercased(),
+              context["version_id"] as? String == activeDocument.versionID,
+              let pageIndex = context["page_index"] as? Int, pageIndex >= 0 else {
+            throw MnemosyneReaderError.documentMismatch
+        }
+        if let anchorData = verifiedSelectionAnchor {
+            let anchor = try FileMnemosyneLocalStore.object(anchorData)
+            if anchor["page_index"] as? Int == pageIndex {
+                try FileMnemosyneLocalStore.checkTextAnchor(
+                    anchor, documentID: activeDocument.id,
+                    versionID: activeDocument.versionID, pageIndex: pageIndex
+                )
+                context["selection"] = anchor
+            } else {
+                verifiedSelectionAnchor = nil
+                context["selection"] = NSNull()
+            }
+        } else {
+            context["selection"] = NSNull()
+        }
+        let encoded = try FileMnemosyneLocalStore.canonicalJSON(context)
+        try localStore.saveReaderContext(encoded, documentID: activeDocument.id,
                                          versionID: activeDocument.versionID)
-        return context
+        return encoded
+    }
+
+    /// Returns the current raw PDF selection and clears any prior verified anchor.
+    /// The caller must ask the server to verify a new anchor before setting it again.
+    public func selectedText() throws -> String? {
+        guard activeDocument != nil else { throw MnemosyneReaderError.cacheMissing }
+        defer { verifiedSelectionAnchor = nil }
+        return try engine.selectedText()
+    }
+
+    public func setVerifiedSelectionAnchor(_ anchorData: Data?) throws {
+        guard let activeDocument else { throw MnemosyneReaderError.cacheMissing }
+        guard let anchorData else {
+            verifiedSelectionAnchor = nil
+            return
+        }
+        let context = try FileMnemosyneLocalStore.object(engine.currentReaderContext())
+        guard context["document_id"] as? String == activeDocument.id.uuidString.lowercased(),
+              context["version_id"] as? String == activeDocument.versionID,
+              let pageIndex = context["page_index"] as? Int, pageIndex >= 0 else {
+            throw MnemosyneReaderError.documentMismatch
+        }
+        let anchor = try FileMnemosyneLocalStore.object(anchorData)
+        try FileMnemosyneLocalStore.checkTextAnchor(
+            anchor, documentID: activeDocument.id,
+            versionID: activeDocument.versionID, pageIndex: pageIndex
+        )
+        verifiedSelectionAnchor = try FileMnemosyneLocalStore.canonicalJSON(anchor)
+    }
+
+    private static func selectionAnchor(in contextData: Data?, documentID: UUID,
+                                        versionID: String) throws -> Data? {
+        guard let contextData else { return nil }
+        let context = try FileMnemosyneLocalStore.object(contextData)
+        guard context["document_id"] as? String == documentID.uuidString.lowercased(),
+              context["version_id"] as? String == versionID,
+              let pageIndex = context["page_index"] as? Int, pageIndex >= 0,
+              let selection = context["selection"] else {
+            throw MnemosyneReaderError.documentMismatch
+        }
+        guard !(selection is NSNull) else { return nil }
+        guard let anchor = selection as? [String: Any] else {
+            throw MnemosyneReaderError.malformedContractData
+        }
+        try FileMnemosyneLocalStore.checkTextAnchor(
+            anchor, documentID: documentID, versionID: versionID, pageIndex: pageIndex
+        )
+        return try FileMnemosyneLocalStore.canonicalJSON(anchor)
     }
 
     public func search(_ text: String) throws -> [Data] {

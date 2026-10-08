@@ -12,7 +12,8 @@
 - annotation draft의 문서/version/page, 색상·Ink geometry·TextAnchor 필드를 계약 구조에 맞춰 확인한다. highlight anchor는 `parse_revision`, 소문자 SHA-256, scalar 범위, quote, rect 배열과 문서/version/page 일치를 요구한다. 실제 인용 문자열이 PDF의 parser 텍스트와 일치하는지는 서버 UNIT-01의 검증 결과가 권위 경계다. PDFKit에서 검증할 수 없는 `text_sha256`을 만들어내지 않는다.
 - Pumice Pencil 입력은 안정된 stroke ID, coalesced sample 위치, pressure, 경과 ms를 수집한다. canonical 좌표는 회전 전 raw PDF CropBox 좌표이며 CropBox 밖 획은 잘라 분할한다. `width_pt`는 화면 zoom과 독립된 physical point로 변환한다. Ink upsert/delete는 Core facade callback을 통해 로컬 outbox에 들어가며, 여러 획을 가진 annotation에서 일부 획만 지울 때 남은 획을 다시 저장한다.
 - `PDFReaderViewController.saveIfNeeded()`는 원본 PDF에 쓰지 않고 SHA-256별 Application Support sidecar에 ink, 로컬 전용 PDFKit highlight, 마지막 page를 원자 저장한다. 재시작 시 복구한다. 원본 하이라이트/PDF 데이터는 직접 수정하지 않는다. export는 목적지와 원본 경로가 다름을 확인하고 임시 파생 PDF를 만든 뒤 목적지로 옮긴다.
-- PDFKit 검색, outline 목차, 페이지 이동과 context 저장을 연결했다. PDFKit selection은 서버 검증 anchor로 가장하지 않아 `selection: null`이다. 한국어 응답 언어는 `ko`다. verified TextAnchor가 없는 사용자의 Pumice highlighter 결과는 로컬 sidecar에만 남고 서버 annotation sync로 보내지 않는다.
+- PDFKit 검색, outline 목차, 페이지 이동과 context 저장을 연결했다.
+- Core annotation projection는 note를 free-text PDFAnnotation으로, bookmark를 CropBox 안의 PDF page marker로 복원하며 파생 export에도 포함한다. facade.selectedText()는 PDFKit raw selection을 반환하고 이전 anchor를 비운다. PDFKit selection-change 알림도 anchor를 자동으로 무효화한다. UNIT-04는 새 선택을 서버에서 검증하고 결과 TextAnchor만 facade.setVerifiedSelectionAnchor(_:)로 전달한다. Core는 문서/version/page와 구조를 확인하되 parser hash를 다시 만들지 않는다. 기본은 `selection: null`이다. 한국어 응답 언어는 `ko`다. verified TextAnchor가 없는 사용자의 Pumice highlighter 결과는 로컬 sidecar에만 남고 서버 annotation sync로 보내지 않는다.
 - 로컬 annotation을 Reader UI로 복원하고, server `reader.goto`, `reader.flash`, `reader.highlight` event를 대상 문서/version/page와 CropBox 범위로 확인한다. `reader.annotate` suggestion은 callback으로 전달하며 승인 UI는 UNIT-04에서 연결한다.
 
 ## UNIT-04 연결
@@ -28,6 +29,8 @@ let facade = try makeReaderFacade(
 )
 // PDFReaderView(..., mnemosyneEngine: engine)
 // Reader가 연결된 뒤: try await facade.openCached(documentID: id, versionID: version)
+// 선택 변경 후: let text = try facade.selectedText()
+// 서버 검증 후: try facade.setVerifiedSelectionAnchor(anchorData)
 // 승인 UI에서: try facade.approveAnnotationSuggestion(event)
 ```
 
@@ -58,9 +61,9 @@ docs/INTEGRATION.md의 UNIT-03 등록 표에는 아직 concrete Reader facade �
 
 - 통과: Core `ReaderFacade.swift`와 `MnemosyneGeometry.swift` 직접 Swift 타입검사.
 - 통과: 변경된 Pumice Reader 소스와 Core geometry 테스트 파일의 Swift 구문 파싱.
-- 통과: 임시 실행 harness에서 해시 캐시 설치/읽기 검증, context 재시작 복구, pending/failure/retry, receipt 적용, idempotency, cursor 원자 적용, 승인 이벤트 재생, 0/90/180/270 회전 역변환, CropBox clipping을 실행했다.
+- 통과: 임시 실행 harness에서 해시 캐시 설치/읽기 검증, context 재시작 복구, pending/failure/retry, receipt 적용, idempotency, cursor 원자 적용, 승인 이벤트 재생, 0/90/180/270 회전 역변환, CropBox clipping, verified selection 복구와 selection-change 무효화를 실행했다.
 - 통과: UNIT-03 변경 경로의 `git diff --check`.
-- 차단: SwiftPM 전체 테스트와 iPad 제품 빌드. 로컬은 full Xcode가 아닌 Command Line Tools만 선택되어 있고 `xcodebuild`/iOS Simulator SDK를 사용할 수 없다. 사용 가능한 Swift 6.3.3 compiler와 Command Line Tools SDK(6.3.2 build)의 차이 및 기본 SwiftPM cache 쓰기 제한 때문에 SwiftPM이 테스트 target까지 실행되지 않았다. 파일 단위 직접 타입검사/harness는 Package 테스트를 대체하지 않는다.
+- 차단: SwiftPM 전체 테스트와 iPad 제품 빌드. swift test는 기본 macOS 10.13 target에서 CryptoKit/FileHandle availability 오류가 났다. arm64-apple-macosx10.15.4로 다시 빌드하자 PumiceCore 소스는 컴파일됐지만 테스트 target이 no such module: Testing으로 실패했다. 로컬 developer directory는 full Xcode가 아닌 Command Line Tools이며 xcodebuild와 iOS Simulator SDK를 사용할 수 없다. 직접 타입검사와 standalone harness는 Package 테스트를 대체하지 않는다.
 - 미검증: 실제 iPad Pencil, 화면 회전/zoom, 앱 강제 종료 후 복구, export PDF 렌더, 기기에서의 sidecar 보호 권한. Cloud 실행 환경의 Apple SDK 상태도 이 로컬 세션에서는 확인되지 않았다.
 - Cloud Apple SDK 점검: 이 세션에서 사용할 수 있는 Cloud Xcode 실행/SDK 점검 도구가 없어 상태는 미확인이다. SDK가 없다고 단정하지 않는다.
 - remote 목록은 비어 있다. 따라서 Cloud dispatch/PR 게시 여부는 미확인이다. 공통 registry의 `product_ready=false`를 유지하며 제품 완료로 보고하지 않는다.
