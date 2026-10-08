@@ -1595,7 +1595,9 @@ async def test_learning_state_fails_closed_until_unit01_store_is_wired():
 
     adapter = TutorAdapter(SimpleNamespace(), SimpleNamespace(annotation_sync=object()), None)
     with pytest.raises(RuntimeError, match="durable learning store is unavailable"):
-        await adapter.get_learning_state("00000000-0000-0000-0000-000000000002")
+        await adapter.get_learning_state(
+            "00000000-0000-0000-0000-000000000002", "sha256:" + "a" * 64
+        )
 
 
 @pytest.mark.asyncio
@@ -1853,15 +1855,70 @@ async def test_tutor_learning_mutations_match_contract_revision_fields():
     from deeptutor.mnemosyne.tutor import TutorAdapter
 
     observed: dict[str, object] = {}
+    document_id = "00000000-0000-0000-0000-000000000001"
+    version_id = "sha256:" + "a" * 64
+    citation = {
+        "citation_id": "00000000-0000-0000-0000-000000000032",
+        "verification_id": "00000000-0000-0000-0000-000000000033",
+        "verified": True,
+        "anchor": {
+            "document_id": document_id,
+            "version_id": version_id,
+            "page_index": 1,
+            "parse_revision": "pymupdf-test-nfc-1",
+            "text_sha256": "b" * 64,
+            "start_scalar": 0,
+            "end_scalar": 4,
+            "quote": "E=mc",
+            "rects": [[40.0, 100.0, 25.0, 12.0]],
+        },
+    }
+    quiz = {
+        "quiz_id": "00000000-0000-0000-0000-000000000028",
+        "document_id": document_id,
+        "version_id": version_id,
+        "title": "에너지 확인",
+        "questions": [
+            {
+                "question_id": "00000000-0000-0000-0000-000000000029",
+                "prompt": "식에서 질량을 나타내는 문자는 무엇인가요?",
+                "kind": "free_text",
+                "choices": [],
+                "citations": [citation],
+            }
+        ],
+        "response_language": "ko",
+    }
+    assessment = {
+        "attempt_id": "00000000-0000-0000-0000-00000000002a",
+        "score": 1.0,
+        "feedback_ko": "맞습니다. 식에서 m이 질량을 나타냅니다.",
+        "learning_revision": 2,
+        "citations": [citation],
+    }
+    state = {
+        "document_id": document_id,
+        "version_id": version_id,
+        "learning_revision": 2,
+        "quiz_attempts": [],
+        "mastery": [],
+        "memory": [],
+        "progress": {},
+        "activities": [],
+    }
 
     class RecordingLearningStore:
+        async def get_quiz(self, quiz_id):
+            assert quiz_id == quiz["quiz_id"]
+            return quiz
+
         async def submit_attempt(self, attempt):
             observed["attempt"] = attempt
-            return {"attempt_id": attempt["attempt_id"]}
+            return assessment
 
         async def review_memory(self, review):
             observed["review"] = review
-            return {"memory_id": review["memory_id"]}
+            return state
 
     tutor = TutorAdapter(
         object(), SimpleNamespace(annotation_sync=object()), RecordingLearningStore()
@@ -1870,8 +1927,8 @@ async def test_tutor_learning_mutations_match_contract_revision_fields():
         "attempt_id": "00000000-0000-0000-0000-00000000002a",
         "client_mutation_id": "00000000-0000-0000-0000-00000000006c",
         "quiz_id": "00000000-0000-0000-0000-000000000028",
-        "document_id": "00000000-0000-0000-0000-000000000001",
-        "version_id": "sha256:" + "a" * 64,
+        "document_id": document_id,
+        "version_id": version_id,
         "base_learning_revision": 1,
         "submitted_at": "2026-10-08T07:00:00Z",
         "answers": [
@@ -1889,9 +1946,9 @@ async def test_tutor_learning_mutations_match_contract_revision_fields():
         "reviewed_at": "2026-10-08T07:01:00Z",
     }
 
-    assert await tutor.submit_attempt(attempt) == {"attempt_id": attempt["attempt_id"]}
+    assert await tutor.submit_attempt(attempt) == assessment
     assert observed["attempt"] == attempt
-    assert await tutor.review_memory(review) == {"memory_id": review["memory_id"]}
+    assert await tutor.review_memory(review) == state
     assert observed["review"] == review
 
 
@@ -1936,3 +1993,43 @@ async def test_tutor_learning_mutations_reject_legacy_revision_and_invalid_revie
         await tutor.submit_attempt(attempt)
     with pytest.raises(ValueError, match="grade"):
         await tutor.review_memory(review)
+
+
+@pytest.mark.asyncio
+async def test_tutor_quiz_and_learning_state_fail_closed_on_private_or_wrong_version_data():
+    from deeptutor.mnemosyne.tutor import TutorAdapter
+
+    quiz = {
+        "quiz_id": "00000000-0000-0000-0000-000000000028",
+        "document_id": "00000000-0000-0000-0000-000000000001",
+        "version_id": "sha256:" + "a" * 64,
+        "title": "확인 문제",
+        "questions": [],
+        "response_language": "ko",
+        "answer_key": {"secret": "b"},
+    }
+
+    class LearningStore:
+        async def get_quiz(self, _quiz_id):
+            return quiz
+
+        async def get_state(self, document_id):
+            return {
+                "document_id": document_id,
+                "version_id": "sha256:" + "b" * 64,
+                "learning_revision": 1,
+                "quiz_attempts": [],
+                "mastery": [],
+                "memory": [],
+                "progress": {},
+                "activities": [],
+            }
+
+    tutor = TutorAdapter(object(), SimpleNamespace(annotation_sync=object()), LearningStore())
+
+    with pytest.raises(ValueError, match="public Quiz contract"):
+        await tutor.get_quiz(quiz["quiz_id"])
+    with pytest.raises(ValueError, match="another document version"):
+        await tutor.get_learning_state(
+            "00000000-0000-0000-0000-000000000001", "sha256:" + "a" * 64
+        )

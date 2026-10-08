@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
+import math
 import re
 from typing import Any
 from uuid import UUID
@@ -34,6 +35,31 @@ _DATETIME_RE = re.compile(
     r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$"
 )
 _MAX_SAFE_INTEGER = 9_007_199_254_740_991
+_QUIZ_FIELDS = {
+    "quiz_id",
+    "document_id",
+    "version_id",
+    "title",
+    "questions",
+    "response_language",
+}
+_ASSESSMENT_FIELDS = {
+    "attempt_id",
+    "score",
+    "feedback_ko",
+    "learning_revision",
+    "citations",
+}
+_LEARNING_STATE_FIELDS = {
+    "document_id",
+    "version_id",
+    "learning_revision",
+    "quiz_attempts",
+    "mastery",
+    "memory",
+    "progress",
+    "activities",
+}
 
 
 def _required_id(value: Any, field: str, *, uuid_value: bool = False) -> str:
@@ -59,6 +85,200 @@ def _required_timestamp(value: Any, field: str) -> str:
     except ValueError as exc:
         raise ValueError(f"{field} must be an RFC 3339 date-time") from exc
     return normalized
+
+
+def _safe_integer(value: Any, field: str, *, minimum: int) -> int:
+    if (
+        isinstance(value, bool)
+        or not isinstance(value, int)
+        or value < minimum
+        or value > _MAX_SAFE_INTEGER
+    ):
+        raise ValueError(f"{field} must be a safe integer greater than or equal to {minimum}")
+    return value
+
+
+def _validate_verified_citation(
+    citation: Any, *, document_id: str, version_id: str
+) -> dict[str, Any]:
+    if not isinstance(citation, dict) or set(citation) != {
+        "citation_id",
+        "verification_id",
+        "verified",
+        "anchor",
+    }:
+        raise ValueError("citation fields do not match the VerifiedCitation contract")
+    if citation.get("verified") is not True:
+        raise ValueError("unverified citation cannot be returned")
+    _required_id(citation.get("citation_id"), "citation_id", uuid_value=True)
+    _required_id(citation.get("verification_id"), "verification_id", uuid_value=True)
+    anchor = citation.get("anchor")
+    anchor_fields = {
+        "document_id",
+        "version_id",
+        "page_index",
+        "parse_revision",
+        "text_sha256",
+        "start_scalar",
+        "end_scalar",
+        "quote",
+        "rects",
+    }
+    if not isinstance(anchor, dict) or set(anchor) != anchor_fields:
+        raise ValueError("citation anchor fields do not match the TextAnchor contract")
+    if (
+        _required_id(anchor.get("document_id"), "anchor.document_id", uuid_value=True)
+        != document_id
+        or str(anchor.get("version_id") or "") != version_id
+    ):
+        raise ValueError("citation belongs to another document version")
+    _safe_integer(anchor.get("page_index"), "anchor.page_index", minimum=0)
+    if not str(anchor.get("parse_revision") or "").strip():
+        raise ValueError("anchor.parse_revision is required")
+    if not re.fullmatch(r"[a-f0-9]{64}", str(anchor.get("text_sha256") or "")):
+        raise ValueError("anchor.text_sha256 must be a SHA-256 digest")
+    start = _safe_integer(anchor.get("start_scalar"), "anchor.start_scalar", minimum=0)
+    end = _safe_integer(anchor.get("end_scalar"), "anchor.end_scalar", minimum=1)
+    quote = anchor.get("quote")
+    if not isinstance(quote, str) or not quote or end <= start or end - start != len(quote):
+        raise ValueError("citation quote range is invalid")
+    rects = anchor.get("rects")
+    if not isinstance(rects, list) or not rects:
+        raise ValueError("citation requires at least one rectangle")
+    for rect in rects:
+        if (
+            not isinstance(rect, list)
+            or len(rect) != 4
+            or any(isinstance(value, bool) or not isinstance(value, (int, float)) for value in rect)
+            or not all(math.isfinite(value) for value in rect)
+            or rect[2] <= 0
+            or rect[3] <= 0
+        ):
+            raise ValueError("citation rectangle is invalid")
+    return citation
+
+
+def _validate_public_quiz(quiz: Any) -> dict[str, Any]:
+    if not isinstance(quiz, dict) or set(quiz) != _QUIZ_FIELDS:
+        raise ValueError("quiz fields do not match the public Quiz contract")
+    quiz_id = _required_id(quiz.get("quiz_id"), "quiz_id", uuid_value=True)
+    document_id = _required_id(quiz.get("document_id"), "document_id", uuid_value=True)
+    version_id = str(quiz.get("version_id") or "").strip()
+    if not _VERSION_RE.fullmatch(version_id):
+        raise ValueError("quiz.version_id must be a full SHA-256 version")
+    if not isinstance(quiz.get("title"), str) or not quiz["title"].strip():
+        raise ValueError("quiz.title is required")
+    if not isinstance(quiz.get("response_language"), str) or not re.fullmatch(
+        r"^(und|[A-Za-z]{2,8}(-[A-Za-z0-9]{1,8})*)$", quiz["response_language"]
+    ):
+        raise ValueError("quiz.response_language must be a BCP 47 tag or und")
+    questions = quiz.get("questions")
+    if not isinstance(questions, list) or not questions:
+        raise ValueError("quiz.questions must contain at least one question")
+    seen_question_ids: set[str] = set()
+    for question in questions:
+        question_fields = {"question_id", "prompt", "kind", "choices", "citations"}
+        if not isinstance(question, dict) or set(question) != question_fields:
+            raise ValueError("question fields do not match the public Question contract")
+        question_id = _required_id(
+            question.get("question_id"), "question_id", uuid_value=True
+        )
+        if question_id in seen_question_ids:
+            raise ValueError("quiz question IDs must be unique")
+        seen_question_ids.add(question_id)
+        if not isinstance(question.get("prompt"), str) or not question["prompt"].strip():
+            raise ValueError("question.prompt is required")
+        if question.get("kind") not in {"single_choice", "free_text"}:
+            raise ValueError("question.kind is unsupported")
+        choices = question.get("choices")
+        if not isinstance(choices, list):
+            raise ValueError("question.choices must be an array")
+        for choice in choices:
+            if (
+                not isinstance(choice, dict)
+                or set(choice) != {"choice_id", "text"}
+                or not isinstance(choice.get("choice_id"), str)
+                or not choice["choice_id"].strip()
+                or not isinstance(choice.get("text"), str)
+                or not choice["text"].strip()
+            ):
+                raise ValueError("question choice does not match the Choice contract")
+        citations = question.get("citations")
+        if not isinstance(citations, list) or not citations:
+            raise ValueError("every question requires a verified citation")
+        for citation in citations:
+            _validate_verified_citation(
+                citation, document_id=document_id, version_id=version_id
+            )
+    return quiz
+
+
+def _validate_learning_state(
+    state: Any,
+    *,
+    document_id: str | None = None,
+    version_id: str | None = None,
+) -> dict[str, Any]:
+    if not isinstance(state, dict) or set(state) != _LEARNING_STATE_FIELDS:
+        raise ValueError("learning state fields do not match the LearningState contract")
+    resolved_document_id = _required_id(
+        state.get("document_id"), "document_id", uuid_value=True
+    )
+    resolved_version_id = str(state.get("version_id") or "").strip()
+    if not _VERSION_RE.fullmatch(resolved_version_id):
+        raise ValueError("learning state version_id must be a full SHA-256 version")
+    if document_id is not None and resolved_document_id != document_id:
+        raise ValueError("learning state belongs to another document")
+    if version_id is not None and resolved_version_id != version_id:
+        raise ValueError("learning state belongs to another document version")
+    _safe_integer(state.get("learning_revision"), "learning_revision", minimum=1)
+    for name in ("quiz_attempts", "mastery", "memory", "activities"):
+        if not isinstance(state.get(name), list):
+            raise ValueError(f"learning state {name} must be an array")
+    if not isinstance(state.get("progress"), dict):
+        raise ValueError("learning state progress must be an object")
+    return state
+
+
+def _validate_assessment(
+    assessment: Any,
+    *,
+    attempt: dict[str, Any],
+    quiz: dict[str, Any],
+) -> dict[str, Any]:
+    if not isinstance(assessment, dict) or set(assessment) != _ASSESSMENT_FIELDS:
+        raise ValueError("assessment fields do not match the Assessment contract")
+    if _required_id(assessment.get("attempt_id"), "attempt_id", uuid_value=True) != attempt[
+        "attempt_id"
+    ]:
+        raise ValueError("assessment belongs to another attempt")
+    score = assessment.get("score")
+    if (
+        isinstance(score, bool)
+        or not isinstance(score, (int, float))
+        or not math.isfinite(score)
+        or not 0 <= score <= 1
+    ):
+        raise ValueError("assessment.score must be between 0 and 1")
+    feedback = assessment.get("feedback_ko")
+    if not isinstance(feedback, str) or not feedback.strip():
+        raise ValueError("assessment.feedback_ko is required")
+    _safe_integer(assessment.get("learning_revision"), "learning_revision", minimum=1)
+    citations = assessment.get("citations")
+    if not isinstance(citations, list) or not citations:
+        raise ValueError("assessment requires a verified citation")
+    allowed = {
+        (citation["citation_id"], citation["verification_id"])
+        for question in quiz["questions"]
+        for citation in question["citations"]
+    }
+    for citation in citations:
+        _validate_verified_citation(
+            citation, document_id=quiz["document_id"], version_id=quiz["version_id"]
+        )
+        if (citation["citation_id"], citation["verification_id"]) not in allowed:
+            raise ValueError("assessment cites evidence outside the submitted quiz")
+    return assessment
 
 
 def _learning_store(store: LearningStateStore | None) -> LearningStateStore:
@@ -241,7 +461,22 @@ class TutorAdapter:
 
     @property
     def product_ready(self) -> bool:
-        return self.learning_store is not None and self.library.annotation_sync is not None
+        store_ready = self.learning_store is not None and all(
+            callable(getattr(self.learning_store, name, None))
+            for name in (
+                "get_quiz",
+                "get_state",
+                "submit_attempt",
+                "save_activity",
+                "review_memory",
+            )
+        )
+        annotation_sync = getattr(self.library, "annotation_sync", None)
+        sync_ready = annotation_sync is not None and all(
+            callable(getattr(annotation_sync, name, None))
+            for name in ("apply_mutations", "snapshot", "changes")
+        )
+        return store_ready and sync_ready
 
     @property
     def capabilities(self) -> tuple[str, ...]:
@@ -289,9 +524,26 @@ class TutorAdapter:
             )
         )
 
-    async def get_learning_state(self, document_id: str) -> dict[str, Any]:
+    async def get_quiz(self, quiz_id: str) -> dict[str, Any]:
         store = _learning_store(self.learning_store)
-        return await store.get_state(_required_id(document_id, "document_id", uuid_value=True))
+        getter = getattr(store, "get_quiz", None)
+        if not callable(getter):
+            raise RuntimeError("Learning state is not ready; quiz storage is unavailable")
+        quiz = await getter(_required_id(quiz_id, "quiz_id", uuid_value=True))
+        return _validate_public_quiz(quiz)
+
+    async def get_learning_state(self, document_id: str, version_id: str) -> dict[str, Any]:
+        store = _learning_store(self.learning_store)
+        normalized_document_id = _required_id(document_id, "document_id", uuid_value=True)
+        normalized_version_id = str(version_id or "").strip()
+        if not _VERSION_RE.fullmatch(normalized_version_id):
+            raise ValueError("version_id must be a full SHA-256 version")
+        state = await store.get_state(normalized_document_id)
+        return _validate_learning_state(
+            state,
+            document_id=normalized_document_id,
+            version_id=normalized_version_id,
+        )
 
     async def submit_attempt(self, attempt: dict[str, Any]) -> dict[str, Any]:
         if not isinstance(attempt, dict):
@@ -350,7 +602,17 @@ class TutorAdapter:
                 }
             )
         normalized["answers"] = normalized_answers
-        return await _learning_store(self.learning_store).submit_attempt(normalized)
+        quiz = await self.get_quiz(normalized["quiz_id"])
+        if (
+            quiz["document_id"] != normalized["document_id"]
+            or quiz["version_id"] != normalized["version_id"]
+        ):
+            raise ValueError("attempt does not match the immutable quiz document version")
+        quiz_question_ids = {question["question_id"] for question in quiz["questions"]}
+        if any(answer["question_id"] not in quiz_question_ids for answer in normalized_answers):
+            raise ValueError("attempt contains a question outside the stored quiz")
+        result = await _learning_store(self.learning_store).submit_attempt(normalized)
+        return _validate_assessment(result, attempt=normalized, quiz=quiz)
 
     async def save_activity(
         self, activity: dict[str, Any], mutation_id: str, base_revision: int
@@ -397,7 +659,8 @@ class TutorAdapter:
         if isinstance(grade, bool) or not isinstance(grade, int) or not 0 <= grade <= 3:
             raise ValueError("grade must be an integer between 0 and 3")
         normalized["reviewed_at"] = _required_timestamp(review.get("reviewed_at"), "reviewed_at")
-        return await _learning_store(self.learning_store).review_memory(normalized)
+        state = await _learning_store(self.learning_store).review_memory(normalized)
+        return _validate_learning_state(state)
 
 
 def register_tutor(
