@@ -61,12 +61,12 @@
 
 7. **upstream 출처 예외** — Unit01이 변경한 tracked fixture test `upstreams/DeepTutor/tests/reading/test_ingestion.py`는 `integration/upstreams.json`에 원래 SHA `8878f4000c042d9480289c1a2823d56db09630eb4776d437ed29498d808fad23`, 원래 git blob `b44b1ed3d358e8b44546e728729d282e21e33c17`로 등록돼 있다. 현재 파일 SHA-256은 `b3a909c74be29aa442708ec8636ed24b3270671c9bd8f928ec74a9178beb95d7`다. 통합 담당은 SHA를 갱신하고 원 upstream commit/blob provenance를 유지하면서 Unit01 fixture 변경 예외를 기록한 뒤 source/provenance 검사를 실행한다. `integration/upstreams.json`은 Unit01 수정 권한 밖이라 여기서는 갱신하지 않았다.
 
-### 실제 로컬 통합 브랜치 확인 (2026-10-09)
+### 실제 로컬 통합 브랜치 확인 (2026-10-09 재확인)
 
-- `codex/unit-05-api-integration` (`b1a8224c91118b8d11edfdf5b785c8207b902b5f`)에는 `build_library_router` 구현과 router 단독 TestClient 검사가 있지만 `deeptutor/api/main.py`, `mnemosyne/bootstrap.py` 어디에도 mount가 없다.
-- `codex/unit-06-cloud-runtime` (`470a01f2e4bcccdbfdb725bea65526dc32731ec2`)도 `build_library_router`를 제품 main에 mount하지 않는다. 이 브랜치의 `register_mnemosyne`는 `register_library`에 store/annotation_sync만 전달하고 `ports.py::DocumentRepository`에는 `get_page_assets`가 없다.
-- 현재 Unit06 checkout의 미커밋 `tutor.py`는 학습 상태와 citation DTO를 검증하지만 document search/page/asset/citation verification을 호출하지 않는다. 미커밋 `library.py`와 `test_ingestion.py`도 같은 Unit01 경로를 수정한다. 이 library diff는 Unit01의 DB 권한/schema v3 및 index watchdog, provider URL policy callback, page asset repository adapter, upload indexing wrapper, 폴더 입력 검증/pagination 등 일부 hardening을 제거하므로 통합 시 dirty copy로 파일 전체를 덮어쓰지 말고 항목별로 reconcile한다.
-- 두 branch tip 모두 계약 0.1.0과 준비 gate를 바꾸지 않는다. root main checkout의 미커밋 파일은 이 Unit01 작업에 복사하거나 병합하지 않았다. Remote가 없어 PR도 만들지 않았다.
+- `codex/unit-05-api-integration` (`4db2d9f95d356fbfc8280c23d391aa81df88e24d`)에는 `build_library_router` 구현과 router 단독 TestClient 검사가 있지만 `deeptutor/api/main.py`, `mnemosyne/bootstrap.py` 어디에도 mount가 없다.
+- 현재 root checkout의 `codex/unit-06-cloud-runtime` (`0ed61d368832fcb3351c4024247052f9fa300de0`)도 제품 main에 router를 mount하지 않는다. committed `register_mnemosyne`는 `register_library`에 store/annotation_sync만 전달하고, `ports.py::DocumentRepository`에는 `get_page_assets`가 없다. `tutor.py`에는 document search/page/asset/citation verification 소비 호출이 없다.
+- root checkout은 현재 미커밋 상태이며 `library.py`와 `test_ingestion.py`도 Unit01 경로에서 수정돼 있다. 그 dirty 파일 SHA-256은 각각 `5f26309a0d27616866b14b7ec16946aebade550d3c0d129403523c617ec016d7`, `b410facbf879de9568ba130040ffca84034c24394ae1b0669c822a4104738678`로 이 Unit01 branch 파일과 다르다. root checkout의 다른 미커밋 Unit03/05 변경도 그대로 보존했고 Unit01 branch에 복사하지 않았다. 두 library 구현을 통합할 때 dirty copy 전체로 덮어쓰지 말고 항목별로 reconcile해야 한다.
+- registry는 여전히 계약 0.1.0, `product_ready=false`, `cloud_repository_access=local_only_no_origin`이다. `integration/ownership.json`도 `docs/handoffs/unit-01.md`를 UNIT-01에 배정하지 않아 공통 validator가 이 파일의 unassigned ownership에서 중단된다. 두 branch tip 모두 계약이나 준비 gate를 바꾸지 않았다. origin이 없어 PR도 만들지 않았다.
 
 ## 검증 결과와 남은 검증
 
