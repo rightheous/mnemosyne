@@ -1955,6 +1955,23 @@ async def test_tutor_learning_mutations_match_contract_revision_fields():
             observed["activity_mutation"] = (mutation_id, base_revision)
             return state
 
+    class RecordingLibrary:
+        annotation_sync = object()
+
+        def __init__(self):
+            self.verification_count = 0
+
+        def verify_citation(self, anchor, *, citation_id=None):
+            self.verification_count += 1
+            return {
+                "citation_id": citation_id,
+                "verification_id": f"00000000-0000-0000-0000-{36 + self.verification_count:012d}",
+                "verified": True,
+                "anchor": dict(anchor),
+            }
+
+    library = RecordingLibrary()
+
     class RecordingAssessmentService:
         async def submit_attempt(self, submitted_attempt, public_quiz):
             observed["attempt"] = submitted_attempt
@@ -1963,7 +1980,7 @@ async def test_tutor_learning_mutations_match_contract_revision_fields():
 
     tutor = TutorAdapter(
         object(),
-        SimpleNamespace(annotation_sync=object()),
+        library,
         RecordingLearningStore(),
         RecordingAssessmentService(),
     )
@@ -1991,14 +2008,24 @@ async def test_tutor_learning_mutations_match_contract_revision_fields():
     }
     activity_mutation_id = "00000000-0000-0000-0000-000000000036"
 
-    assert await tutor.submit_attempt(attempt) == assessment
+    submitted_assessment = await tutor.submit_attempt(attempt)
+    assert submitted_assessment["attempt_id"] == assessment["attempt_id"]
+    assert submitted_assessment["citations"][0]["verification_id"].endswith("000000000038")
     assert observed["attempt"] == attempt
-    assert observed["assessment_quiz"] == quiz
-    assert await tutor.review_memory(review) == state
+    assert observed["assessment_quiz"]["questions"][0]["citations"][0]["verification_id"].endswith(
+        "000000000037"
+    )
+    reviewed_state = await tutor.review_memory(review)
     assert observed["review"] == review
-    assert await tutor.save_activity(activity, activity_mutation_id, 1) == state
+    assert reviewed_state["memory"][0]["citations"][0]["verification_id"].endswith(
+        "000000000039"
+    )
+    saved_state = await tutor.save_activity(activity, activity_mutation_id, 1)
     assert observed["activity"] == activity
     assert observed["activity_mutation"] == (activity_mutation_id, 1)
+    assert saved_state["memory"][0]["citations"][0]["verification_id"].endswith(
+        "000000000040"
+    )
 
 
 @pytest.mark.asyncio

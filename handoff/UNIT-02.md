@@ -67,7 +67,7 @@
 ## 추가 checkpoint — 2026-10-09
 
 - 사용자 요청으로 DB/API/contract/dependency 명세와 소유자별 patch 제안을 [`docs/handoffs/unit-02.md`](../docs/handoffs/unit-02.md)에 작성했다. 이 경로는 여전히 committed `integration/ownership.json`에 배정되지 않았으므로, 통합 담당이 소유권 map에 추가해야 한다.
-- `TutorAdapter`가 반환하는 public Quiz, Assessment, LearningState를 fail-closed 검사한다. Quiz/Assessment는 허용 키와 주요 필드를 검사하고 LearningState는 nested quiz-attempt, mastery, memory/citation, progress, activity entry까지 contract shape를 검사한다. Quiz에서 private/추가 필드를 거부하고, immutable document/version, quiz question IDs, Assessment attempt ID와 quiz citation 집합을 대조한다. `save_activity` 입력 및 저장 결과도 검증한다. citation 검사는 DTO 구조/출처 집합 검사이며 원문 quote/hash 재검증은 별도 citation verifier가 필요하다.
+- `TutorAdapter`가 반환하는 public Quiz, Assessment, LearningState를 fail-closed 검사한다. Quiz/Assessment는 허용 키와 주요 필드를 검사하고 LearningState는 nested quiz-attempt, mastery, memory/citation, progress, activity entry까지 contract shape를 검사한다. Quiz에서 private/추가 필드를 거부하고, immutable document/version, quiz question IDs, Assessment attempt ID와 quiz citation 집합을 대조한다. `save_activity` 입력 및 저장 결과도 검증한다. 최신 구현은 Tutor 응답 직전에 각 Quiz·Assessment·Memory citation의 anchor를 `LibraryAdapter.verify_citation(anchor, citation_id=...)`에 다시 제출하고 새 verification ID를 반환한다. 실제 source verifier와 Tutor의 결합 fixture는 아직 실행하지 않았다.
 - `learning/service.py`에 `MnemosyneAssessmentService`를 추가했다. private grading input을 OpenAI-compatible stream으로 평가하고 `mnemosyne_assessment` task scope, Korean feedback/hint, strict JSON schema를 사용한다. 실패 claim 해제, 같은 mutation/hash의 persisted replay, per-question concept evidence와 score<1 Memory candidate를 구현했다. UNIT-01의 claim/commit store methods가 없으면 product path는 fail closed다.
 - `learning.service.next_mnemosyne_memory_due_at`에 Memory grade별 server-clock 일정 규칙(grade 0: 10분, 1: 1일, 2: 3일×2^review_count 최대 90일, 3: 7일×2^review_count 최대 180일)을 추가하고 입력·상한 fixture를 뒀다. 이 helper는 아직 `TutorAdapter.review_memory`나 durable store transaction에 연결되지 않았다. UNIT-01이 MemoryReview 반영과 revision CAS를 atomic 처리할 때 이 규칙을 호출해야 한다.
 - 전체 지정 6개 pytest 파일을 실행해 **147 passed, 4 warnings**를 확인했다. commit failure retry fixture 첫 실행에서 citation ID 누락으로 1개가 채점 구성 단계에서 실패했으며 fixture를 수정한 재실행은 통과했다. 테스트가 변경 Python 모듈을 import/compile했고 변경 UNIT-02 파일 `git diff --check`도 통과했다. 별도 AST-only probe는 sandbox의 uv cache 접근 거부로 실행하지 못했다. fake evaluator/provider fixture만 실행했으며 real provider, DB migration/restart, mounted API, browser/iPad build/device 검증은 수행하지 않았다.
@@ -81,7 +81,14 @@
 - 개인 loop의 auto-mount는 KB/RAG, 열린 source/reading 도구, `web_fetch`, `ask_user`, mastery navigation으로 제한한다. `exec`는 `deep_solve` turn에서만 격리 정책을 확인한 뒤 허용한다. Loop turn provider scope는 MCP grant를 빈 allowlist로 닫고 CLI apps도 거부한다. 선택된 PageIndex KB가 소유한 SDK overlay만 그 resource-bound 경로로 남긴다.
 - 관련 regression suite에는 Chat loop, Quiz QuestionPipeline, lazy capability/tool descriptor catalog, plugin entry-point/registry gating, Zotero tool settings, `/api/tools`, `/api/settings`, readiness, capability runtime, loop registry, mastery pipeline가 포함된다. 갱신 후 실행은 **294 passed, 3 deselected, 3 warnings**였다. 앞선 unfiltered 실행에서 두 오래된 `web_search` 기대와 짧은 timeout 재시도의 `[partial_stream]` case가 실패해 tool/API/readiness fixture 기대를 새 정책에 맞게 갱신했다. timeout test의 `connect`, `stream`, `partial_stream` 세 parameter는 최종 실행에서 deselect되어 이번에는 검증하지 않았다.
 - 임시 `DEEPTUTOR_HOME`과 uv 의존성 런타임에서 실행한 pytest/import 기반 source fixture 검사다. 실제 MCP/CLI 서비스 연결, real provider, DB migration/restart, mounted API, iPadOS build/device 검증은 아니다. `git diff --check`도 변경 UNIT-02 파일에서 통과했다.
-- 계약은 계속 `0.1.0`; `/v1/*` planned/unmounted, durable learning store wiring과 citation source-verification bridge는 미완료다. `product_ready:false`를 유지한다.
+- 계약은 계속 `0.1.0`; `/v1/*` planned/unmounted, durable learning store wiring은 미완료다. Tutor 응답에서 citation source 재검증을 호출하도록 연결했지만, 실제 LibraryAdapter와 결합한 fixture 및 외부 사용자 경계 검증은 남아 있다. `product_ready:false`를 유지한다.
+
+## 추가 checkpoint — Tutor citation 재검증 경계 — 2026-10-09
+
+- UNIT-01 `LibraryAdapter.verify_citation(anchor, citation_id=...)`의 source API와 `mnemosyne_verifications.verification_id` 단독 primary key를 확인했다. citation ID 재사용으로 원문 anchor를 재검증하고 새 10분 verification ID를 발급할 수 있다. UNIT-01 파일은 읽기만 했다.
+- `TutorAdapter.get_quiz`, `get_learning_state`, `save_activity`, `review_memory`, `submit_attempt` 결과의 public citation을 source verifier에 재제출하도록 연결했다. verifier 누락은 fail closed이며, verifier가 실패하면 응답을 반환하지 않는다. Assessment는 안정 citation ID와 anchor가 제출된 Quiz evidence에 속하는지 확인한 다음 source verifier의 새 proof를 반환한다.
+- 기존 Tutor mutation fixture의 library double을 `verify_citation` 구현으로 갱신해 새 proof 반환을 기대하도록 바꿨다. 이번 checkpoint에서 테스트는 실행하지 않았다. 직전 도구 표면 변경의 **294 passed, 3 deselected, 3 warnings**는 이 코드 변경 전 결과이며 이번 변경을 검증하지 않는다. 변경 파일 `git diff --check`는 통과했다.
+- 이 연결은 직접 TutorAdapter 호출 경계다. 실 PDF/page hash를 쓰는 UNIT-01 verifier 결합 fixture, durable learning store/bootstrap 주입, 인증된 API mount, process restart, real provider, iPad build/device는 여전히 검증되지 않았다. 계약과 registry는 `0.1.0`, `product_ready:false`를 유지한다.
 
 검증 명령:
 

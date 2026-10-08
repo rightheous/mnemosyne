@@ -190,6 +190,84 @@ def _validate_verified_citation(
     return citation
 
 
+def _verify_citation_at_source(
+    library: Any, citation: Any, *, document_id: str, version_id: str
+) -> dict[str, Any]:
+    citation = _validate_verified_citation(
+        citation, document_id=document_id, version_id=version_id
+    )
+    verifier = getattr(library, "verify_citation", None)
+    if not callable(verifier):
+        raise RuntimeError("Source citation verification is unavailable")
+    verified = verifier(citation["anchor"], citation_id=citation["citation_id"])
+    verified = _validate_verified_citation(
+        verified, document_id=document_id, version_id=version_id
+    )
+    if verified["citation_id"] != citation["citation_id"]:
+        raise ValueError("source verifier changed the citation ID")
+    return verified
+
+
+def _verify_quiz_citations(library: Any, quiz: dict[str, Any]) -> dict[str, Any]:
+    verified_quiz = dict(quiz)
+    verified_questions = []
+    for question in quiz["questions"]:
+        verified_question = dict(question)
+        verified_question["citations"] = [
+            _verify_citation_at_source(
+                library,
+                citation,
+                document_id=quiz["document_id"],
+                version_id=quiz["version_id"],
+            )
+            for citation in question["citations"]
+        ]
+        verified_questions.append(verified_question)
+    verified_quiz["questions"] = verified_questions
+    return verified_quiz
+
+
+def _verify_learning_state_citations(
+    library: Any, state: dict[str, Any]
+) -> dict[str, Any]:
+    verified_state = dict(state)
+    verified_memory = []
+    for item in state["memory"]:
+        verified_item = dict(item)
+        verified_item["citations"] = [
+            _verify_citation_at_source(
+                library,
+                citation,
+                document_id=state["document_id"],
+                version_id=state["version_id"],
+            )
+            for citation in item["citations"]
+        ]
+        verified_memory.append(verified_item)
+    verified_state["memory"] = verified_memory
+    return verified_state
+
+
+def _verify_assessment_citations(
+    library: Any,
+    assessment: dict[str, Any],
+    *,
+    document_id: str,
+    version_id: str,
+) -> dict[str, Any]:
+    verified_assessment = dict(assessment)
+    verified_assessment["citations"] = [
+        _verify_citation_at_source(
+            library,
+            citation,
+            document_id=document_id,
+            version_id=version_id,
+        )
+        for citation in assessment["citations"]
+    ]
+    return verified_assessment
+
+
 def _validate_public_quiz(quiz: Any) -> dict[str, Any]:
     if not isinstance(quiz, dict) or set(quiz) != _QUIZ_FIELDS:
         raise ValueError("quiz fields do not match the public Quiz contract")
@@ -390,16 +468,19 @@ def _validate_assessment(
     citations = assessment.get("citations")
     if not isinstance(citations, list) or not citations:
         raise ValueError("assessment requires a verified citation")
-    allowed = {
-        (citation["citation_id"], citation["verification_id"])
+    allowed = [
+        (citation["citation_id"], citation["anchor"])
         for question in quiz["questions"]
         for citation in question["citations"]
-    }
+    ]
     for citation in citations:
         _validate_verified_citation(
             citation, document_id=quiz["document_id"], version_id=quiz["version_id"]
         )
-        if (citation["citation_id"], citation["verification_id"]) not in allowed:
+        if not any(
+            citation_id == citation["citation_id"] and anchor == citation["anchor"]
+            for citation_id, anchor in allowed
+        ):
             raise ValueError("assessment cites evidence outside the submitted quiz")
     return assessment
 
@@ -670,7 +751,7 @@ class TutorAdapter:
         if not callable(getter):
             raise RuntimeError("Learning state is not ready; quiz storage is unavailable")
         quiz = await getter(_required_id(quiz_id, "quiz_id", uuid_value=True))
-        return _validate_public_quiz(quiz)
+        return _verify_quiz_citations(self.library, _validate_public_quiz(quiz))
 
     async def get_learning_state(self, document_id: str, version_id: str) -> dict[str, Any]:
         store = _learning_store(self.learning_store)
@@ -679,11 +760,10 @@ class TutorAdapter:
         if not _VERSION_RE.fullmatch(normalized_version_id):
             raise ValueError("version_id must be a full SHA-256 version")
         state = await store.get_state(normalized_document_id, normalized_version_id)
-        return _validate_learning_state(
-            state,
-            document_id=normalized_document_id,
-            version_id=normalized_version_id,
+        validated_state = _validate_learning_state(
+            state, document_id=normalized_document_id, version_id=normalized_version_id
         )
+        return _verify_learning_state_citations(self.library, validated_state)
 
     async def submit_attempt(self, attempt: dict[str, Any]) -> dict[str, Any]:
         if not isinstance(attempt, dict):
@@ -760,7 +840,13 @@ class TutorAdapter:
         if not callable(assessment_submitter):
             raise RuntimeError("Learning state is not ready; private assessment service is unavailable")
         result = await assessment_submitter(normalized, quiz)
-        return _validate_assessment(result, attempt=normalized, quiz=quiz)
+        validated_assessment = _validate_assessment(result, attempt=normalized, quiz=quiz)
+        return _verify_assessment_citations(
+            self.library,
+            validated_assessment,
+            document_id=quiz["document_id"],
+            version_id=quiz["version_id"],
+        )
 
     async def save_activity(
         self, activity: dict[str, Any], mutation_id: str, base_revision: int
@@ -776,7 +862,9 @@ class TutorAdapter:
             _required_id(mutation_id, "mutation_id", uuid_value=True),
             normalized_revision,
         )
-        return _validate_learning_state(state)
+        return _verify_learning_state_citations(
+            self.library, _validate_learning_state(state)
+        )
 
     async def review_memory(self, review: dict[str, Any]) -> dict[str, Any]:
         if not isinstance(review, dict):
@@ -811,7 +899,9 @@ class TutorAdapter:
             raise ValueError("grade must be an integer between 0 and 3")
         normalized["reviewed_at"] = _required_timestamp(review.get("reviewed_at"), "reviewed_at")
         state = await _learning_store(self.learning_store).review_memory(normalized)
-        return _validate_learning_state(state)
+        return _verify_learning_state_citations(
+            self.library, _validate_learning_state(state)
+        )
 
 
 def register_tutor(

@@ -75,7 +75,7 @@ UNIT-02 채점 service 처리 순서:
 2. 정규화된 `Attempt`를 UTF-8 JSON, key 정렬, 고정 separator로 직렬화해 SHA-256 payload hash를 만든다. 정규화 규칙은 fixture로 고정한다.
 3. 짧은 DB transaction에서 `(user_id, client_mutation_id)`를 claim한다. 같은 ID·같은 hash의 완료 요청은 저장된 원 Assessment를 돌려주며 provider를 다시 호출하지 않는다. 같은 ID·다른 hash는 conflict다. 진행 중 동일 요청은 두 번째 provider 평가를 시작하지 않고 pending/retry 규칙으로 처리한다.
 4. transaction을 끝낸 뒤 server-only grading input과 사용자 answer를 평가 provider에 전달한다. provider timeout/error는 durable 상태를 부분 반영하지 않고 재시도 가능한 claim 상태와 안전한 내부 error code로 기록한다. private rubric/answer와 credentials는 client 또는 일반 로그에 쓰지 않는다.
-5. Assessment citations는 답한 quiz question의 검증 citation을 서버가 선택한다. provider는 citation ID를 만들지 않는다. 현재 in-process 구조 검증은 `verified: true` DTO를 검사한다. 실제 quote/page/hash 검증은 citation verifier에 맡기고 그 결과를 연결한다.
+5. Assessment citations는 답한 quiz question의 검증 citation을 서버가 선택한다. provider는 citation ID를 만들지 않는다. Tutor 응답 경계는 저장 Quiz·LearningState memory·Assessment citation의 anchor를 `LibraryAdapter.verify_citation(anchor, citation_id=...)`에 다시 제출해 원문 quote/page/hash/geometry를 확인하고 새 10분 verification ID를 반환한다. 기존 Tutor fixture의 fake library는 proof 재발급을 반영했지만, 실 PDF/page source와 결합하고 verifier 실패를 확인하는 fixture는 아직 필요하다.
 6. per-question score와 비공개 grading input의 concept ID/한국어 label을 묶어 mastery evidence를 만든다. 같은 attempt에서 concept가 중복되면 점수 평균을 낸다. transaction은 이전 `evidence_attempt_ids` 수를 n으로 하고 `new_score=(old_score*n+attempt_concept_mean)/(n+1)`로 갱신하며 attempt ID를 한 번만 추가한다. 대화 수는 mastery로 계산하지 않는다. score가 1보다 낮은 문항에는 한국어 Memory front/back, 해당 검증 citation, `due_at=server clock + 1 day`, review_count 0을 생성해 함께 저장한다.
 7. 두 번째 짧은 transaction에서 claim/hash를 재확인하고 `base_learning_revision` CAS를 수행한다. 성공 시 attempt, Assessment, per-question mastery evidence, 오답 Memory, quiz activity 및 새 revision을 한 번에 저장한다. revision conflict면 일부 학습 데이터 변경 없이 terminal conflict를 반환한다. transaction 실패는 저장소에서 rollback하고 claim을 재시도 가능하게 풀어야 한다. 응답에서 `Assessment.learning_revision`과 저장 `LearningState.learning_revision`이 같다.
 8. 성공 후 동일 mutation replay는 저장된 동일 Assessment와 기존 Memory를 유지하며 provider를 다시 부르지 않는다. process가 claim 이후 종료된 경우 lease/expiry 또는 명시적 retry 경로가 provider 중복 호출을 안전하게 복구해야 한다.
@@ -182,7 +182,7 @@ Migration acceptance points:
 | DB | 이번 UNIT-02 checkpoint는 실제 DB patch를 적용하지 않음 | migration fresh/upgrade/replay, atomic rollback, 동시 idempotency, 같은 ID 다른 hash, revision CAS, user isolation, process restart replay |
 | Provider | fake evaluator가 private grading, replay, provider 오류 retry, commit 오류 claim 해제를 검사 | private rubric의 server-only 접근, 한국어 feedback, timeout/error/retry, provider 중복 방지, 실제 credential 환경의 평가 |
 | API | `contracts/openapi.yaml` 경로 확인. Router mount 검증은 없음 | auth/user scope, contract header, status/error mapping, `/v1/*` 실 mount, API integration fixture |
-| Citation | adapter에서 citation DTO의 shape와 quiz source set membership을 확인 | citation verifier가 page text/hash/quote/geometry를 source document에 대조하고 실패를 거부하는 end-to-end fixture |
+| Citation | Tutor 응답 직전 LibraryAdapter source verifier 호출, citation ID·anchor 기반 Quiz evidence membership, 기존 Tutor fixture double 갱신 | Tutor-to-Library source verification fixture, 실 PDF/page source quote/hash/geometry 거부, mounted API 및 UI 오류 확인 |
 | 앱 | 이 checkpoint에서 browser, iPad simulator/device, 설치형 product build 수행 안 함 | UNIT-05 한국어 UI, iPad online/offline 상태, 제품 build/device 검증 |
 
 2026-10-09에 실행한 명령은 다음과 같다.
@@ -207,4 +207,4 @@ Chat/Reading/Quiz 요청에서 옛 optional toggle 또는 임의 tool name이 �
 - 앞선 unfiltered 실행에서는 오래된 `web_search` 기대 두 건과 `test_cold_start_stalled_provider_settles_with_bounded_retries[partial_stream]` 한 건이 실패했다. 기존 기대와 tool/readiness fixture를 새 정책에 맞게 갱신했다. 최종 실행에서는 time-bound provider test의 `connect`, `stream`, `partial_stream` 세 case를 제외했으므로 provider timeout 회귀는 검증되지 않았다.
 - 실행은 pytest fixture/source 수준이다. 실제 MCP/CLI, provider credential, SQLite restart, mounted API, iPadOS build/device는 확인하지 않았다. 최종 suite 명령은 [UNIT-02 handoff](../../handoff/UNIT-02.md)에 기록했다.
 
-계약은 `0.1.0` 유지, `/v1/*` planned/unmounted, `LearningStateStore` 주입·재시작 보존 및 citation source quote/hash 검증 미완료다. 제품 준비 상태는 여전히 `product_ready:false`다. 이 문서는 사용자가 요청한 추가 handoff로 작성했지만 `docs/handoffs/unit-02.md`는 committed `integration/ownership.json`에 배정되어 있지 않다. 통합 담당이 다음 통합 기준선에서 해당 경로를 소유권에 등록해야 한다.
+계약은 `0.1.0` 유지, `/v1/*` planned/unmounted, `LearningStateStore` 주입·재시작 보존과 실제 source 기반 citation 결합 검증은 미완료다. Tutor 응답 경계는 citation source verifier 호출을 수행하고 기존 Tutor mutation fixture의 fake library를 갱신했지만 이번 checkpoint에서 테스트를 실행하지 않았다. 직전 294-test 실행은 이 수정 전 결과다. 제품 준비 상태는 여전히 `product_ready:false`다. 이 문서는 사용자가 요청한 추가 handoff로 작성했지만 `docs/handoffs/unit-02.md`는 committed `integration/ownership.json`에 배정되어 있지 않다. 통합 담당이 다음 통합 기준선에서 해당 경로를 소유권에 등록해야 한다.
