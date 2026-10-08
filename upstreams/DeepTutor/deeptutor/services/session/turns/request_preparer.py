@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import re
 import time
 from typing import TYPE_CHECKING, Any
 import uuid
@@ -40,6 +41,10 @@ from .._turn_runtime_shared import (
     _timed_media_id,
     _TurnExecution,
     _workspace_mode,
+)
+
+_MNEMOSYNE_CONTENT_LANGUAGE_RE = re.compile(
+    r"^(und|[A-Za-z]{2,8}(-[A-Za-z0-9]{1,8})*)$"
 )
 
 if TYPE_CHECKING:
@@ -160,6 +165,12 @@ class TurnRequestPreparer:
 
             payload = {**payload, "language": get_response_language(default="en")}
         raw_config = dict(payload.get("config", {}) or {})
+        mnemosyne_content_language = raw_config.pop("_mnemosyne_content_language", None)
+        if mnemosyne_content_language is not None and (
+            not isinstance(mnemosyne_content_language, str)
+            or not _MNEMOSYNE_CONTENT_LANGUAGE_RE.fullmatch(mnemosyne_content_language)
+        ):
+            raise RuntimeError("Mnemosyne content language must be a valid language tag")
         linked_task_ids = raw_config.pop("linked_task_ids", None)
         resource_reuse = raw_config.pop("_resource_reuse", None)
         persistent_kbs = raw_config.pop("_persistent_knowledge_bases", None)
@@ -361,6 +372,7 @@ class TurnRequestPreparer:
         payload = {
             **payload,
             "capability": capability,
+            "_mnemosyne_content_language": mnemosyne_content_language,
             "workspace_mode": workspace_mode,
             "course_id": requested_course_id,
             # Rendered here, where the course is already loaded and validated,

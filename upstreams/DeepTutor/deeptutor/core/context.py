@@ -104,6 +104,7 @@ class UnifiedContext:
         attachments: Images / files sent with the message.
         config_overrides: Per-request config tweaks (e.g. temperature).
         language: UI / response language ("en" | "zh").
+        content_language: Language of the attached reading source, when known.
         memory_context: Memory text in the latest runtime-context snapshot.
         learning_journal_context: Mission and handoff snapshot taken at turn start.
         persona_context: Selected persona's instructions, eagerly injected
@@ -148,6 +149,8 @@ class UnifiedContext:
     capability_output: CapabilityOutput = field(default_factory=CapabilityOutput)
     extension_state: dict[str, dict[str, Any]] = field(default_factory=dict)
     metadata: dict[str, Any] = field(default_factory=dict)
+    # Appended to preserve positional construction compatibility.
+    content_language: str = "und"
 
     def extension(self, namespace: str) -> dict[str, Any]:
         """Return an isolated mutable namespace for a loop extension."""

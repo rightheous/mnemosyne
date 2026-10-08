@@ -31,6 +31,8 @@ SUPPORTED_CAPABILITIES = frozenset(
 )
 REQUIRED_LEARNING_SERVICES = ("assessment", "memory", "progress", "review")
 _VERSION_RE = re.compile(r"^sha256:[a-f0-9]{64}$")
+_CONTENT_LANGUAGE_RE = re.compile(r"^(und|[A-Za-z]{2,8}(-[A-Za-z0-9]{1,8})*)$")
+_CONTENT_LANGUAGE_CONFIG_KEY = "_mnemosyne_content_language"
 _DATETIME_RE = re.compile(
     r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$"
 )
@@ -491,7 +493,9 @@ def _learning_store(store: LearningStateStore | None) -> LearningStateStore:
     return store
 
 
-def native_protocol_turn_request(request: dict[str, Any]) -> TurnRequest:
+def native_protocol_turn_request(
+    request: dict[str, Any], *, content_language: str | None = None
+) -> TurnRequest:
     """Constrain an already validated native /ws start command for Mnemosyne.
 
     The WebSocket command schema remains DeepTutor protocol 2.0. This adapter
@@ -505,6 +509,19 @@ def native_protocol_turn_request(request: dict[str, Any]) -> TurnRequest:
         for key, value in request.items()
         if key not in {"type", "protocol_version"}
     }
+    config = payload.get("config") or {}
+    if not isinstance(config, dict):
+        raise ValueError("Tutor config must be an object")
+    config = dict(config)
+    # Direct protocol clients cannot inject Mnemosyne's source-language
+    # context; the adapter supplies this private bridge for Reader turns.
+    config.pop(_CONTENT_LANGUAGE_CONFIG_KEY, None)
+    if content_language is not None:
+        normalized_content_language = str(content_language).strip()
+        if not _CONTENT_LANGUAGE_RE.fullmatch(normalized_content_language):
+            raise ValueError("content_language must be a valid language tag")
+        config[_CONTENT_LANGUAGE_CONFIG_KEY] = normalized_content_language
+    payload["config"] = config
     requested_capability = str(payload.get("capability") or "chat").strip()
     capability = _NATIVE_CAPABILITY_ALIASES.get(requested_capability)
     if capability is None:
@@ -567,7 +584,14 @@ def native_turn_request(
         raise ValueError(
             "This action requires a learning-state service, not a native turn capability"
         )
-    response_language = str(request.get("response_language") or "ko").strip().lower()
+    content_language = str(context.get("content_language") or "und").strip()
+    if not _CONTENT_LANGUAGE_RE.fullmatch(content_language):
+        raise ValueError("reader_context.content_language must be a valid language tag")
+    response_language = str(
+        request.get("response_language")
+        or context.get("response_language")
+        or "ko"
+    ).strip().lower()
     message = str(request.get("message") or "").strip()
     if not message:
         raise ValueError("message is required")
@@ -611,10 +635,11 @@ def native_turn_request(
         content=message,
         capability=capability,
         client_submission_id=submission_id,
-        # `language` is DeepTutor's response/UI language. Document language is
-        # retained separately by the Mnemosyne request and never used here.
-        language=response_language,
+        # Preserve source language independently; the explicit reply override
+        # continues to make Korean the response language for English material.
+        language=content_language,
         reply_language_override=response_language,
+        config={_CONTENT_LANGUAGE_CONFIG_KEY: content_language},
         reading_material_id=native_material_id if action == "reading" else None,
         reading_material_revision=(
             native_revision if action == "reading" and native_revision else None
@@ -716,7 +741,12 @@ class TutorAdapter:
             material_id=material_id,
             material_revision=material_revision,
         )
-        return await self.turns.start_turn(native_protocol_turn_request(native.model_dump()))
+        return await self.turns.start_turn(
+            native_protocol_turn_request(
+                native.model_dump(),
+                content_language=(native.config or {}).get(_CONTENT_LANGUAGE_CONFIG_KEY),
+            )
+        )
 
     async def start_native_turn(
         self, request: dict[str, Any]

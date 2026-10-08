@@ -67,7 +67,7 @@
 ## 추가 checkpoint — 2026-10-09
 
 - 사용자 요청으로 DB/API/contract/dependency 명세와 소유자별 patch 제안을 [`docs/handoffs/unit-02.md`](../docs/handoffs/unit-02.md)에 작성했다. 이 경로는 여전히 committed `integration/ownership.json`에 배정되지 않았으므로, 통합 담당이 소유권 map에 추가해야 한다.
-- `TutorAdapter`가 반환하는 public Quiz, Assessment, LearningState를 fail-closed 검사한다. Quiz/Assessment는 허용 키와 주요 필드를 검사하고 LearningState는 nested quiz-attempt, mastery, memory/citation, progress, activity entry까지 contract shape를 검사한다. Quiz에서 private/추가 필드를 거부하고, immutable document/version, quiz question IDs, Assessment attempt ID와 quiz citation 집합을 대조한다. `save_activity` 입력 및 저장 결과도 검증한다. 최신 구현은 Tutor 응답 직전에 각 Quiz·Assessment·Memory citation의 anchor를 `LibraryAdapter.verify_citation(anchor, citation_id=...)`에 다시 제출하고 새 verification ID를 반환한다. 실제 source verifier와 Tutor의 결합 fixture는 아직 실행하지 않았다.
+- `TutorAdapter`가 반환하는 public Quiz, Assessment, LearningState를 fail-closed 검사한다. Quiz/Assessment는 허용 키와 주요 필드를 검사하고 LearningState는 nested quiz-attempt, mastery, memory/citation, progress, activity entry까지 contract shape를 검사한다. Quiz에서 private/추가 필드를 거부하고, immutable document/version, quiz question IDs, Assessment attempt ID와 quiz citation 집합을 대조한다. `save_activity` 입력 및 저장 결과도 검증한다. Tutor 응답 직전에 각 Quiz·Assessment·Memory citation의 anchor를 `LibraryAdapter.verify_citation(anchor, citation_id=...)`에 다시 제출하고 새 verification ID를 반환한다. 추가한 실제 PDF source verifier fixture는 UNIT-01 page query binding 오류로 아직 통과하지 못했다.
 - `learning/service.py`에 `MnemosyneAssessmentService`를 추가했다. private grading input을 OpenAI-compatible stream으로 평가하고 `mnemosyne_assessment` task scope, Korean feedback/hint, strict JSON schema를 사용한다. 실패 claim 해제, 같은 mutation/hash의 persisted replay, per-question concept evidence와 score<1 Memory candidate를 구현했다. UNIT-01의 claim/commit store methods가 없으면 product path는 fail closed다.
 - `learning.service.next_mnemosyne_memory_due_at`에 Memory grade별 server-clock 일정 규칙(grade 0: 10분, 1: 1일, 2: 3일×2^review_count 최대 90일, 3: 7일×2^review_count 최대 180일)을 추가하고 입력·상한 fixture를 뒀다. 이 helper는 아직 `TutorAdapter.review_memory`나 durable store transaction에 연결되지 않았다. UNIT-01이 MemoryReview 반영과 revision CAS를 atomic 처리할 때 이 규칙을 호출해야 한다.
 - 전체 지정 6개 pytest 파일을 실행해 **147 passed, 4 warnings**를 확인했다. commit failure retry fixture 첫 실행에서 citation ID 누락으로 1개가 채점 구성 단계에서 실패했으며 fixture를 수정한 재실행은 통과했다. 테스트가 변경 Python 모듈을 import/compile했고 변경 UNIT-02 파일 `git diff --check`도 통과했다. 별도 AST-only probe는 sandbox의 uv cache 접근 거부로 실행하지 못했다. fake evaluator/provider fixture만 실행했으며 real provider, DB migration/restart, mounted API, browser/iPad build/device 검증은 수행하지 않았다.
@@ -83,12 +83,22 @@
 - 임시 `DEEPTUTOR_HOME`과 uv 의존성 런타임에서 실행한 pytest/import 기반 source fixture 검사다. 실제 MCP/CLI 서비스 연결, real provider, DB migration/restart, mounted API, iPadOS build/device 검증은 아니다. `git diff --check`도 변경 UNIT-02 파일에서 통과했다.
 - 계약은 계속 `0.1.0`; `/v1/*` planned/unmounted, durable learning store wiring은 미완료다. Tutor 응답에서 citation source 재검증을 호출하도록 연결했지만, 실제 LibraryAdapter와 결합한 fixture 및 외부 사용자 경계 검증은 남아 있다. `product_ready:false`를 유지한다.
 
+## 추가 checkpoint — 문서 언어와 Tutor 응답 언어 분리 — 2026-10-09
+
+- DeepTutor `/ws` 2.0의 공개 `TurnRequest` 필드는 변경하지 않았다. `TutorAdapter`가 `reader_context.content_language`를 private config bridge로 넘기고 `request_preparer`가 capability config 검증 전에 bridge를 제거해 실행 payload에 옮긴다. executor의 `UnifiedContext`에는 영어 원문(`content_language=en`)과 한국어 답변(`language=ko`)이 따로 전달된다. 언어 태그 형식이 맞지 않으면 요청을 거부한다.
+- `native_turn_request`의 source/response 언어 매핑, direct protocol bridge strip, SQLite turn runtime의 context 전달 검증을 실행했다. 선택 실행은 **9 passed, 37 deselected, 3 warnings**였다.
+- `DEEPTUTOR_HOME=/private/tmp/mnemosyne-unit02-test-home uv run ... python ../../checks/source_adapters.py`는 **PASS**했다: 실제 `ReadingStore`, 지정 PDF fixture, native registration, 6 capability mapping, 12 native frame replay, SQLite reopen/duplicate append, 좌표 roundtrip를 검사했다. 결과에서 `product_ready:false`를 확인했다.
+- 전체 `tests/api/test_unified_ws_turn_runtime.py`는 **45 passed, 1 failed, 9 warnings**였다. 유일한 실패는 bilingual PDF Tutor→Library fixture이며, UNIT-01 `library.py:1095–1099` get_page query의 parameter 누락이다. Tutor/언어 회귀는 통과했다.
+- 제품 인수 전에는 실제 Quiz/Assessment·Mastery/Memory 저장, durable store 연결/재시작, 인증 mounted API, Reader citation 이벤트 연결, 실제 provider turn, 기기 검증이 남아 있다. contract `0.1.0`과 registry의 `product_ready:false`를 유지한다.
+
 ## 추가 checkpoint — Tutor citation 재검증 경계 — 2026-10-09
 
 - UNIT-01 `LibraryAdapter.verify_citation(anchor, citation_id=...)`의 source API와 `mnemosyne_verifications.verification_id` 단독 primary key를 확인했다. citation ID 재사용으로 원문 anchor를 재검증하고 새 10분 verification ID를 발급할 수 있다. UNIT-01 파일은 읽기만 했다.
 - `TutorAdapter.get_quiz`, `get_learning_state`, `save_activity`, `review_memory`, `submit_attempt` 결과의 public citation을 source verifier에 재제출하도록 연결했다. verifier 누락은 fail closed이며, verifier가 실패하면 응답을 반환하지 않는다. Assessment는 안정 citation ID와 anchor가 제출된 Quiz evidence에 속하는지 확인한 다음 source verifier의 새 proof를 반환한다.
-- 기존 Tutor mutation fixture의 library double을 `verify_citation` 구현으로 갱신해 새 proof 반환을 기대하도록 바꿨다. 이번 checkpoint에서 테스트는 실행하지 않았다. 직전 도구 표면 변경의 **294 passed, 3 deselected, 3 warnings**는 이 코드 변경 전 결과이며 이번 변경을 검증하지 않는다. 변경 파일 `git diff --check`는 통과했다.
-- 이 연결은 직접 TutorAdapter 호출 경계다. 실 PDF/page hash를 쓰는 UNIT-01 verifier 결합 fixture, durable learning store/bootstrap 주입, 인증된 API mount, process restart, real provider, iPad build/device는 여전히 검증되지 않았다. 계약과 registry는 `0.1.0`, `product_ready:false`를 유지한다.
+- 기존 Tutor mutation fixture double을 verifier 호출에 맞게 바꿨다. `tests/api/test_unified_ws_turn_runtime.py`는 **45 passed**였고, UNIT-01 PDF upload/sync/export source fixture는 **1 passed**였지만 두 결과 모두 새 Tutor↔실제 Library citation 경로 추가 전 실행이다.
+- 영문 1페이지·한글 2페이지가 포함된 `contracts/fixtures/bilingual-geometry.pdf`로 Tutor→Library source fixture를 추가해 실행했다. **실패**: `TutorAdapter.get_quiz`의 검증 호출이 UNIT-01 소유 `library.py:1095–1099`에서 SQLite `ProgrammingError`를 낸다. SQL은 `(document_id, version_id, page_index, parse_revision)` 네 값을 요구하지만 현재 tuple은 `(document_id, version_id, parse_revision)` 세 값만 제공한다. 수정 제안은 tuple에 `page_index`를 포함하는 것이며, 소유권에 따라 UNIT-02는 해당 파일을 편집하지 않았다.
+- 위 통합 fixture는 원문이 맞는 English/Korean anchor를 거쳐 새 proof 재발급과 `require_verified_citation`을 확인하고, 같은 길이의 변조 quote는 거부해야 한다. 현재는 Library 조회 binding 오류 때문에 그 결과까지 도달하지 못한다. UNIT-01 수정 후 해당 테스트를 재실행해야 한다. `git diff --check`는 통과했다.
+- Tutor 응답 경계 코드는 직접 service 호출로 연결되어 있다. durable learning store/bootstrap 주입, 인증된 API mount, process restart, real provider, iPad build/device도 여전히 검증되지 않았다. 계약과 registry는 `0.1.0`, `product_ready:false`를 유지한다.
 
 검증 명령:
 

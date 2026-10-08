@@ -172,6 +172,8 @@ async def test_turn_runtime_replays_events_and_materializes_messages(
             assert "partner_discussion_group_id" not in context.config_overrides
             assert "linked_task_ids" not in context.config_overrides
             captured["user_message"] = context.user_message
+            captured["response_language"] = context.language
+            captured["content_language"] = context.content_language
             captured["metadata"] = context.metadata
             captured["source_manifest"] = context.source_manifest
             yield StreamEvent(
@@ -223,13 +225,17 @@ async def test_turn_runtime_replays_events_and_materializes_messages(
             "knowledge_bases": [],
             "attachments": [],
             "language": "en",
+            "reply_language_override": "ko",
             "persona": "socratic",
             "memory_references": ["summary"],
             "book_references": [{"book_id": "book-1", "page_ids": ["page-1"]}],
             "mastery_path_id": "path-1",
             "mastery_answer": {"question_id": "question-1", "text": "B"},
-            "config": {},
             **consultation,
+            "config": {
+                **(consultation.get("config") or {}),
+                "_mnemosyne_content_language": "en",
+            },
         }
     )
 
@@ -250,12 +256,14 @@ async def test_turn_runtime_replays_events_and_materializes_messages(
     )
     assert started_event["metadata"]["mnemosyne"]["payload"] == {
         "capability": "chat",
-        "response_language": "en",
+        "response_language": "ko",
     }
     done_event = next(e for e in events if e["type"] == "done")
     assert done_event["metadata"]["status"] == "completed"
     assert captured["consult_partner_id"] == requested.get("consult_partner_id")
     assert captured["partner_discussion_group_id"] == requested.get("partner_discussion_group_id")
+    assert captured["response_language"] == "ko"
+    assert captured["content_language"] == "en"
 
     assert captured["turn_status_when_done_published"] == "completed"
     assert captured["title_started_after_done"] is True
@@ -310,7 +318,8 @@ async def test_turn_runtime_replays_events_and_materializes_messages(
         "capability": "chat",
         "tools": [],
         "knowledge_bases": [],
-        "language": "en",
+        "language": "ko",
+        "reply_language_override": "ko",
         # Explicit persona in the payload is persisted as a session-level
         # preference (survives reloads; later turns fall back to it).
         "persona": "socratic",
@@ -1524,7 +1533,9 @@ def test_mnemosyne_turn_mapping_uses_response_language_and_drops_unverified_sele
     )
 
     assert request.capability == "immersive_reading"
-    assert request.language == "ko"
+    assert request.language == "en"
+    assert request.reply_language_override == "ko"
+    assert request.config["_mnemosyne_content_language"] == "en"
     assert request.reading_material_id == "abcdef12"
     assert request.reading_material_revision == 3
     assert request.reading_viewport.model_dump() == {"locator": 2, "selection": None}
@@ -1543,6 +1554,11 @@ def test_mnemosyne_turn_mapping_rejects_invalid_identity_and_version():
     invalid_version["reader_context"]["version_id"] = "sha256:short"
     with pytest.raises(ValueError, match="full SHA-256"):
         native_turn_request(invalid_version, material_id="abcdef12", material_revision=1)
+
+    invalid_language = _mnemosyne_turn_request()
+    invalid_language["reader_context"]["content_language"] = "English label"
+    with pytest.raises(ValueError, match="content_language"):
+        native_turn_request(invalid_language, material_id="abcdef12", material_revision=1)
 
 
 @pytest.mark.asyncio
@@ -1740,6 +1756,26 @@ def test_native_protocol_turn_adapter_defaults_to_korean_and_rejects_unneeded_ca
         }
     )
     assert reading.reading_viewport.model_dump() == {"locator": 2, "selection": None}
+
+    # Raw /ws clients cannot smuggle the private reader-language bridge.
+    stripped = native_protocol_turn_request(
+        {
+            "content": "설명해 줘",
+            "client_submission_id": "00000000-0000-0000-0000-000000000007",
+            "capability": "chat",
+            "config": {"_mnemosyne_content_language": "en"},
+        }
+    )
+    assert "_mnemosyne_content_language" not in stripped.config
+    trusted = native_protocol_turn_request(
+        {
+            "content": "설명해 줘",
+            "client_submission_id": "00000000-0000-0000-0000-000000000008",
+            "capability": "chat",
+        },
+        content_language="en",
+    )
+    assert trusted.config["_mnemosyne_content_language"] == "en"
 
 
 @pytest.mark.asyncio
@@ -2026,6 +2062,97 @@ async def test_tutor_learning_mutations_match_contract_revision_fields():
     assert saved_state["memory"][0]["citations"][0]["verification_id"].endswith(
         "000000000040"
     )
+
+
+@pytest.mark.asyncio
+async def test_tutor_revalidates_bilingual_quiz_citations_against_source_pdf(tmp_path):
+    import copy
+    from pathlib import Path
+
+    from deeptutor.mnemosyne.library import LibraryAdapter, LibraryError
+    from deeptutor.mnemosyne.tutor import TutorAdapter
+    from deeptutor.reading.store import ReadingStore
+
+    repository_root = Path(__file__).resolve().parents[4]
+    source = repository_root / "contracts" / "fixtures" / "bilingual-geometry.pdf"
+    library = LibraryAdapter(ReadingStore(tmp_path / "reading"))
+    document = library.upload_pdf(
+        source.read_bytes(), "bilingual-geometry.pdf", title="Bilingual fixture"
+    )
+    document_id, version_id = document["document_id"], document["version_id"]
+
+    def source_citation(page_index: int, quote: str) -> tuple[dict, dict]:
+        page = library.get_page(document_id, version_id, page_index)
+        start = page["text"].index(quote)
+        end = start + len(quote)
+        segments = [
+            segment
+            for segment in page["segments"]
+            if segment["start_scalar"] < end and segment["end_scalar"] > start
+        ]
+        assert segments
+        anchor = {
+            "document_id": document_id,
+            "version_id": version_id,
+            "page_index": page_index,
+            "parse_revision": page["parse_revision"],
+            "text_sha256": page["text_sha256"],
+            "start_scalar": start,
+            "end_scalar": end,
+            "quote": quote,
+            "rects": [segment["rect"] for segment in segments],
+        }
+        return anchor, library.verify_citation(anchor)
+
+    english_anchor, english_citation = source_citation(0, "capacitor")
+    korean_anchor, korean_citation = source_citation(1, "커패시터는")
+    quiz = {
+        "quiz_id": "00000000-0000-0000-0000-000000000128",
+        "document_id": document_id,
+        "version_id": version_id,
+        "title": "에너지 확인",
+        "questions": [
+            {
+                "question_id": "00000000-0000-0000-0000-000000000129",
+                "prompt": "영문 교재에서 capacitor는 무엇을 저장하나요?",
+                "kind": "free_text",
+                "choices": [],
+                "citations": [english_citation],
+            },
+            {
+                "question_id": "00000000-0000-0000-0000-000000000130",
+                "prompt": "한글 교재에서 커패시터는 무엇을 저장하나요?",
+                "kind": "free_text",
+                "choices": [],
+                "citations": [korean_citation],
+            },
+        ],
+        "response_language": "ko",
+    }
+
+    class LearningStore:
+        async def get_quiz(self, _quiz_id):
+            return quiz
+
+    tutor = TutorAdapter(object(), library, LearningStore())
+    verified_quiz = await tutor.get_quiz(quiz["quiz_id"])
+    citations = [question["citations"][0] for question in verified_quiz["questions"]]
+    original_citations = [english_citation, korean_citation]
+    expected_anchors = [english_anchor, korean_anchor]
+    assert verified_quiz["response_language"] == "ko"
+    assert [citation["anchor"]["page_index"] for citation in citations] == [0, 1]
+    for verified, original, expected_anchor in zip(citations, original_citations, expected_anchors):
+        assert verified["citation_id"] == original["citation_id"]
+        assert verified["verification_id"] != original["verification_id"]
+        assert library.require_verified_citation(verified) == expected_anchor
+
+    tampered_quiz = copy.deepcopy(quiz)
+    tampered = tampered_quiz["questions"][0]["citations"][0]
+    tampered["anchor"]["quote"] = "X" * len(tampered["anchor"]["quote"])
+    quiz.clear()
+    quiz.update(tampered_quiz)
+    with pytest.raises(LibraryError, match="citation text"):
+        await tutor.get_quiz(tampered_quiz["quiz_id"])
 
 
 @pytest.mark.asyncio

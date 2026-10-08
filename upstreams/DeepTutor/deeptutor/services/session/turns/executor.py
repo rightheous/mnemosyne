@@ -957,6 +957,7 @@ class TurnExecutor:
                 attachments=attachments,
                 config_overrides=request_config,
                 language=payload.get("language", "en"),
+                content_language=payload.get("_mnemosyne_content_language") or "und",
                 memory_context=memory_context,
                 learning_journal_context=learning_journal_context,
                 persona_context=persona_context,

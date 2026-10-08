@@ -111,11 +111,12 @@ MemoryReference = Literal["recent", "profile", "scope", "preferences", "summary"
 
 
 class TurnRequest(BaseModel):
-    """Validated turn input; ``config`` contains capability options only.
+    """Validated turn input with capability options and reserved runtime metadata.
 
     The model keeps the historical keyword construction style. Runtime-only
-    keys nested in ``config`` are translated for one major version so older
-    clients continue to work while receiving a deprecation warning.
+    keys nested in ``config`` are extracted before capability validation.
+    Legacy runtime keys are translated for one major version so older clients
+    continue to work while receiving a deprecation warning.
     """
 
     model_config = ConfigDict(extra="forbid")

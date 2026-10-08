@@ -182,7 +182,7 @@ Migration acceptance points:
 | DB | 이번 UNIT-02 checkpoint는 실제 DB patch를 적용하지 않음 | migration fresh/upgrade/replay, atomic rollback, 동시 idempotency, 같은 ID 다른 hash, revision CAS, user isolation, process restart replay |
 | Provider | fake evaluator가 private grading, replay, provider 오류 retry, commit 오류 claim 해제를 검사 | private rubric의 server-only 접근, 한국어 feedback, timeout/error/retry, provider 중복 방지, 실제 credential 환경의 평가 |
 | API | `contracts/openapi.yaml` 경로 확인. Router mount 검증은 없음 | auth/user scope, contract header, status/error mapping, `/v1/*` 실 mount, API integration fixture |
-| Citation | Tutor 응답 직전 LibraryAdapter source verifier 호출, citation ID·anchor 기반 Quiz evidence membership, 기존 Tutor fixture double 갱신 | Tutor-to-Library source verification fixture, 실 PDF/page source quote/hash/geometry 거부, mounted API 및 UI 오류 확인 |
+| Citation | Tutor 응답 직전 LibraryAdapter source verifier 호출; `checks/source_adapters.py` PASS; 실 bilingual PDF Tutor→Library fixture 추가 | 현재 Tutor↔Library fixture는 UNIT-01 `library.py:1095–1099`의 get_page binding 오류로 실패. tuple에 `page_index`를 포함하는 UNIT-01 수정 후 재실행, mounted API 및 UI 오류 확인 |
 | 앱 | 이 checkpoint에서 browser, iPad simulator/device, 설치형 product build 수행 안 함 | UNIT-05 한국어 UI, iPad online/offline 상태, 제품 build/device 검증 |
 
 2026-10-09에 실행한 명령은 다음과 같다.
@@ -207,4 +207,10 @@ Chat/Reading/Quiz 요청에서 옛 optional toggle 또는 임의 tool name이 �
 - 앞선 unfiltered 실행에서는 오래된 `web_search` 기대 두 건과 `test_cold_start_stalled_provider_settles_with_bounded_retries[partial_stream]` 한 건이 실패했다. 기존 기대와 tool/readiness fixture를 새 정책에 맞게 갱신했다. 최종 실행에서는 time-bound provider test의 `connect`, `stream`, `partial_stream` 세 case를 제외했으므로 provider timeout 회귀는 검증되지 않았다.
 - 실행은 pytest fixture/source 수준이다. 실제 MCP/CLI, provider credential, SQLite restart, mounted API, iPadOS build/device는 확인하지 않았다. 최종 suite 명령은 [UNIT-02 handoff](../../handoff/UNIT-02.md)에 기록했다.
 
-계약은 `0.1.0` 유지, `/v1/*` planned/unmounted, `LearningStateStore` 주입·재시작 보존과 실제 source 기반 citation 결합 검증은 미완료다. Tutor 응답 경계는 citation source verifier 호출을 수행하고 기존 Tutor mutation fixture의 fake library를 갱신했지만 이번 checkpoint에서 테스트를 실행하지 않았다. 직전 294-test 실행은 이 수정 전 결과다. 제품 준비 상태는 여전히 `product_ready:false`다. 이 문서는 사용자가 요청한 추가 handoff로 작성했지만 `docs/handoffs/unit-02.md`는 committed `integration/ownership.json`에 배정되어 있지 않다. 통합 담당이 다음 통합 기준선에서 해당 경로를 소유권에 등록해야 한다.
+계약은 `0.1.0` 유지, `/v1/*` planned/unmounted, `LearningStateStore` 주입·재시작 보존과 실제 source 기반 citation 통합 검증은 미완료다. 추가한 bilingual PDF Tutor→Library fixture는 UNIT-01 `library.py`의 page query가 placeholder 4개에 parameter 3개를 전달해 실패했다. 정확한 원인과 수정 제안은 [UNIT-02 handoff](../../handoff/UNIT-02.md)에 남겼다. 직전 294-test 실행은 이 citation 수정 전 결과다. 제품 준비 상태는 여전히 `product_ready:false`다. 이 문서는 사용자가 요청한 추가 handoff로 작성했지만 `docs/handoffs/unit-02.md`는 committed `integration/ownership.json`에 배정되어 있지 않다. 통합 담당이 다음 통합 기준선에서 해당 경로를 소유권에 등록해야 한다.
+
+## 추가 checkpoint — 문서 언어와 응답 언어 분리 — 2026-10-09
+
+- DeepTutor `/ws` 2.0 공개 `TurnRequest`와 contract schema는 변경하지 않았다. Tutor의 private config bridge가 ReaderContext `content_language`를 request preparer/executor로 전달하며, response language는 `reply_language_override`로 유지한다. turn context에서 `content_language=en`, `language=ko`를 확인했다.
+- `tests/api/test_unified_ws_turn_runtime.py -k 'mnemosyne_turn_mapping or native_protocol_turn_adapter or replays_events_and_materializes_messages'`: **9 passed, 37 deselected, 3 warnings**. 전체 파일: **45 passed, 1 failed, 9 warnings**; 단일 실패는 위 UNIT-01 SQL binding 결함이다.
+- `checks/source_adapters.py`: **PASS** — 2 PDF pages, 12 native frames, 5 native commands, SQLite reopen/replay and duplicate append, 6 capability mappings; product readiness remains false.
