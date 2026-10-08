@@ -865,17 +865,33 @@ def test_mnemosyne_pdf_upload_annotation_sync_restart_and_export(tmp_path: Path)
 
     import pymupdf
 
-    from deeptutor.mnemosyne.library import LibraryAdapter, LibraryError, viewport_point
+    from deeptutor.mnemosyne.library import (
+        CursorExpired, DocumentDeleted, LibraryAdapter, LibraryError, viewport_point,
+    )
 
     repository_root = Path(__file__).resolve().parents[4]
     source = repository_root / "contracts" / "fixtures" / "bilingual-geometry.pdf"
     source_bytes = source.read_bytes()
     source_sha = hashlib.sha256(source_bytes).hexdigest()
     data_root = tmp_path / "user" / "workspace" / "reading"
-    adapter = LibraryAdapter(ReadingStore(data_root))
+    def no_embedding_provider(**_kwargs):
+        raise RuntimeError("Embedding provider not configured")
 
-    document = adapter.upload_pdf(source_bytes, "bilingual-geometry.pdf", title="Geometry fixture")
+    adapter = LibraryAdapter(ReadingStore(data_root), rag_indexer=no_embedding_provider)
+    subject = adapter.create_subject("회로 이론")
+
+    document = adapter.upload_pdf(
+        source_bytes, "bilingual-geometry.pdf", title="Geometry fixture",
+        subject_id=subject["subject_id"],
+    )
+    assert document["index_state"] == "pending"
+    document = asyncio.run(adapter.prepare_index(document["document_id"], document["version_id"]))
     document_id, version_id = document["document_id"], document["version_id"]
+    import stat
+
+    assert stat.S_IMODE(adapter.db.db_path.stat().st_mode) == 0o600
+    assert stat.S_IMODE(adapter.db.originals.stat().st_mode) == 0o700
+    assert stat.S_IMODE(adapter.db.original_path(source_sha).stat().st_mode) == 0o400
     assert document["source_sha256"] == source_sha
     assert version_id == f"sha256:{source_sha}"
     assert document["parse_state"] == "ready"
@@ -883,6 +899,30 @@ def test_mnemosyne_pdf_upload_annotation_sync_restart_and_export(tmp_path: Path)
     assert document["index_state"] == "failed"
     assert document["index_error_code"] == "embedding_provider_unavailable"
     assert adapter.download_original(document_id, version_id) == source_bytes
+    with adapter.db.connect(write=True) as conn:
+        conn.execute(
+            "UPDATE mnemosyne_versions SET index_state='running', index_started_at=0 "
+            "WHERE document_id=? AND version_id=?",
+            (document_id, version_id),
+        )
+    recovered_index = asyncio.run(adapter.prepare_index(document_id, version_id))
+    assert recovered_index["index_state"] == "failed"
+    assert recovered_index["index_error_code"] == "embedding_provider_unavailable"
+    assert adapter.download_original(document_id, version_id) == source_bytes
+    assert len(adapter.list_documents(subject_id=subject["subject_id"])) == 1
+    assert len(adapter.list_documents(search="Geometry fixture")) == 1
+    renamed = adapter.update_document(document_id, title="Geometry fixture v2", expected_revision=1)
+    assert renamed["title"] == "Geometry fixture v2" and renamed["server_revision"] == 2
+    unassigned = adapter.update_document(document_id, subject_id=None, expected_revision=2)
+    assert unassigned["subject_id"] is None and unassigned["server_revision"] == 3
+    assert adapter.list_documents(subject_id=subject["subject_id"]) == []
+
+    folder = adapter.create_folder("기하 fixture", "회전/CropBox fixture")
+    folder_id = folder["workspace_id"]
+    assigned = adapter.assign_folder(document_id, folder_id)
+    assert assigned["tabs"]
+    removed = adapter.remove_from_folder(document_id, folder_id)
+    assert removed["tabs"] == []
 
     page0 = adapter.get_page(document_id, version_id, 0)
     page1 = adapter.get_page(document_id, version_id, 1)
@@ -964,6 +1004,33 @@ def test_mnemosyne_pdf_upload_annotation_sync_restart_and_export(tmp_path: Path)
     ]
     batch = {"contract_version": "0.1.0", "document_id": document_id,
              "version_id": version_id, "mutations": initial}
+    malformed_kind = mutation("upsert", uid(), 0, {
+        "annotation_id": uid(), "document_id": document_id, "version_id": version_id,
+        "page_index": 0, "kind": [], "payload": {},
+    })
+    # The mutation and draft IDs must agree before the draft kind is inspected.
+    malformed_kind["annotation"]["annotation_id"] = malformed_kind["annotation_id"]
+    malformed_result = asyncio.run(
+        adapter.apply_mutations({**batch, "mutations": [malformed_kind]})
+    )["results"][0]
+    assert malformed_result["status"] == "rejected"
+    assert malformed_result["code"] == "invalid_request"
+    assert asyncio.run(
+        adapter.apply_mutations({**batch, "mutations": [copy.deepcopy(malformed_kind)]})
+    )["results"][0] == malformed_result
+
+    malformed_anchor = mutation("upsert", uid(), 0, {
+        "annotation_id": "", "document_id": document_id, "version_id": version_id,
+        "page_index": 0, "kind": "highlight",
+        "payload": {"anchor": None, "color": "#FFDD4480"},
+    })
+    malformed_anchor["annotation"]["annotation_id"] = malformed_anchor["annotation_id"]
+    malformed_result = asyncio.run(
+        adapter.apply_mutations({**batch, "mutations": [malformed_anchor]})
+    )["results"][0]
+    assert malformed_result["status"] == "rejected"
+    assert malformed_result["code"] == "invalid_request"
+
     receipt = asyncio.run(adapter.apply_mutations(batch))
     assert [row["status"] for row in receipt["results"]] == ["applied"] * 4
     assert [row["server_revision"] for row in receipt["results"]] == [1, 2, 3, 4]
@@ -1036,6 +1103,14 @@ def test_mnemosyne_pdf_upload_annotation_sync_restart_and_export(tmp_path: Path)
     tombstone_conflict = asyncio.run(restarted.apply_mutations({**batch, "mutations": [revive]}))["results"][0]
     assert tombstone_conflict["status"] == "conflict" and tombstone_conflict["current"]["deleted"] is True
 
+    expired_cursor = asyncio.run(restarted.snapshot(document_id, version_id))["next_cursor"]
+    with restarted.db.connect(write=True) as conn:
+        conn.execute(
+            "UPDATE mnemosyne_cursors SET expires_at=0 WHERE token=?", (expired_cursor,)
+        )
+    with pytest.raises(CursorExpired, match="expired"):
+        asyncio.run(restarted.changes(expired_cursor, limit=1))
+
     assert hashlib.sha256(restarted.download_original(document_id, version_id)).hexdigest() == source_sha
     with pytest.raises(LibraryError, match="UUID"):
         restarted.get_document("../../etc/passwd")
@@ -1045,6 +1120,13 @@ def test_mnemosyne_pdf_upload_annotation_sync_restart_and_export(tmp_path: Path)
     invalid_anchor["quote"] = "not the source quote"
     with pytest.raises(LibraryError, match="citation text"):
         restarted.verify_anchor(invalid_anchor, page0)
+    assert restarted.delete_document(
+        document_id,
+        confirm_action=f"document.delete:{document_id}",
+        expected_revision=3,
+    )
+    with pytest.raises(DocumentDeleted):
+        restarted.get_document(document_id)
 
 
 def test_library_http_router_settings_and_pdf_round_trip(tmp_path: Path) -> None:
@@ -1062,8 +1144,12 @@ def test_library_http_router_settings_and_pdf_round_trip(tmp_path: Path) -> None
     source_bytes = source.read_bytes()
     secret_store: dict[str, str] = {}
     data_root = tmp_path / "router" / "workspace" / "reading"
+    def no_embedding_provider(**_kwargs):
+        raise RuntimeError("Embedding provider not configured")
+
     library = LibraryAdapter(
         ReadingStore(data_root),
+        rag_indexer=no_embedding_provider,
         settings_defaults_provider=lambda: {
             "provider": {
                 "adapter": "openai-compatible",
@@ -1074,6 +1160,7 @@ def test_library_http_router_settings_and_pdf_round_trip(tmp_path: Path) -> None
         },
         settings_secret_writer=lambda value: secret_store.__setitem__("api_key", value),
         settings_credential_reader=lambda: "api_key" in secret_store,
+        settings_base_url_validator=lambda value: value.startswith("https://llm.example.test/"),
     )
     app = FastAPI()
     app.include_router(build_library_router(library))
@@ -1105,6 +1192,21 @@ def test_library_http_router_settings_and_pdf_round_trip(tmp_path: Path) -> None
             serialized = " ".join(str(row) for row in db.execute("SELECT public_json FROM mnemosyne_public_settings"))
         assert "unit-test-secret-must-not-enter-sqlite" not in serialized
 
+        denied_provider_url = client.put(
+            "/v1/settings",
+            headers={**headers, "If-Match": '"2"', "X-Confirm-Action": "settings.update"},
+            json={
+                "provider": {
+                    "adapter": "openai-compatible",
+                    "base_url": "http://127.0.0.1:8080/v1",
+                    "model": "fixture-model-v3",
+                },
+                "response_language": "ko",
+            },
+        )
+        assert denied_provider_url.status_code == 400
+        assert denied_provider_url.json()["code"] == "invalid_request"
+
         upload = client.post(
             "/v1/documents",
             headers=headers,
@@ -1115,6 +1217,9 @@ def test_library_http_router_settings_and_pdf_round_trip(tmp_path: Path) -> None
         document = upload.json()
         assert document["source_sha256"] == hashlib.sha256(source_bytes).hexdigest()
         assert document["parse_state"] == "ready"
+        assert document["index_state"] == "failed"
+        stored_document = library.get_document(document["document_id"])
+        assert stored_document["index_error_code"] == "embedding_provider_unavailable"
         original = client.get(
             f"/v1/documents/{document['document_id']}/file",
             params={"version_id": document["version_id"]},
@@ -1122,3 +1227,66 @@ def test_library_http_router_settings_and_pdf_round_trip(tmp_path: Path) -> None
         )
         assert original.status_code == 200
         assert original.content == source_bytes
+
+
+def test_library_pdf_image_assets_are_listable_and_hash_checked(tmp_path: Path) -> None:
+    """Exercise the UNIT-02 in-process page-assets and asset-byte ports."""
+    import asyncio
+    import hashlib
+
+    import pymupdf
+
+    from deeptutor.mnemosyne.library import LibraryAdapter
+
+    pdf = pymupdf.open()
+    page = pdf.new_page(width=300, height=300)
+    page.insert_text((24, 32), "Embedded figure fixture")
+    artwork = pymupdf.open()
+    artwork_page = artwork.new_page(width=256, height=256)
+    for y in range(0, 256, 8):
+        for x in range(0, 256, 8):
+            value = (x * 17 + y * 31 + x * y * 7) % 256
+            color = (value / 255, ((value * 73) % 256) / 255, ((value * 151) % 256) / 255)
+            artwork_page.draw_rect(
+                pymupdf.Rect(x, y, x + 8, y + 8), color=None, fill=color
+            )
+    png = artwork_page.get_pixmap(colorspace=pymupdf.csRGB, alpha=False).tobytes("png")
+    artwork.close()
+    assert len(png) > 1200  # DeepTutor's image extraction budget excludes tiny artifacts.
+    page.insert_image(pymupdf.Rect(40, 60, 160, 180), stream=png)
+    source = pdf.tobytes()
+    pdf.close()
+
+    library = LibraryAdapter(ReadingStore(tmp_path / "asset-store" / "reading"))
+    document = library.upload_pdf(source, "embedded-image.pdf")
+    assert document["parse_state"] == "ready"
+    records = asyncio.run(
+        library.documents.get_page_assets(document["document_id"], document["version_id"], 0)
+    )
+    assert records
+    assert all(record["page_index"] == 0 and record["mime"].startswith("image/") for record in records)
+    for record in records:
+        data = asyncio.run(
+            library.documents.get_asset(document["document_id"], document["version_id"], record["asset_id"])
+        )
+        assert hashlib.sha256(data).hexdigest() == record["sha256"]
+
+
+def test_library_schema_v2_database_migrates_index_run_timestamp(tmp_path: Path) -> None:
+    """Upgrade a persisted v2 table without replacing existing columns."""
+    import sqlite3
+
+    from deeptutor.mnemosyne.library import LibraryAdapter
+
+    root = tmp_path / "schema-upgrade" / "reading"
+    initial = LibraryAdapter(ReadingStore(root))
+    with sqlite3.connect(initial.db.db_path) as conn:
+        conn.execute("ALTER TABLE mnemosyne_versions DROP COLUMN index_started_at")
+        conn.execute("UPDATE mnemosyne_schema SET version=2")
+
+    upgraded = LibraryAdapter(ReadingStore(root))
+    with sqlite3.connect(upgraded.db.db_path) as conn:
+        columns = {row[1] for row in conn.execute("PRAGMA table_info(mnemosyne_versions)")}
+        version = conn.execute("SELECT version FROM mnemosyne_schema").fetchone()[0]
+    assert "index_started_at" in columns
+    assert version == 3

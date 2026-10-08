@@ -305,6 +305,11 @@ class _LibraryDatabase:
         self.originals.mkdir(mode=0o700, parents=True, exist_ok=True)
         self.exports = self.root / "mnemosyne-exports"
         self.exports.mkdir(mode=0o700, parents=True, exist_ok=True)
+        os.chmod(self.originals, 0o700)
+        os.chmod(self.exports, 0o700)
+        descriptor = os.open(self.db_path, os.O_CREAT | os.O_RDWR, 0o600)
+        os.close(descriptor)
+        os.chmod(self.db_path, 0o600)
         self._migrate()
 
     @contextmanager
@@ -321,6 +326,12 @@ class _LibraryDatabase:
             raise
         finally:
             conn.close()
+            self._secure_db_permissions()
+
+    def _secure_db_permissions(self) -> None:
+        for path in (self.db_path, Path(f"{self.db_path}-wal"), Path(f"{self.db_path}-shm")):
+            if path.exists():
+                os.chmod(path, 0o600)
 
     def _migrate(self) -> None:
         with sqlite3.connect(self.db_path, timeout=30) as conn:
@@ -333,7 +344,7 @@ class _LibraryDatabase:
                 );
                 INSERT INTO mnemosyne_schema(version)
                     SELECT 1 WHERE NOT EXISTS (SELECT 1 FROM mnemosyne_schema);
-                UPDATE mnemosyne_schema SET version=2 WHERE version<2;
+                UPDATE mnemosyne_schema SET version=3 WHERE version<3;
 
                 CREATE TABLE IF NOT EXISTS mnemosyne_subjects (
                     subject_id TEXT PRIMARY KEY,
@@ -370,6 +381,7 @@ class _LibraryDatabase:
                     index_error_code TEXT NOT NULL DEFAULT '',
                     index_error_detail TEXT NOT NULL DEFAULT '',
                     index_kb TEXT,
+                    index_started_at REAL,
                     created_at TEXT NOT NULL,
                     PRIMARY KEY(document_id, version_id)
                 );
@@ -468,9 +480,16 @@ class _LibraryDatabase:
                 );
                 """
             )
+            version_columns = {
+                str(row[1]) for row in conn.execute("PRAGMA table_info(mnemosyne_versions)")
+            }
+            if "index_started_at" not in version_columns:
+                conn.execute("ALTER TABLE mnemosyne_versions ADD COLUMN index_started_at REAL")
+            conn.execute("UPDATE mnemosyne_schema SET version=3 WHERE version<3")
             version = int(conn.execute("SELECT version FROM mnemosyne_schema LIMIT 1").fetchone()[0])
-            if version > 2:
+            if version > 3:
                 raise RuntimeError(f"Mnemosyne database schema {version} is newer than this server")
+        self._secure_db_permissions()
 
     def original_path(self, digest: str) -> Path:
         if not _SHA256_RE.fullmatch(str(digest)):
@@ -520,6 +539,13 @@ class DocumentRepositoryAdapter:
             self.library.get_page, document_id, version_id, page_index, parse_revision
         )
 
+    async def get_page_assets(
+        self, document_id: str, version_id: str, page_index: int
+    ) -> list[dict[str, Any]]:
+        return await asyncio.to_thread(
+            self.library.get_page_assets, document_id, version_id, page_index
+        )
+
     async def get_asset(self, document_id: str, version_id: str, asset_id: str) -> bytes:
         return await asyncio.to_thread(self.library.get_asset, document_id, version_id, asset_id)
 
@@ -538,6 +564,7 @@ class LibraryAdapter:
         settings_defaults_provider: Callable[[], dict[str, Any]] | None = None,
         settings_secret_writer: Callable[[str], Any] | None = None,
         settings_credential_reader: Callable[[], bool] | None = None,
+        settings_base_url_validator: Callable[[str], bool] | None = None,
     ) -> None:
         self.store = store
         self.db = _LibraryDatabase(store.root)
@@ -548,6 +575,7 @@ class LibraryAdapter:
         self.settings_defaults_provider = settings_defaults_provider
         self.settings_secret_writer = settings_secret_writer
         self.settings_credential_reader = settings_credential_reader
+        self.settings_base_url_validator = settings_base_url_validator
         from deeptutor.reading.catalog_store import ReadingCatalogStore
 
         self.catalog = ReadingCatalogStore(store.root)
@@ -655,8 +683,9 @@ class LibraryAdapter:
 
     # -- public provider settings; secret material stays with UNIT-02 ------
 
-    @staticmethod
-    def _validate_public_provider(provider: Any, *, allow_api_key: bool) -> tuple[dict[str, str], str | None]:
+    def _validate_public_provider(
+        self, provider: Any, *, allow_api_key: bool
+    ) -> tuple[dict[str, str], str | None]:
         if not isinstance(provider, dict):
             raise LibraryError("provider settings must be an object")
         allowed = {"adapter", "base_url", "model"} | ({"api_key"} if allow_api_key else set())
@@ -680,6 +709,19 @@ class LibraryAdapter:
             valid_url = False
         if not valid_url:
             raise LibraryError("provider base_url must be an HTTP(S) URI without embedded credentials")
+        if self.settings_base_url_validator is None:
+            raise LibraryError("provider base URL policy is not connected")
+        try:
+            allowed = self.settings_base_url_validator(base_url)
+        except Exception as exc:
+            raise LibraryError("provider base URL policy rejected the configured URI") from exc
+        if inspect.isawaitable(allowed):
+            close = getattr(allowed, "close", None)
+            if callable(close):
+                close()
+            raise LibraryError("provider base URL validator must be synchronous")
+        if allowed is not True:
+            raise LibraryError("provider base URL policy rejected the configured URI")
         model = provider.get("model")
         if not isinstance(model, str) or not model.strip() or len(model.strip()) > 200:
             raise LibraryError("provider model is required")
@@ -879,10 +921,6 @@ class LibraryAdapter:
                          json.dumps(page, ensure_ascii=False, separators=(",", ":"))),
                     )
             self._copy_reading_assets(document_id, version_id, manifest.material_id)
-            self._set_index_state(
-                document_id, version_id, "failed", "embedding_provider_unavailable",
-                "No Mnemosyne RAG indexer is connected; PDF reading and annotations remain available.",
-            )
         except Exception as exc:
             page_count = self._best_effort_page_count(original_path)
             code = "parser_unavailable" if "PyMuPDF" in str(exc) or isinstance(exc, ImportError) else "parse_failed"
@@ -901,7 +939,7 @@ class LibraryAdapter:
                     "UPDATE mnemosyne_versions SET material_id=?, page_count=?, parse_state='failed', "
                     "parse_error_code=?, parse_error_detail=?, index_state='failed', "
                     "index_error_code=?, index_error_detail=? WHERE document_id=? AND version_id=?",
-                    (material_id, page_count, code, detail, "index_unavailable", detail,
+                    (material_id, page_count, code, detail, "parser_not_ready", detail,
                      document_id, version_id),
                 )
             try:
@@ -915,6 +953,28 @@ class LibraryAdapter:
                 # authoritative state even if a legacy catalog upgrade fails.
                 pass
         return self.get_document(document_id)
+
+    async def upload_pdf_async(
+        self,
+        data: bytes,
+        filename: str,
+        *,
+        title: str | None = None,
+        subject_id: str | None = None,
+        content_language: str = "und",
+    ) -> dict[str, Any]:
+        """Parse first, then attempt the configured DeepTutor index pipeline."""
+        document = await asyncio.to_thread(
+            self.upload_pdf,
+            data,
+            filename,
+            title=title,
+            subject_id=subject_id,
+            content_language=content_language,
+        )
+        if document["parse_state"] != "ready":
+            return document
+        return await self.prepare_index(document["document_id"], document["version_id"])
 
     def list_documents(
         self, *, subject_id: str | None = None, search: str = "", limit: int = 100, offset: int = 0
@@ -1117,6 +1177,21 @@ class LibraryAdapter:
             raise LibraryError("stored image hash verification failed")
         return data
 
+    def get_page_assets(
+        self, document_id: str, version_id: str, page_index: int
+    ) -> list[dict[str, Any]]:
+        document_id, version_id = _uuid(document_id, "document"), _version(version_id)
+        if isinstance(page_index, bool) or not isinstance(page_index, int) or page_index < 0:
+            raise LibraryError("page_index must be a non-negative integer")
+        self.get_page(document_id, version_id, page_index)
+        with self.db.connect() as conn:
+            rows = conn.execute(
+                "SELECT asset_id, page_index, mime, sha256 FROM mnemosyne_assets "
+                "WHERE document_id=? AND version_id=? AND page_index=? ORDER BY asset_id",
+                (document_id, version_id, page_index),
+            ).fetchall()
+        return [dict(row) for row in rows]
+
     def search(self, material_id: str, query: str, limit: int = 12):
         """Preserve the actual DeepTutor lexical search API used by its readers."""
         return search_material(self.store, material_id, query, limit=limit)
@@ -1237,23 +1312,38 @@ class LibraryAdapter:
             return self.get_document(document_id, resolved_version)
         source_path = self.db.original_path(document["source_sha256"])
         self._require_managed_path(source_path, self.db.originals)
+        now = time.time()
         with self.db.connect(write=True) as conn:
             current = conn.execute(
-                "SELECT index_state FROM mnemosyne_versions WHERE document_id=? AND version_id=?",
+                "SELECT index_state, index_started_at FROM mnemosyne_versions "
+                "WHERE document_id=? AND version_id=?",
                 (document_id, resolved_version),
             ).fetchone()
             if current is None:
                 raise LibraryError("document version not found")
-            if current["index_state"] in {"ready", "running"}:
-                return self.get_document(document_id, resolved_version)
-            claimed = conn.execute(
-                "UPDATE mnemosyne_versions SET index_state='running', index_error_code='', "
-                "index_error_detail='' WHERE document_id=? AND version_id=? "
-                "AND index_state IN ('pending', 'failed')",
-                (document_id, resolved_version),
-            ).rowcount
-            if not claimed:
-                return self.get_document(document_id, resolved_version)
+            state = str(current["index_state"])
+            started_at = current["index_started_at"]
+            if state == "ready" or (
+                state == "running" and started_at is not None and now - float(started_at) < 1800
+            ):
+                claimed = 0
+            else:
+                if state == "running":
+                    conn.execute(
+                        "UPDATE mnemosyne_versions SET index_state='failed', index_started_at=NULL, "
+                        "index_error_code='index_interrupted', "
+                        "index_error_detail='Previous indexing run did not finish.' "
+                        "WHERE document_id=? AND version_id=?",
+                        (document_id, resolved_version),
+                    )
+                claimed = conn.execute(
+                    "UPDATE mnemosyne_versions SET index_state='running', index_started_at=?, index_error_code='', "
+                    "index_error_detail='' WHERE document_id=? AND version_id=? "
+                    "AND index_state IN ('pending', 'failed')",
+                    (now, document_id, resolved_version),
+                ).rowcount
+        if not claimed:
+            return self.get_document(document_id, resolved_version)
         kb_name = "mnemo_" + document_id.replace("-", "")[:20] + "_" + document["source_sha256"][:8]
         try:
             if self.rag_indexer is not None:
@@ -1280,6 +1370,12 @@ class LibraryAdapter:
                 if not succeeded:
                     raise RuntimeError("DeepTutor RAG initializer returned no ready index")
             self._set_index_state(document_id, resolved_version, "ready", index_kb=kb_name)
+        except asyncio.CancelledError:
+            self._set_index_state(
+                document_id, resolved_version, "failed", "index_cancelled",
+                "Indexing was cancelled before the run completed.",
+            )
+            raise
         except Exception as exc:
             message = f"{type(exc).__name__}: {exc}".replace(str(self.store.root), "[data]")[:1000]
             lowered = message.lower()
@@ -1341,10 +1437,11 @@ class LibraryAdapter:
             raise ValueError("invalid index state")
         with self.db.connect(write=True) as conn:
             conn.execute(
-                "UPDATE mnemosyne_versions SET index_state=?, index_error_code=?, index_error_detail=?, "
-                "index_kb=COALESCE(?, index_kb) "
+                "UPDATE mnemosyne_versions SET index_state=?, index_started_at=?, index_error_code=?, "
+                "index_error_detail=?, index_kb=COALESCE(?, index_kb) "
                 "WHERE document_id=? AND version_id=?",
-                (state, code[:128], detail[:1000], index_kb, document_id, version_id),
+                (state, time.time() if state == "running" else None, code[:128], detail[:1000],
+                 index_kb, document_id, version_id),
             )
 
     def _version_row(self, document_id: str, version_id: str) -> sqlite3.Row:
@@ -1690,7 +1787,7 @@ class LibraryAdapter:
         if isinstance(page_index, bool) or not isinstance(page_index, int) or not 0 <= page_index <= 9007199254740991:
             raise LibraryError("annotation page index is invalid")
         kind, payload = draft["kind"], draft["payload"]
-        if kind not in _ANNOTATION_KINDS or not isinstance(payload, dict):
+        if not isinstance(kind, str) or kind not in _ANNOTATION_KINDS or not isinstance(payload, dict):
             raise LibraryError("unsupported annotation kind or payload")
         page = self.get_page(document_id, version_id, page_index)
         geometry = page["geometry"]
@@ -1701,6 +1798,8 @@ class LibraryAdapter:
             if set(payload) != {"anchor", "color"}:
                 raise LibraryError("highlight payload fields do not match contract")
             anchor = payload["anchor"]
+            if not isinstance(anchor, dict):
+                raise LibraryError("highlight anchor must be an object")
             if anchor.get("document_id") != document_id or anchor.get("version_id") != version_id or anchor.get("page_index") != page_index:
                 raise LibraryError("highlight anchor provenance mismatch")
             self.verify_anchor(anchor, page)
@@ -1717,6 +1816,8 @@ class LibraryAdapter:
             ):
                 raise LibraryError("note position or body is invalid")
             if anchor is not None:
+                if not isinstance(anchor, dict):
+                    raise LibraryError("note anchor must be an object or null")
                 if anchor.get("document_id") != document_id or anchor.get("version_id") != version_id or anchor.get("page_index") != page_index:
                     raise LibraryError("note anchor provenance mismatch")
                 self.verify_anchor(anchor, page)
@@ -1736,7 +1837,7 @@ class LibraryAdapter:
                 if stroke_id in seen_strokes:
                     raise LibraryError("duplicate stroke id")
                 seen_strokes.add(stroke_id)
-                if stroke["tool"] not in {"pen", "highlighter"}:
+                if not isinstance(stroke["tool"], str) or stroke["tool"] not in {"pen", "highlighter"}:
                     raise LibraryError("unsupported ink tool")
                 self._validate_color(stroke["color"])
                 if not self._finite_number(stroke["width_pt"]) or not 0 < float(stroke["width_pt"]) <= 100:
@@ -1767,7 +1868,12 @@ class LibraryAdapter:
 
     @staticmethod
     def _finite_number(value: Any) -> bool:
-        return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(float(value))
+        if not isinstance(value, (int, float)) or isinstance(value, bool):
+            return False
+        try:
+            return math.isfinite(float(value))
+        except (OverflowError, ValueError):
+            return False
 
     @staticmethod
     def _validate_color(value: Any) -> None:
@@ -1813,7 +1919,15 @@ class LibraryAdapter:
         if not isinstance(mutation, dict) or "client_mutation_id" not in mutation:
             raise LibraryError("mutation requires client_mutation_id")
         mutation_id = _uuid(mutation["client_mutation_id"], "mutation")
-        payload_hash = hashlib.sha256(_canonical_json(mutation)).hexdigest()
+        try:
+            payload_hash = hashlib.sha256(_canonical_json(mutation)).hexdigest()
+        except (LibraryError, RecursionError):
+            with self.db.connect() as conn:
+                return self._mutation_result(
+                    mutation_id, "rejected", "invalid_request",
+                    self._watermark(conn, batch_document, batch_version),
+                    None,
+                )
         try:
             document_id = _uuid(mutation.get("document_id"), "document")
             version_id = _version(mutation.get("version_id"))
@@ -1894,7 +2008,7 @@ class LibraryAdapter:
                         self._write_annotation(conn, current)
             except DocumentDeleted:
                 status, code = "rejected", "document_deleted"
-            except LibraryError:
+            except (LibraryError, TypeError, ValueError, OverflowError, KeyError, AttributeError, RecursionError):
                 status, code = "rejected", "invalid_request"
 
             result = self._mutation_result(mutation_id, status, code, watermark, current)
@@ -1914,9 +2028,13 @@ class LibraryAdapter:
             "client_mutation_id", "client_id", "document_id", "version_id", "annotation_id",
             "base_revision", "created_at", "operation",
         }
-        if operation == "upsert":
+        if isinstance(operation, str) and operation == "upsert":
             expected.add("annotation")
-        if set(mutation) != expected or operation not in {"upsert", "delete"}:
+        if (
+            not isinstance(operation, str)
+            or operation not in {"upsert", "delete"}
+            or set(mutation) != expected
+        ):
             raise LibraryError("mutation fields do not match contract")
         _uuid(mutation["client_id"], "client")
         if _uuid(mutation["document_id"], "document") != document_id:
@@ -2023,6 +2141,7 @@ class LibraryAdapter:
     def _new_cursor(conn: sqlite3.Connection, document_id: str, version_id: str, revision: int) -> str:
         token = secrets.token_urlsafe(32)
         now, ttl = time.time(), 30 * 24 * 60 * 60
+        conn.execute("DELETE FROM mnemosyne_cursors WHERE expires_at<=?", (now,))
         conn.execute(
             "INSERT INTO mnemosyne_cursors VALUES (?, ?, ?, ?, ?, ?)",
             (token, document_id, version_id, revision, now + ttl, now),
@@ -2039,6 +2158,7 @@ def register_library(
     settings_defaults_provider: Callable[[], dict[str, Any]] | None = None,
     settings_secret_writer: Callable[[str], Any] | None = None,
     settings_credential_reader: Callable[[], bool] | None = None,
+    settings_base_url_validator: Callable[[str], bool] | None = None,
 ) -> LibraryAdapter:
     """Build UNIT-01 services; no router, HTTP loopback, or fake success state."""
     return LibraryAdapter(
@@ -2050,6 +2170,7 @@ def register_library(
         settings_defaults_provider=settings_defaults_provider,
         settings_secret_writer=settings_secret_writer,
         settings_credential_reader=settings_credential_reader,
+        settings_base_url_validator=settings_base_url_validator,
     )
 
 
@@ -2279,7 +2400,7 @@ def build_library_router(library: LibraryAdapter):
                 if upload is None or not hasattr(upload, "read") or not isinstance(title, str) or not title.strip():
                     raise LibraryError("PDF file and title are required")
                 data = await upload.read(library.max_upload_bytes + 1)
-                document = library.upload_pdf(
+                document = await library.upload_pdf_async(
                     data, str(getattr(upload, "filename", "")), title=title,
                     subject_id=str(subject_id) if subject_id is not None else None,
                 )
