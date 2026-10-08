@@ -258,6 +258,32 @@ def check_manifest():
     for path, digest in manifest['files'].items():
         ensure(sha((C/path).read_bytes()) == digest, f'Manifest digest differs: {path}')
 
+def check_compose_profile():
+    path = ROOT/'upstreams/DeepTutor/compose.yaml'
+    compose = yaml.safe_load(path.read_text())
+    services = compose.get('services', {})
+    ensure(compose.get('name') == 'mnemosyne', 'Compose project name differs')
+    ensure(set(services) == {'deeptutor', 'redis'}, 'Unexpected Compose service set')
+    app = services['deeptutor']
+    ensure(app.get('image') == 'mnemosyne/deeptutor:local', 'Compose must build the pinned local upstream')
+    ensure(app.get('build', {}).get('target') == 'production', 'Compose build target differs')
+    ensure(app.get('read_only') is True and app.get('init') is True, 'Compose runtime hardening missing')
+    ensure(app.get('restart') == 'unless-stopped' and app.get('stop_grace_period') == '45s', 'Compose shutdown policy differs')
+    ensure(app.get('healthcheck', {}).get('test', [])[-1:] == ['http://localhost:8001/health/ready'], 'Compose readiness check differs')
+    ensure(app.get('depends_on', {}).get('redis', {}).get('condition') == 'service_healthy', 'Compose Redis readiness dependency missing')
+    ports = app.get('ports', [])
+    ensure(len(ports) == 2 and all(str(port).startswith('${DEEPTUTOR_BIND_ADDRESS:-127.0.0.1}:') for port in ports), 'Compose ports must default to loopback')
+    ensure({'./data:/app/data', './data/user/workspace:/workspace'} <= set(app.get('volumes', [])), 'Compose application persistence is incomplete')
+    redis = services['redis']
+    ensure(not redis.get('ports'), 'Redis must remain private to the Compose network')
+    ensure('./data/redis:/data' in redis.get('volumes', []), 'Redis persistence is missing')
+    redis_command = [str(value) for value in redis.get('command', [])]
+    ensure(any(value.startswith('--appendonly') for value in redis_command) and any(value.startswith('--appendfsync') for value in redis_command), 'Redis AOF persistence is missing')
+    for service in services.values():
+        environment = service.get('environment', {})
+        ensure(not any(re.search(r'(?:API[_-]?KEY|TOKEN|SECRET)', str(key), re.I) for key in environment), 'Provider credential must not be configured in Compose')
+    return len(services)
+
 def source_gate():
     state = read(ROOT/'integration/registry.json')
     ensure(state['ready_for_parallel_implementation'] is True, 'Source bootstrap gate is not ready')
@@ -390,10 +416,16 @@ def main():
     for path,method in [('/v1/settings','put'),('/v1/documents/{document_id}','delete')]:
         headers={p['name'] for p in api['paths'][path][method]['parameters'] if p['in']=='header'}
         ensure({'If-Match','X-Confirm-Action','X-Mnemosyne-Contract-Version'}<=headers, 'Missing protected mutation headers')
-    check_manifest(); check_ownership()
+    check_manifest()
+    compose_service_count = check_compose_profile()
     if args.require_ready:
+        # Contract fixtures are useful before every planned owner path has
+        # landed. Keep their result independent from the stronger bootstrap
+        # readiness gate so a missing unit registration cannot hide fixture
+        # regressions or be mistaken for a passing integration check.
+        check_ownership()
         source_gate()
-    print(json.dumps({'result':'PASS','openapi_operations':len(operations),'schemas':len(schema_files)+1,**COUNTS,'geometry_cases':len(F['geometry_cases']),'source_ready':read(ROOT/'integration/registry.json')['ready_for_parallel_implementation'],'source_gate_checked':args.require_ready},ensure_ascii=False))
+    print(json.dumps({'result':'PASS','openapi_operations':len(operations),'schemas':len(schema_files)+1,**COUNTS,'geometry_cases':len(F['geometry_cases']),'compose_services':compose_service_count,'source_ready':read(ROOT/'integration/registry.json')['ready_for_parallel_implementation'],'ownership_checked':args.require_ready,'source_gate_checked':args.require_ready},ensure_ascii=False))
 
 if __name__ == '__main__':
     try:
