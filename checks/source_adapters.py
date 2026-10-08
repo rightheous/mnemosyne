@@ -68,8 +68,17 @@ def run_integration_checks():
             value = native_turn_request(request, material_id=manifest.material_id,
                                         material_revision=manifest.revision)
             assert value.capability == native and native in BUILTIN_CAPABILITY_CLASSES
-            assert value.reply_language_override == "ko"
-            assert value.language == "en"
+            assert value.reply_language_override == "ko", (
+                "native_turn_request must forward response_language independently: "
+                f"expected reply_language_override='ko', got {value.reply_language_override!r}"
+            )
+            assert value.language == "en", (
+                "native_turn_request must preserve reader_context.content_language "
+                "separately from response_language: "
+                f"content_language={request['reader_context']['content_language']!r}, "
+                f"response_language={request['response_language']!r}, "
+                f"expected language='en', got {value.language!r}"
+            )
             assert value.reading_viewport.locator == request["reader_context"]["page_index"]+1
         raw = store.raw_path(manifest.material_id)
         assert raw is not None and hashlib.sha256(raw.read_bytes()).hexdigest() == original_hash

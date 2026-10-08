@@ -1,7 +1,7 @@
 # Pinned Python environment used by both the contract fixture checks and the
 # actual-source adapter probe. The recorded full environment supplies the
-# exact transitive/runtime versions; this adds the OpenAPI validator used by
-# validate_contracts.py. This is a verification lock, not the backend runtime
-# manifest (which still needs an upstream-owned cross-platform lockfile).
+# exact verification dependency versions; this adds the OpenAPI validator
+# used by validate_contracts.py. The backend production runtime lock is
+# separate at upstreams/DeepTutor/requirements.txt and targets Python 3.11.
 -r audit-environment.txt
 openapi-spec-validator==0.7.2

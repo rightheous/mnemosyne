@@ -252,6 +252,10 @@ stdout_logfile_maxbytes=0
 stderr_logfile=/dev/fd/2
 stderr_logfile_maxbytes=0
 environment=PYTHONPATH="/app",PYTHONUNBUFFERED="1"
+stopsignal=TERM
+stopwaitsecs=75
+stopasgroup=true
+killasgroup=true
 
 [program:frontend]
 command=/bin/bash /app/start-frontend.sh

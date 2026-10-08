@@ -263,25 +263,22 @@ def check_compose_profile():
     compose = yaml.safe_load(path.read_text())
     services = compose.get('services', {})
     ensure(compose.get('name') == 'mnemosyne', 'Compose project name differs')
-    ensure(set(services) == {'deeptutor', 'redis'}, 'Unexpected Compose service set')
+    ensure(set(services) == {'deeptutor'}, 'Single-user Compose must contain only the application service')
     app = services['deeptutor']
     ensure(app.get('image') == 'mnemosyne/deeptutor:local', 'Compose must build the pinned local upstream')
     ensure(app.get('build', {}).get('target') == 'production', 'Compose build target differs')
     ensure(app.get('read_only') is True and app.get('init') is True, 'Compose runtime hardening missing')
-    ensure(app.get('restart') == 'unless-stopped' and app.get('stop_grace_period') == '45s', 'Compose shutdown policy differs')
+    ensure(app.get('restart') == 'unless-stopped' and app.get('stop_grace_period') == '90s', 'Compose shutdown policy differs')
     ensure(app.get('healthcheck', {}).get('test', [])[-1:] == ['http://localhost:8001/health/ready'], 'Compose readiness check differs')
-    ensure(app.get('depends_on', {}).get('redis', {}).get('condition') == 'service_healthy', 'Compose Redis readiness dependency missing')
+    ensure(not app.get('depends_on'), 'Single-user Compose must not depend on optional sidecars')
     ports = app.get('ports', [])
     ensure(len(ports) == 2 and all(str(port).startswith('${DEEPTUTOR_BIND_ADDRESS:-127.0.0.1}:') for port in ports), 'Compose ports must default to loopback')
     ensure({'./data:/app/data', './data/user/workspace:/workspace'} <= set(app.get('volumes', [])), 'Compose application persistence is incomplete')
-    redis = services['redis']
-    ensure(not redis.get('ports'), 'Redis must remain private to the Compose network')
-    ensure('./data/redis:/data' in redis.get('volumes', []), 'Redis persistence is missing')
-    redis_command = [str(value) for value in redis.get('command', [])]
-    ensure(any(value.startswith('--appendonly') for value in redis_command) and any(value.startswith('--appendfsync') for value in redis_command), 'Redis AOF persistence is missing')
-    for service in services.values():
-        environment = service.get('environment', {})
-        ensure(not any(re.search(r'(?:API[_-]?KEY|TOKEN|SECRET)', str(key), re.I) for key in environment), 'Provider credential must not be configured in Compose')
+    environment = app.get('environment', {})
+    ensure(not any(re.search(r'(?:API[_-]?KEY|TOKEN|SECRET)', str(key), re.I) for key in environment), 'Provider credential must not be configured in Compose')
+    dockerfile = (ROOT/'upstreams/DeepTutor/Dockerfile').read_text()
+    backend_program = dockerfile.split('[program:backend]', 1)[-1].split('[program:frontend]', 1)[0]
+    ensure('stopwaitsecs=75' in backend_program and 'stopasgroup=true' in backend_program, 'Backend supervisor must allow graceful runtime drain')
     return len(services)
 
 def check_python_runtime_lock():

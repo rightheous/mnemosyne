@@ -11,29 +11,14 @@
 # volume; never put them in this file or in a Compose environment variable.
 #
 # The backend and web frontend share the upstream production image because
-# that is the pinned upstream packaging boundary. Redis is private to the
-# Compose network and persists native turn coordination state. PocketBase and
-# the sandbox runner are omitted: they are optional upstream services and are
-# not needed by the single-user SQLite profile.
+# that is the pinned upstream packaging boundary. This one-process profile
+# uses the upstream in-memory turn coordinator and SQLite for durable business
+# and turn-event state. Redis, PocketBase and the sandbox runner are omitted:
+# they are optional upstream services and are not required by this profile.
 
 name: mnemosyne
 
 services:
-  redis:
-    image: docker.io/library/redis:7.4-alpine
-    restart: unless-stopped
-    command: ["redis-server", "--appendonly", "yes", "--appendfsync", "everysec"]
-    volumes:
-      - ./data/redis:/data
-    networks:
-      - private
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
-    stop_grace_period: 30s
-
   deeptutor:
     image: mnemosyne/deeptutor:local
     build:
@@ -64,19 +49,10 @@ services:
       TZ: ${TZ:-UTC}
       DEEPTUTOR_WORKSPACE_ROOT: /workspace
       DEEPTUTOR_WORKSPACE_ALLOWED_ROOTS: /workspace
-    depends_on:
-      redis:
-        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8001/health/ready"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 60s
-    networks:
-      - private
-    stop_grace_period: 45s
-
-networks:
-  private:
-    driver: bridge
+    stop_grace_period: 90s
