@@ -77,7 +77,7 @@ docs/INTEGRATION.md의 UNIT-03 등록 표에는 아직 concrete Reader facade �
 
 | Original path | Pinned SHA-256 | Current SHA-256 |
 |---|---|---|
-| `upstreams/Pumice/Packages/PumiceCore/Tests/PumiceCoreTests/PageGeometryTests.swift` | `15b3e7eb94398bd558ec454ea793c1bc965676d5e9a9c6812518972118a2f639` | `552619799984e14eb323bfdec126d5f1adccf1ee0e883cd2833ce121d4f0edee` |
+| `upstreams/Pumice/Packages/PumiceCore/Tests/PumiceCoreTests/PageGeometryTests.swift` | `15b3e7eb94398bd558ec454ea793c1bc965676d5e9a9c6812518972118a2f639` | `5331961aba312e18bc434898886160dbfff0bdfede292c6e462b6aa8564c18f1` |
 | `upstreams/Pumice/Sources/Reader/PDFReaderController.swift` | `c8c8d5c774a14e962d934380b3308474e095138c3a756a6cfd58885f735c0f92` | `038dd284ca91454f5362080ed3fd39f0725261dbe5f0bab9858963f00f2a79f6` |
 | `upstreams/Pumice/Sources/Reader/PDFReaderView.swift` | `21cca91197d5d94bf2de844e4cc2ffe6379906c0479267f1eceb36b5fa72ee16` | `e75208d987e2d291084cd37ffcb254195722505b5f113a9ea02b6d122a1764d0` |
 | `upstreams/Pumice/Sources/Reader/PDFReaderViewController.swift` | `9e2cebc73da85dc5999d7d9827491d7dde8fa23dc2292fd14ca249c097983f64` | `28d7edc346f2aaf1165c851dc839f06d25a218dcb15edd1a7964a2ef05d2b787` |
@@ -94,11 +94,12 @@ docs/INTEGRATION.md의 UNIT-03 등록 표에는 아직 concrete Reader facade �
 - 통과: viewport scale harness에서 0/90/180/270도, UserUnit, CropBox 외부 rect 거부를 실행했다. PDFKit viewport 복원은 Simulator에서 확인하지 않았다.
 - 통과: 임시 실행 harness에서 해시 캐시 설치/읽기 검증, context 재시작 복구, pending/failure/retry, receipt 적용, idempotency, cursor 원자 적용, 승인 이벤트 재생, 0/90/180/270 회전 역변환, CropBox clipping, verified selection 복구와 selection-change 무효화를 실행했다.
 - 통과: 새 임시 Swift harness에서 동일 annotation FIFO, 실패 head 대기, 재시도, applied receipt 뒤 revision 갱신과 최종 local projection을 실행했다.
+- 통과: CLT에 `Testing.swiftmodule`이 없어 원래 `swift test --package-path Packages/PumiceCore`는 실행되지 않았지만, 원본 `PumiceCoreTests` Swift 10개 파일을 임시 SwiftPM wrapper로 실행했다. 공식 `swift-testing` 6.3.2와 로컬 PumiceCore를 연결해 85개 테스트/16개 suite가 통과했다. wrapper는 `/private/tmp`에 있고 저장소 manifest는 바꾸지 않았다. macOS Core 검사이며 Pumice iOS/PDFKit UI는 포함하지 않는다.
 - 통과: command-line macOS 10.15.4 target override로 SwiftPM PumiceCore production target을 빌드했다. 이는 macOS Core 빌드이며 iPad 앱/Simulator 빌드가 아니다.
 - 통과: `checks/validate_contracts.py`가 OpenAPI operation 30개, schema instance 80건, negative case 19건, sync step 10건, geometry case 4건과 전체 ownership check를 통과했다. 이 실행은 `source_gate_checked=false`다.
 - 실패: `checks/validate_contracts.py --require-ready`는 `Upstream snapshot differs: upstreams/Pumice/Packages/PumiceCore/Tests/PumiceCoreTests/PageGeometryTests.swift`로 중단됐다. 위 통합 담당 후속 manifest 예외를 기록하고 다시 확인해야 한다.
 - 통과: UNIT-03 변경 경로의 `git diff --check`.
-- 차단: 같은 target의 SwiftPM 테스트는 `no such module: Testing`으로 실패했다. package 기본 macOS 10.13 target에서는 CryptoKit/FileHandle availability 문제도 있어 검사 명령에만 10.15.4 override를 썼다. 로컬 developer directory는 full Xcode가 아닌 Command Line Tools이며 xcodebuild와 iOS Simulator SDK를 사용할 수 없어 iPad 앱 빌드와 Simulator 검증은 하지 못했다. 직접 타입검사와 임시 harness는 Package 테스트를 대체하지 않는다.
+- 차단: 원래 package 경로로 SwiftPM 테스트를 시작하면 CLT의 `Testing` module 부재로 실패한다. 단, 위의 임시 wrapper에서 동일한 Core 테스트 소스를 별도 실행했다. package 기본 macOS target의 CryptoKit/FileHandle 제약 때문에 검사 명령에만 target override를 썼다. 로컬 developer directory는 full Xcode가 아닌 Command Line Tools이며 xcodebuild와 iOS Simulator SDK를 사용할 수 없어 iPad 앱 빌드와 Simulator 검증은 하지 못했다.
 - 미검증: 실제 iPad Pencil, 화면 회전/zoom, 앱 강제 종료 후 복구, export PDF 렌더, 기기에서의 sidecar 보호 권한. Cloud 실행 환경의 Apple SDK 상태도 이 로컬 세션에서는 확인되지 않았다.
 - Cloud Apple SDK 점검: 이 세션에서 사용할 수 있는 Cloud Xcode 실행/SDK 점검 도구가 없어 상태는 미확인이다. SDK가 없다고 단정하지 않는다.
 - remote 목록은 비어 있다. 따라서 Cloud dispatch/PR 게시 여부는 미확인이다. 공통 registry의 `product_ready=false`를 유지하며 제품 완료로 보고하지 않는다.

@@ -106,7 +106,7 @@ struct MnemosyneGeometryTests {
         #expect(paths[0].last == CGPoint(x: 110, y: 30))
         #expect(paths[1].first == CGPoint(x: 60, y: 220))
         #expect(paths[1].last == CGPoint(x: 60, y: 70))
-        #expect(geometry.clippedPolylines([CGPoint(x: .nan, y: 0)]).isEmpty)
+        #expect(geometry.clippedPolylines([CGPoint(x: CGFloat.nan, y: 0)]).isEmpty)
     }
 
     @Test("Width uses physical points and zoom only")
@@ -362,8 +362,9 @@ struct MnemosyneLocalStoreTests {
         ]))
 
         let secondMutationID = UUID(uuidString: "00000000-0000-0000-0000-00000000000d")!
-        let first = try makeMutation(body: "first local value")
-        let second = try makeMutation(body: "second local value", mutationID: secondMutationID)
+        let first = try makeMutation(body: "first local value", baseRevision: 5)
+        let second = try makeMutation(body: "second local value", mutationID: secondMutationID,
+                                      baseRevision: 5)
         try store.commitEditAndOutbox(first)
         try store.commitEditAndOutbox(second)
 
@@ -494,7 +495,8 @@ struct MnemosyneLocalStoreTests {
         return url
     }
 
-    private func makeMutation(body: String, mutationID: UUID? = nil) throws -> Data {
+    private func makeMutation(body: String, mutationID: UUID? = nil,
+                              baseRevision: Int = 0) throws -> Data {
         let draft: [String: Any] = [
             "annotation_id": annotationID.uuidString.lowercased(),
             "document_id": documentID.uuidString.lowercased(),
@@ -509,7 +511,7 @@ struct MnemosyneLocalStoreTests {
             "document_id": documentID.uuidString.lowercased(),
             "version_id": versionID,
             "annotation_id": annotationID.uuidString.lowercased(),
-            "base_revision": 0,
+            "base_revision": baseRevision,
             "created_at": "2026-10-08T00:00:00Z",
             "operation": "upsert",
             "annotation": draft
