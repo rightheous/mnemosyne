@@ -4,7 +4,7 @@
 
 ## Host와 Cloud 도구 상태
 
-2026-10-09 확인: 호스트는 macOS arm64, Python 3.14.7과 uv 0.11.21이 있다. Python 3.11 실행 파일은 PATH에 없다. 시스템 Node는 20.20.2/npm 10.8.2, 번들 Node는 24.19.0이며 로컬 Node 22는 없다. upstream Dockerfile/CI 기준은 Node 22다. `xcodebuild` shim은 active developer directory가 Command Line Tools뿐이라 실패하고 `xcodegen`도 없다. Docker CLI 29.4.1/Compose 5.1.3과 Docker Desktop daemon 29.4.1 ARM64는 user-approved socket access로 확인했다. Clean-source Docker image build는 아래에서 진행 중이다. GitHub CLI는 있으나 `git remote -v`는 비어 있다.
+2026-10-09 확인: 호스트는 macOS arm64, Python 3.14.7과 uv 0.11.21이 있다. Python 3.11 실행 파일은 PATH에 없다. 시스템 Node는 20.20.2/npm 10.8.2, 번들 Node는 24.19.0이며 로컬 Node 22는 없다. upstream Dockerfile/CI 기준은 Node 22다. `xcodebuild` shim은 active developer directory가 Command Line Tools뿐이라 실패하고 `xcodegen`도 없다. Docker CLI 29.4.1/Compose 5.1.3과 Docker Desktop daemon 29.4.1 ARM64는 승인된 socket access로 확인했다. 깨끗한 `8ff76c1` archive에서 Docker build와 Compose readiness/stop smoke를 완료했다. GitHub CLI는 있으나 `git remote -v`는 비어 있다.
 
 ## 이번 변경
 
@@ -19,21 +19,26 @@
 | 검사 | 결과 | 범위 |
 |---|---|---|
 | `/tmp` 임시 venv에 `pip install -r checks/requirements.txt`에 필요한 고정 패키지 설치 | PASS | Python 3.12.14, macOS arm64. 승인된 네트워크 설치. Windows/Linux 설치는 미검증. |
-| `uv run --with-requirements checks/requirements.txt --no-project --python 3.12 python3 checks/validate_contracts.py` | PASS | OpenAPI 30 operations, schema instance 80, negative case 19, sync step 10, geometry case 4. 소스/readiness gate는 실행하지 않음. |
-| Backend runtime lock 정적 검사 (위 fixture 검사에 포함) | PASS | 192개 Python 3.11 대상 잠금 항목, 3,587개 해시, 필수 backend 패키지, Docker `--require-hashes` 적용을 확인. 같은 uv 명령의 재해석 결과와 잠금 파일이 바이트 단위로 일치. Docker daemon이 없어 이미지 설치는 미검증. |
-| `python checks/validate_contracts.py --require-ready` | FAIL | 공유 worktree에서 `upstreams/Pumice/Sources/Network/MnemosyneModels.swift`가 ownership에 배정되지 않았다고 보고했다. 통합 소유자 확인 필요. |
-| `checks/source_adapters.py` against clean `HEAD` `6e7277a` and pinned DeepTutor `6cf793bd868ba5ecbe64722936d4be8fab5a01df` | FAIL | Fixture input `reader_context.content_language=en`, `response_language=ko`: expected native `language=en` and `reply_language_override=ko`; actual is `language=ko`, `reply_language_override=ko`. Mapping is in `upstreams/DeepTutor/deeptutor/mnemosyne/tutor.py:100`, owned by UNIT-02. Required change: forward content language to native `language` while retaining response language as the reply override. UNIT-06 added the exact values to the assertion message; product code remains untouched. |
+| `checks/validate_contracts.py` on clean archive `8ff76c1` | PASS | OpenAPI 30 operations, 4 schemas, 80 schema instances, 19 negative cases, 10 sync steps, 4 geometry cases. 소스/readiness gate는 실행하지 않음. |
+| Backend runtime lock 정적 검사 (위 fixture 검사에 포함) | PASS | 192개 Python 3.11 대상 잠금 항목, 3,587개 해시, 필수 backend 패키지, Docker `--require-hashes` 적용을 확인. 같은 uv 명령의 재해석 결과와 잠금 파일이 바이트 단위로 일치. |
+| `checks/validate_contracts.py --require-ready` on clean archive `8ff76c1` | FAIL | `docs/handoffs/unit-02.md`가 미배정이고, ownership이 가리키는 파일 6개가 archive에 없다: `upstreams/DeepTutor/MnemosyneContracts/fixtures/bilingual-geometry.pdf`, `upstreams/DeepTutor/docs/INDEXING_RECOVERY.md`, `upstreams/DeepTutor/docs/SCIENTIFIC_RESEARCH.md`, `upstreams/DeepTutor/docs/guides/events-and-progress-chain.md`, `upstreams/DeepTutor/docs/guides/tools-surface.md`, `upstreams/DeepTutor/docs/plugin-platform-rfc.md`. 통합 소유자의 배정/스냅샷 확인이 필요하다. |
+| `checks/source_adapters.py` on clean archive `8ff76c1` and pinned DeepTutor `6cf793bd868ba5ecbe64722936d4be8fab5a01df` | PASS | Actual-source adapter checks passed: PDF pages 2, native frames 12, native commands 5, SQLite reopen/replay true, duplicate append creates no events, capability mappings 6. UNIT-02's source-language context fix resolves the prior language-mapping failure. Product readiness remains false. |
 | `docker compose -f upstreams/DeepTutor/compose.yaml config --quiet` | PASS | YAML/Compose 구성 정적 검사. 1개 앱 서비스, 루프백 포트, persistence와 종료 유예를 확인. |
 | `docker compose -f upstreams/DeepTutor/docker-compose.yml config --quiet` | PASS | 기존 upstream compose 구성 정적 검사. 새 Mnemosyne 프로필의 기동 증거는 아님. |
 | `python -m pip check` | PASS | 설치한 검증 venv 안의 패키지 관계만 확인. |
 | `docker info` | PASS | 권한 승인 후 Docker Desktop daemon 29.4.1 ARM64 응답 확인. |
-| Clean-source `docker compose ... build deeptutor` | 진행 중, 아직 terminal result 없음 | `HEAD` archive에 UNIT-06 Dockerfile/Compose만 overlay했다. BuildKit이 Docker Hub Python/Node base metadata를 기다리고 있으며 새 base image는 cache에 나타나지 않았다. |
-| Compose up/readiness/restart/backup·restore | 미검증 | 이미지 build 완료 전 기동하지 않았다. |
-| 웹 `npm ci` / `npm run check` | 미실행 | 시스템 Node 20.20.2, 번들 Node 24.19.0이며 upstream Docker/CI는 Node 22를 사용한다. Node 22 환경에서 실행해야 한다. |
+| Clean-source `docker compose ... build deeptutor` on `8ff76c1` | PASS | BuildKit ARM64 image built locally; production image stages completed, reusing cached frontend and Python dependency layers. Local image manifest-list digest: `sha256:b2b89f15cc5343715e7fbe1299cb2e850d844eefd8feed47ecce5708703a9417`. It was not pushed or published. |
+| Compose up/readiness/health/stop on clean archive `8ff76c1` | PASS, limited smoke | One service started and became Docker `healthy`; internal backend `/health/ready` returned HTTP 200 `{"status":"ready"}`, frontend port 3782 `/` returned HTTP 307 to `/learning/reading`, and graceful `compose stop` exited 0. Startup logs warn that no active LLM model is configured, so Tutor requests were not exercised. Checks ran inside the container. |
+| Generated default-data tar backup/restore smoke | PASS, limited | Stopped test service data was tarred, extracted to a separate `/tmp` directory, and recursively compared equal. This was generated empty/default runtime data only, with no uploaded source documents or provider secrets; live database recovery with user data remains untested. |
+| Node 22 `npm ci --legacy-peer-deps` on clean archive `b1d3956` | PASS | Node 22.23.3/npm 10.9.9; installed 950 packages. npm audit reported 28 vulnerabilities (5 low, 7 moderate, 15 high, 1 critical). |
+| Node `check:fast`: contracts / architecture / typecheck / node tests | PASS | Contracts check passed; dependency-cruiser reported 913 modules and 2,844 dependencies with no violations; typecheck passed; Node tests passed 1,304/1,304 when repository root and Git were available. |
+| Node `test:unit` full parallel suite | FAIL, 650/653 | Three tests hit the configured 5-second timeout: settings draft, usage statistics, and question bank picker. Re-running those three files serially passed 24/24. The isolated pass suggests load-related timeouts in this ARM64 Docker run; this does not turn the full-suite result into a PASS. |
+| Node `lint` / `i18n:check` | PASS with warnings | Lint exited 0 with existing UI-literal and `<img>` warnings. i18n parity/audit exited 0; audit noted 18 files with potential UI literals and all locale coverage thresholds passed. |
+| Node `npm run build` / `npm run perf:check` on clean archive `b1d3956` | BUILD PASS / PERF FAIL | Next.js 16.2.3 compiled, typechecked, and generated 44 static pages. Route-budget check expected `/` to redirect to `/chat`, but got HTTP 307 to `/learning/reading`. The `8ff76c1` Compose smoke observed the same frontend destination; the route-budget script was not rerun on `8ff76c1`. Routing belongs to UNIT-05 and was not changed here. |
 | iPad macOS/Xcode build 및 signing 분리 job | 미실행 | 이 호스트는 full Xcode/XcodeGen이 없다. GitHub Mac runner도 실행되지 않았다. |
 | Windows/WSL2 서버, 실제 iPad Pencil, 실제 LLM provider | 대기 | 이 실행에서 해당 장치/서버를 사용할 수 없었다. fixture 검사는 이 인수 검증을 대체하지 않는다. |
 
-위 source-adapter 실패는 clean archive of commit `6e7277a`에서 재현했으므로 공유 worktree 변경 탓으로 돌리지 않는다. 현재 shared worktree에는 UNIT-01/02/03/05의 비커밋 제품 변경이 있다. 이 변경은 검사·stage·commit 대상에서 제외했다. 수정 후에는 사용자가 제공한 정확한 commit/PR 목록의 revision에서 다시 실행해야 한다.
+계약 fixture와 source-adapter 검사는 깨끗한 archive of commit `8ff76c1`에서 실행했고, readiness ownership gate는 같은 revision에서 실패했다. Node 전체 검사는 깨끗한 archive of commit `b1d3956`에서 실행했다. 현재 shared worktree에는 UNIT-01/03/05와 UNIT-02의 미커밋 변경이 있다. 이 변경은 검사·stage·commit 대상에서 제외했다.
 
 ## 계약 fixture와 제품 인수의 경계
 
@@ -44,7 +49,7 @@
 | Tutor event/citation/Reader/quiz/learning state | schema와 fixture linkage, native wire/replay fixture 검사 PASS | 실제 `/ws` streaming, 인용 이후 Reader 명령, durable quiz/mastery/memory 저장·재시작 |
 | 마이그레이션·export | 이번 검사에서 실행 안 함 | UNIT-01 storage/migration 적용 뒤 원본 보존, export 산출물, rollback 검사 |
 | 사설 접속·최소 보호·secret | Compose loopback 기본값 및 env의 key/token/secret 부재를 정적 검사 | 앱 pairing/Origin 보호는 UNIT-02, WSL2 firewall/Tailscale는 실제 기기에서 검사 |
-| 백업·복원 | 중지·tar·복원 절차만 문서화 | Docker daemon 복구 후 실제 데이터를 넣어 restore smoke test |
+| 백업·복원 | 생성된 기본 `data/` 디렉터리의 tar→extract→recursive diff smoke PASS | 업로드 원본과 실제 SQLite 학습 상태를 포함한 복원 및 재기동 검사는 미실행 |
 | LLM no-secret 경로 | PublicSettings의 secret 필드 거부 fixture PASS | test-only provider는 실제 `/ws` test harness에 아직 연결되지 않아 미검증. 실제 provider 연결은 별도 실행 필요 |
 
 fixture PASS는 표의 runtime 검사를 완료했다는 뜻이 아니다.
@@ -100,7 +105,7 @@ uv pip compile pyproject.toml --extra partners --python-version 3.11 --universal
 
 `--require-ready`는 ownership 목록과 모든 등록 seam이 실제 파일에 연결된 뒤 실행한다. 웹 검사에는 upstream 지침대로 Node 22와 `npm ci --legacy-peer-deps`, `npm run check`가 필요하다.
 
-WSL2 운영은 저장소를 Linux 파일시스템에 두고 다음 명령을 `upstreams/DeepTutor`에서 실행한다. Compose 정적 검사만 확인했으며 빌드·기동은 daemon 복구 후 실행한다.
+WSL2 운영은 저장소를 Linux 파일시스템에 두고 다음 명령을 `upstreams/DeepTutor`에서 실행한다. 동일 Compose의 빌드·기동·readiness는 macOS ARM64 Docker에서 확인했지만, Windows/WSL2 파일시스템·포트 전달·Firewall 동작은 별도 검증이 필요하다.
 
 ```sh
 docker compose -f compose.yaml config --quiet
@@ -121,11 +126,11 @@ tar -czf /secure-backup/mnemosyne-data.tar.gz data
 docker compose -f compose.yaml start
 ```
 
-복구는 먼저 서비스 종료 후 현재 `data/`를 별도 보존하고, 검증한 백업을 프로젝트 경로에 풀어 다시 기동한다. 자동 백업·복구 smoke test는 실제 Docker daemon이 없어 미실행이다.
+복구는 먼저 서비스 종료 후 현재 `data/`를 별도 보존하고, 검증한 백업을 프로젝트 경로에 풀어 다시 기동한다. 생성된 기본 data 트리의 archive/extract/content comparison은 PASS했으나, 업로드 원본·실제 SQLite 학습 기록의 복구 후 재기동은 아직 미검증이다.
 
 ## 통합 담당자에게 필요한 배정/확인
 
-1. `integration/ownership.json`에서 현재 gate가 지적한 `upstreams/Pumice/Sources/Network/MnemosyneModels.swift` 소유자를 명시한다.
+1. `integration/ownership.json`에서 현재 gate가 지적한 `docs/handoffs/unit-02.md`를 배정한다. 같은 검사에서 소유 목록에 있지만 archive에 없던 DeepTutor contracts fixture와 5개 upstream 문서도 snapshot 경로/manifest를 확인한다.
 2. root CI 파일(예: `.github/workflows/mnemosyne.yml`)을 UNIT-06에 배정한다. 현재 할당된 `.github/workflows/tests.yml`은 upstream 하위 경로라 이 Mnemosyne root 저장소의 GitHub Actions workflow로 실행되지 않는다. Backend runtime lock은 기존 UNIT-06 소유 경로인 `upstreams/DeepTutor/requirements.txt`에 작성했다.
 3. 목표에서 지정한 `docs/handoffs/unit-06.md`는 현재 정확한 소유 목록에 없고 기존 배정 파일은 `handoff/UNIT-06.md`다. 이 handoff는 허용된 경로를 사용했다. 새 문서 경로를 원하면 먼저 배정한다.
 4. 다음 원본 snapshot 변경의 사유와 SHA-256을 `integration/upstreams.json`의 수정 예외에 반영한다. 해당 메타데이터는 통합 담당 소유라 여기서는 고치지 않았다.
@@ -136,8 +141,8 @@ docker compose -f compose.yaml start
 
 ## 대기 인수
 
-- 실제 Windows/WSL2 설치·기동·재시작·백업/복구 확인
+- 실제 Windows/WSL2 설치·기동, SQLite 기록의 재시작 복구, 업로드 원본을 포함한 백업/복구 확인
 - 실제 iPad에서 Pencil 입력, 오프라인 저장, 종료/재시작 복구 확인
 - 실제 LLM provider 연결(명시적 테스트 자격증명 사용, 로그/fixture에 secret 금지)
-- Docker daemon 복구 후 이미지 build, Compose up, `/health/ready`, Redis 및 DB 재시작 복구 확인
-- Node 22 웹 검사, GitHub Linux/macOS/Xcode CI 결과
+- Docker 단일 서비스 profile은 clean archive `8ff76c1`에서 image build, Compose up, `/health/ready`, healthy, graceful stop까지 PASS. 실제 자료를 이용한 upload/parse/sync/restart/backup recovery는 미검증이며 이 profile은 Redis를 사용하지 않는다.
+- Node 22 full `npm run check`는 3개 unit timeout과 `/` route-budget mismatch로 완전히 PASS하지 못했다. timeout 3건은 serial retry PASS. Root GitHub Linux/macOS/Xcode CI workflow는 현재 소유 배정이 없어 미추가·미실행.
