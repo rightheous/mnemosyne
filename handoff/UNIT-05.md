@@ -54,7 +54,7 @@
 
 ## UNIT-02 목적별 모델 UI 후속 (2026-10-09)
 
-- `/settings`의 Mnemosyne 화면에 UNIT-02가 추가한 `mnemosyne_chat`, `mnemosyne_reading`, `mnemosyne_quiz`, `mnemosyne_assessment`, `mnemosyne_mastery`, `mnemosyne_solve` 각각의 모델 선택기를 연결했다. 현재 대화 모델을 쓰는 `inherit` 선택을 기본으로 보여주며, catalog에 저장된 LLM/task 모델을 고르면 기존 `/api/settings/apply/registry`에 저장하고 서버 확인·실패 상태를 화면에 표시한다. 일반 Task Models 화면에도 여섯 목적의 이름·설명을 넣었다.
+- `/settings`의 Mnemosyne 화면에 UNIT-02가 추가한 `mnemosyne_chat`, `mnemosyne_reading`, `mnemosyne_quiz`, `mnemosyne_assessment`, `mnemosyne_mastery`, `mnemosyne_solve` 각각의 모델 선택기를 연결했다. 현재 대화 모델을 쓰는 `inherit` 선택을 기본으로 보여주며, catalog에 저장된 LLM/task 모델을 고르면 기존 `/api/settings/apply/registry`에 저장하고 서버 확인·실패 상태를 화면에 표시한다. 일반 Task Models 화면에도 여섯 목적의 이름·설명과 `Follow the chat model` 기본 선택을 반영했다.
 - 기존 `Ink annotations` 번역 키 누락을 en/zh/de/pl에 추가해 strict locale audit를 통과시켰다.
 - PASS: `typecheck`; `contracts:check`; `test:node` 1,304/1,304; `i18n:check`; `build` (Next.js compile 5.3분, TypeScript 완료, 44 static pages); 최신 UNIT-01 library/citation fixture 5개 (5 passed, 6 warnings).
 - 주의: `test:unit`은 146개 파일 중 142개 통과, 653개 중 649개 통과, 4개 실패했다. `tests/i18n-audit.spec.ts`, `tests/question-bank-picker.spec.tsx`, `tests/usage-statistics.spec.tsx`는 5초 timeout, `tests/task-board.spec.tsx`는 `Task note` textbox 조회 실패였다. 이는 전체 UNIT-05 UI 회귀 통과로 보고하지 않는다.

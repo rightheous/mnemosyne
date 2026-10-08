@@ -18,10 +18,10 @@ import { SettingRow, SettingSection, selectClass } from "./shared";
  * listed here by name, each able to name its own model, with one global choice
  * above them for the (common) case where they should all agree.
  *
- * A task with no choice of its own follows the global one. That is the absence
- * of a row in `services.task.overrides`, not a fourth mode — see the backend's
- * `TaskKind` module — so the list below has exactly one default and no way for
- * two records of it to drift apart.
+ * Background tasks with no choice of their own follow the global one. A
+ * Mnemosyne purpose with no pin follows the model for the current conversation.
+ * Both defaults are represented by the absence of a row in
+ * `services.task.overrides`; see the backend's `TaskKind` module.
  *
  * Every select applies immediately rather than staging a draft. A model pointer
  * is one field with no partial state to review, and applying means the control
@@ -33,6 +33,14 @@ import { SettingRow, SettingSection, selectClass } from "./shared";
 const GLOBAL = "global";
 /** Follow whatever model the conversation itself is running on. */
 const INHERIT = "inherit";
+const MNEMOSYNE_PURPOSE_KINDS = new Set([
+  "mnemosyne_chat",
+  "mnemosyne_reading",
+  "mnemosyne_quiz",
+  "mnemosyne_assessment",
+  "mnemosyne_mastery",
+  "mnemosyne_solve",
+]);
 
 /**
  * How each task reads on screen. Keyed by the backend's `TaskKind`; the backend
@@ -286,6 +294,8 @@ export function TaskModelsWorkspace() {
           {entry.kinds.map((kind) => {
             const text = TASK_TEXT[kind];
             const label = text ? t(text.label) : kind;
+            const followsConversation = MNEMOSYNE_PURPOSE_KINDS.has(kind);
+            const fallback = followsConversation ? INHERIT : GLOBAL;
             return (
               <SettingRow
                 key={kind}
@@ -293,8 +303,15 @@ export function TaskModelsWorkspace() {
                 description={text ? t(text.detail) : undefined}
                 control={modelSelect(
                   label,
-                  choiceValue(task.overrides?.[kind] ?? null, GLOBAL),
-                  { value: GLOBAL, label: t("Follow the global task model") },
+                  choiceValue(task.overrides?.[kind] ?? null, fallback),
+                  {
+                    value: fallback,
+                    label: t(
+                      followsConversation
+                        ? "Follow the chat model"
+                        : "Follow the global task model",
+                    ),
+                  },
                   (value) => save(value, kind),
                 )}
               />
