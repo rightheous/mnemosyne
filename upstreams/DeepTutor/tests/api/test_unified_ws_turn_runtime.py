@@ -1689,3 +1689,160 @@ async def test_mnemosyne_semantics_share_the_persisted_native_sequence(tmp_path)
     }
     assert semantic_event(cancelled_frame)["type"] == "turn.cancelled"
     assert cancelled["payload"] == {"reason": "user_cancelled"}
+
+
+def test_native_protocol_turn_adapter_defaults_to_korean_and_rejects_unneeded_capabilities():
+    from deeptutor.mnemosyne.tutor import native_protocol_turn_request
+
+    request = native_protocol_turn_request(
+        {
+            "content": "설명해 줘",
+            "client_submission_id": "00000000-0000-0000-0000-000000000003",
+            "capability": "deep_solve",
+            "skills": ["external-skill"],
+            "mcp": ["external-server"],
+        }
+    )
+
+    assert request.capability == "deep_solve"
+    assert request.language == "ko"
+    assert request.reply_language_override == "ko"
+    assert request.skills == ["__mnemosyne_disabled__"]
+    assert request.mcp == ["__mnemosyne_disabled__"]
+
+    with pytest.raises(ValueError, match="Unsupported personal tutor capability"):
+        native_protocol_turn_request(
+            {
+                "content": "조사해 줘",
+                "client_submission_id": "00000000-0000-0000-0000-000000000004",
+                "capability": "deep_research",
+            }
+        )
+    with pytest.raises(ValueError, match="server-resolved material"):
+        native_protocol_turn_request(
+            {
+                "content": "이 문서를 읽어 줘",
+                "client_submission_id": "00000000-0000-0000-0000-000000000005",
+                "capability": "reading",
+            }
+        )
+
+    reading = native_protocol_turn_request(
+        {
+            "content": "이 문서를 읽어 줘",
+            "client_submission_id": "00000000-0000-0000-0000-000000000006",
+            "capability": "reading",
+            "reading_material_id": "abcdef12",
+            "reading_material_revision": 3,
+            "reading_viewport": {"locator": 2, "selection": "unverified selection"},
+        }
+    )
+    assert reading.reading_viewport.model_dump() == {"locator": 2, "selection": None}
+
+
+@pytest.mark.asyncio
+async def test_unified_ws_uses_registered_tutor_for_start_cancel_and_reconnect(monkeypatch):
+    import json
+
+    from fastapi import WebSocketDisconnect
+
+    from deeptutor.api.routers import auth, unified_ws
+
+    observed: dict[str, object] = {}
+
+    class FakeTurns:
+        async def start_turn(self, _request):
+            raise AssertionError("the native route bypassed the registered tutor")
+
+        async def subscribe_turn(self, *_args, **_kwargs):
+            raise AssertionError("the native route bypassed the registered tutor")
+            yield {}
+
+        async def cancel_turn(self, *_args, **_kwargs):
+            raise AssertionError("the native route bypassed the registered tutor")
+
+    class RecordingTurns:
+        async def start_turn(self, request):
+            observed["start"] = request
+            return {"id": "session_1"}, {"id": "turn_1"}
+
+        async def subscribe_turn(self, turn_id, *, after_seq=0):
+            observed.setdefault("subscribe", []).append((turn_id, after_seq))
+            await asyncio.Event().wait()
+            if False:
+                yield {}
+
+        async def cancel_turn(self, turn_id, *, command_id=None):
+            observed["cancel"] = (turn_id, command_id)
+            return True
+
+    from deeptutor.mnemosyne.tutor import TutorAdapter
+
+    tutor = TutorAdapter(
+        RecordingTurns(), SimpleNamespace(annotation_sync=object()), learning_store=None
+    )
+
+    class FakeWebSocket:
+        def __init__(self):
+            self.app = SimpleNamespace(
+                state=SimpleNamespace(
+                    application_container=SimpleNamespace(turns=FakeTurns()),
+                    mnemosyne=SimpleNamespace(tutor=tutor),
+                )
+            )
+            self.messages = iter(
+                [
+                    json.dumps(
+                        {
+                            "type": "start_turn",
+                            "protocol_version": "2.0",
+                            "content": "개념을 설명해 줘",
+                            "client_submission_id": "00000000-0000-0000-0000-000000000007",
+                            "capability": "chat",
+                        }
+                    ),
+                    json.dumps(
+                        {
+                            "type": "resume_from",
+                            "protocol_version": "2.0",
+                            "turn_id": "turn_1",
+                            "seq": 7,
+                        }
+                    ),
+                    json.dumps(
+                        {
+                            "type": "cancel_turn",
+                            "protocol_version": "2.0",
+                            "turn_id": "turn_1",
+                            "command_id": "cancel-command-1",
+                        }
+                    ),
+                ]
+            )
+            self.sent: list[dict[str, object]] = []
+
+        async def accept(self):
+            return None
+
+        async def receive_text(self):
+            await asyncio.sleep(0)
+            try:
+                return next(self.messages)
+            except StopIteration as exc:
+                raise WebSocketDisconnect(code=1000) from exc
+
+        async def send_text(self, value):
+            self.sent.append(json.loads(value))
+
+    async def allow_auth(_websocket):
+        return None
+
+    monkeypatch.setattr(auth, "ws_require_auth", allow_auth)
+    websocket = FakeWebSocket()
+    await unified_ws.unified_websocket(websocket)
+
+    assert observed["start"].client_submission_id == "00000000-0000-0000-0000-000000000007"
+    assert observed["start"].language == "ko"
+    assert observed["subscribe"] == [("turn_1", 0), ("turn_1", 7)]
+    assert observed["cancel"] == ("turn_1", "cancel-command-1")
+    assert websocket.sent[-1]["accepted"] is True

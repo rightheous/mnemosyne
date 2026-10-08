@@ -221,6 +221,7 @@ class TurnExecutor:
         from deeptutor.services.workspace.resources import turn_resource_selection
 
         resource_scope = contextlib.ExitStack()
+        task_model_scope = contextlib.ExitStack()
         resource_scope.enter_context(
             turn_resource_selection(
                 skills=list(payload.get("skills") or []),
@@ -569,6 +570,18 @@ class TurnExecutor:
                     )
 
             llm_config, llm_scope_token = activate_llm_selection(payload.get("llm_selection"))
+            from deeptutor.services.model_selection.tasks import TaskKind, task_llm_scope
+
+            if capability_name == "immersive_reading":
+                task_model_scope.enter_context(task_llm_scope(TaskKind.MNEMOSYNE_READING))
+            elif capability_name == "deep_question":
+                task_model_scope.enter_context(task_llm_scope(TaskKind.MNEMOSYNE_QUIZ))
+            elif capability_name == "mastery_path":
+                task_model_scope.enter_context(task_llm_scope(TaskKind.MNEMOSYNE_MASTERY))
+            elif capability_name == "deep_solve":
+                task_model_scope.enter_context(task_llm_scope(TaskKind.MNEMOSYNE_SOLVE))
+            else:
+                task_model_scope.enter_context(task_llm_scope(TaskKind.MNEMOSYNE_CHAT))
             builder = self._create_context_builder()
 
             async def _emit_context_event(event: StreamEvent) -> None:
@@ -1422,6 +1435,7 @@ class TurnExecutor:
                 )
         finally:
             resource_scope.close()
+            task_model_scope.close()
             if llm_scope_token is not None and reset_active_llm_selection is not None:
                 reset_active_llm_selection(llm_scope_token)
             # Drop the reply queue first — any in-flight ``submit_user_reply``

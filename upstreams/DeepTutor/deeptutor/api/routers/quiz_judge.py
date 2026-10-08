@@ -428,38 +428,46 @@ async def websocket_quiz_judge(websocket: WebSocket):
 
     await safe_send({"type": "started"})
 
-    # Build a multimodal user message when ≥1 image was attached. We pass
-    # the full ``messages`` array to ``factory.stream`` so it forwards the
-    # content-parts unchanged (the single-image ``image_data`` kwarg only
-    # supports one image).
-    stream_kwargs: dict[str, Any] = {}
-    if has_image:
-        from deeptutor.services.llm import config as _llm_config_mod
-        from deeptutor.services.llm.capabilities import supports_vision
+    from contextlib import ExitStack
 
-        llm_cfg = _llm_config_mod.get_llm_config()
-        binding = getattr(llm_cfg, "binding", "openai") or "openai"
-        model = getattr(llm_cfg, "model", "") or ""
-        if supports_vision(binding, model):
-            user_content = await _build_multimodal_user_content(
-                text=user_prompt,
-                image_records=image_records,
-            )
-            stream_kwargs["messages"] = [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_content},
-            ]
-        else:
-            # Vision-incapable model — fall back to text-only judge so the
-            # learner still gets feedback on their typed answer.
-            logger.info(
-                "Judge: %s/%s does not support vision; dropping %d image(s)",
-                binding,
-                model,
-                len(image_records),
-            )
+    from deeptutor.services.model_selection.tasks import TaskKind, task_llm_scope
 
+    assessment_model_scope = ExitStack()
     try:
+        assessment_model_scope.enter_context(
+            task_llm_scope(TaskKind.MNEMOSYNE_ASSESSMENT)
+        )
+        # Build a multimodal user message when ≥1 image was attached. We pass
+        # the full ``messages`` array to ``factory.stream`` so it forwards the
+        # content-parts unchanged (the single-image ``image_data`` kwarg only
+        # supports one image).
+        stream_kwargs: dict[str, Any] = {}
+        if has_image:
+            from deeptutor.services.llm import config as _llm_config_mod
+            from deeptutor.services.llm.capabilities import supports_vision
+
+            llm_cfg = _llm_config_mod.get_llm_config()
+            binding = getattr(llm_cfg, "binding", "openai") or "openai"
+            model = getattr(llm_cfg, "model", "") or ""
+            if supports_vision(binding, model):
+                user_content = await _build_multimodal_user_content(
+                    text=user_prompt,
+                    image_records=image_records,
+                )
+                stream_kwargs["messages"] = [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_content},
+                ]
+            else:
+                # Vision-incapable model — fall back to text-only judge so the
+                # learner still gets feedback on their typed answer.
+                logger.info(
+                    "Judge: %s/%s does not support vision; dropping %d image(s)",
+                    binding,
+                    model,
+                    len(image_records),
+                )
+
         async with asyncio.timeout(2 * 60):
             async for chunk in llm_stream(
                 prompt=user_prompt,
@@ -479,6 +487,7 @@ async def websocket_quiz_judge(websocket: WebSocket):
         logger.exception("AI judge stream failed")
         await safe_send({"type": "error", "content": format_exception_message(exc)})
     finally:
+        assessment_model_scope.close()
         try:
             await websocket.close()
         except Exception:

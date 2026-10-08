@@ -61,6 +61,8 @@ async def unified_websocket(ws: WebSocket) -> None:
         container = get_application_container()
         await container.start()
     turns = container.turns
+    mnemosyne = getattr(ws.app.state, "mnemosyne", None)
+    tutor = getattr(mnemosyne, "tutor", None)
 
     async def safe_send(data: dict[str, Any]) -> None:
         nonlocal closed
@@ -140,7 +142,8 @@ async def unified_websocket(ws: WebSocket) -> None:
     async def subscribe_turn(turn_id: str, after_seq: int = 0) -> None:
         async def _forward() -> None:
             try:
-                async for event in turns.subscribe_turn(turn_id, after_seq=after_seq):
+                subscribe = tutor.subscribe_turn if tutor is not None else turns.subscribe_turn
+                async for event in subscribe(turn_id, after_seq=after_seq):
                     await safe_send(event)
             except asyncio.CancelledError:
                 raise
@@ -219,16 +222,16 @@ async def unified_websocket(ws: WebSocket) -> None:
 
             if msg_type in {"message", "start_turn"}:
                 try:
-                    _, turn = await turns.start_turn(
-                        {
-                            key: value
-                            for key, value in msg.items()
-                            if key not in {"type", "protocol_version"}
-                        }
-                    )
-                except (RuntimeError, WorkspaceError) as exc:
+                    payload = {
+                        key: value
+                        for key, value in msg.items()
+                        if key not in {"type", "protocol_version"}
+                    }
+                    start = tutor.start_native_turn if tutor is not None else turns.start_turn
+                    _, turn = await start(payload)
+                except (RuntimeError, ValueError, WorkspaceError):
                     await send_error(
-                        str(exc),
+                        "요청을 시작할 수 없습니다. capability, 언어와 문서 준비 상태를 확인해 주세요.",
                         error_code="start_turn_rejected",
                         session_id=str(msg.get("session_id") or ""),
                         terminal=True,
@@ -290,7 +293,10 @@ async def unified_websocket(ws: WebSocket) -> None:
                 if not turn_id:
                     await send_error("Missing turn_id.", error_code="missing_turn_id")
                     continue
-                accepted = await turns.cancel_turn(turn_id, command_id=str(msg["command_id"]))
+                if tutor is not None:
+                    accepted = await tutor.cancel_turn(turn_id, str(msg["command_id"]))
+                else:
+                    accepted = await turns.cancel_turn(turn_id, command_id=str(msg["command_id"]))
                 if not accepted:
                     await send_command_ack(
                         msg,

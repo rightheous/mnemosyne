@@ -15,8 +15,9 @@ and a provider can be brought over from the LLM service rather than typed again.
 Not every one of those calls wants the same model, though. Writing a title is
 throwaway work; explaining a word a learner just looked up is not. So each call
 site names itself with a :class:`TaskKind`, and ``services.task.overrides`` may
-pin a kind to something other than the global choice. An absent override is the
-common case and means *follow the global task model*.
+pin a kind to something other than the global choice. Background call sites
+without a pin follow the global task model. Mnemosyne purposes without a pin
+follow the model selected for the current turn.
 
 Leaving the whole thing empty is the default. Then the scope below is a no-op
 and every call resolves what it always did — for the title, the model the turn
@@ -70,6 +71,12 @@ class TaskKind(StrEnum):
     READING_VOCABULARY = "reading_vocabulary"
     READING_TRANSLATION = "reading_translation"
     READING_GUIDANCE = "reading_guidance"
+    MNEMOSYNE_CHAT = "mnemosyne_chat"
+    MNEMOSYNE_READING = "mnemosyne_reading"
+    MNEMOSYNE_QUIZ = "mnemosyne_quiz"
+    MNEMOSYNE_ASSESSMENT = "mnemosyne_assessment"
+    MNEMOSYNE_MASTERY = "mnemosyne_mastery"
+    MNEMOSYNE_SOLVE = "mnemosyne_solve"
 
 
 @dataclass(frozen=True)
@@ -93,11 +100,18 @@ TASK_KINDS: tuple[TaskKindSpec, ...] = (
     TaskKindSpec(TaskKind.READING_TRANSLATION, "reading"),
     TaskKindSpec(TaskKind.READING_GUIDANCE, "reading"),
     TaskKindSpec(TaskKind.READING_QUIZ, "reading"),
+    TaskKindSpec(TaskKind.MNEMOSYNE_CHAT, "chat"),
+    TaskKindSpec(TaskKind.MNEMOSYNE_READING, "reading"),
+    TaskKindSpec(TaskKind.MNEMOSYNE_QUIZ, "reading"),
+    TaskKindSpec(TaskKind.MNEMOSYNE_ASSESSMENT, "reading"),
+    TaskKindSpec(TaskKind.MNEMOSYNE_MASTERY, "mastery"),
+    TaskKindSpec(TaskKind.MNEMOSYNE_SOLVE, "chat"),
 )
 
 # The three ways a task model can be chosen, global or per kind. A fourth state
 # exists only per kind and is spelled by the *absence* of an override: follow
-# whatever the global task model is.
+# the global task model for background kinds, or the active turn model for a
+# Mnemosyne purpose kind.
 TASK_MODES: frozenset[str] = frozenset({"inherit", "reference", "profiles"})
 
 
@@ -113,11 +127,11 @@ def _task_service(catalog: dict[str, Any]) -> dict[str, Any]:
 
 
 def task_override(catalog: dict[str, Any], kind: TaskKind | str | None) -> dict[str, Any] | None:
-    """The pin for *kind*, or ``None`` when it follows the global choice.
+    """The pin for *kind*, or ``None`` when it follows its default model.
 
     A malformed or half-written override reads as absent rather than as an
-    error: these calls are not worth failing over, and the global model is the
-    answer the user last agreed to.
+    error: these calls are not worth failing over. Background tasks inherit the
+    global model; Mnemosyne purposes inherit the active turn model.
     """
     if kind is None:
         return None
@@ -220,11 +234,29 @@ def task_llm_scope(kind: TaskKind) -> Iterator[LLMConfig | None]:
     call site with no kind to name is a new :class:`TaskKind` member.
     """
     try:
-        catalog = catalog_for_task(get_model_catalog_service().load(), kind)
+        base_catalog = get_model_catalog_service().load()
     except Exception:
         logger.debug("Task catalog unreadable — inheriting", exc_info=True)
         yield None
         return
+
+    # A Mnemosyne purpose starts with the model chosen for this conversation.
+    # Only an explicit purpose pin switches it to the task service. The older
+    # background call sites below still inherit the global task model.
+    if kind in {
+        TaskKind.MNEMOSYNE_CHAT,
+        TaskKind.MNEMOSYNE_READING,
+        TaskKind.MNEMOSYNE_QUIZ,
+        TaskKind.MNEMOSYNE_ASSESSMENT,
+        TaskKind.MNEMOSYNE_MASTERY,
+        TaskKind.MNEMOSYNE_SOLVE,
+    }:
+        override = task_override(base_catalog, kind)
+        if override is None or override.get("mode") == "inherit":
+            yield None
+            return
+
+    catalog = catalog_for_task(base_catalog, kind)
 
     if not task_service_configured(catalog):
         yield None

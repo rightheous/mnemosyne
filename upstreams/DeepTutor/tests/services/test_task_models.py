@@ -313,6 +313,67 @@ def test_pruning_retired_pins_keeps_the_live_ones(tmp_path: Path) -> None:
     assert catalog["services"]["task"]["overrides"] == {"session_title": live}
 
 
+def test_mnemosyne_purpose_inherits_the_active_turn_model_without_a_pin(
+    tmp_path: Path, monkeypatch
+) -> None:
+    from deeptutor.services.llm import config as llm_config
+    from deeptutor.services.model_selection import tasks
+    from deeptutor.services.model_selection.tasks import TaskKind
+
+    service = ModelCatalogService(path=tmp_path / "model_catalog.json")
+    service.save(_with_task_model(service))
+    monkeypatch.setattr(tasks, "get_model_catalog_service", lambda: service)
+    selected = llm_config.LLMConfig(
+        model="learner-choice",
+        api_key="sk-learner",
+        base_url="https://api.openai.com/v1",
+        binding="openai",
+    )
+    token = llm_config.set_scoped_llm_config(selected)
+    try:
+        with tasks.task_llm_scope(TaskKind.MNEMOSYNE_CHAT):
+            assert llm_config.get_llm_config() is selected
+        assert llm_config.get_llm_config() is selected
+    finally:
+        llm_config.reset_scoped_llm_config(token)
+
+
+def test_mnemosyne_purpose_pin_overrides_and_restores_the_active_turn_model(
+    tmp_path: Path, monkeypatch
+) -> None:
+    from deeptutor.services.llm import config as llm_config
+    from deeptutor.services.model_selection import tasks
+    from deeptutor.services.model_selection.tasks import TaskKind
+
+    service = ModelCatalogService(path=tmp_path / "model_catalog.json")
+    service.save(
+        _with_task_model(
+            service,
+            overrides={
+                "mnemosyne_chat": {
+                    "mode": "profiles",
+                    "active_profile_id": "task-1",
+                    "active_model_id": "task-nano",
+                }
+            },
+        )
+    )
+    monkeypatch.setattr(tasks, "get_model_catalog_service", lambda: service)
+    selected = llm_config.LLMConfig(
+        model="learner-choice",
+        api_key="sk-learner",
+        base_url="https://api.openai.com/v1",
+        binding="openai",
+    )
+    token = llm_config.set_scoped_llm_config(selected)
+    try:
+        with tasks.task_llm_scope(TaskKind.MNEMOSYNE_CHAT):
+            assert llm_config.get_llm_config().model == "gpt-5-nano"
+        assert llm_config.get_llm_config() is selected
+    finally:
+        llm_config.reset_scoped_llm_config(token)
+
+
 def test_every_task_model_call_site_names_a_kind() -> None:
     """The settings page lists TaskKind, so a call site with no kind would hide.
 

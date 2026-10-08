@@ -16,8 +16,13 @@ CAPABILITY_MAP = {
     "chat": "chat",
     "reading": "immersive_reading",
     "quiz": "deep_question",
+    "assessment": "deep_question",
     "mastery": "mastery_path",
     "solve": "deep_solve",
+}
+_NATIVE_CAPABILITY_ALIASES = {
+    **CAPABILITY_MAP,
+    **{name: name for name in CAPABILITY_MAP.values()},
 }
 SUPPORTED_CAPABILITIES = frozenset(
     {"chat", "reading", "quiz", "assessment", "mastery", "solve", "memory", "progress", "review"}
@@ -42,6 +47,63 @@ def _learning_store(store: LearningStateStore | None) -> LearningStateStore:
     if store is None:
         raise RuntimeError("Learning state is not ready; the durable learning store is unavailable")
     return store
+
+
+def native_protocol_turn_request(request: dict[str, Any]) -> TurnRequest:
+    """Constrain an already validated native /ws start command for Mnemosyne.
+
+    The WebSocket command schema remains DeepTutor protocol 2.0. This adapter
+    applies the personal-tutor defaults and allowlist at the existing start
+    boundary, so reconnects continue to subscribe to the original turn ID.
+    """
+    if not isinstance(request, dict):
+        raise ValueError("Tutor request must be an object")
+    payload = {
+        key: value
+        for key, value in request.items()
+        if key not in {"type", "protocol_version"}
+    }
+    requested_capability = str(payload.get("capability") or "chat").strip()
+    capability = _NATIVE_CAPABILITY_ALIASES.get(requested_capability)
+    if capability is None:
+        raise ValueError("Unsupported personal tutor capability")
+
+    submission_id = _required_id(
+        payload.get("client_submission_id") or payload.get("client_mutation_id"),
+        "client_submission_id",
+        uuid_value=True,
+    )
+    response_language = str(
+        payload.get("response_language")
+        or payload.get("reply_language_override")
+        or payload.get("language")
+        or "ko"
+    ).strip().lower()
+    payload.update(
+        {
+            "capability": capability,
+            "client_submission_id": submission_id,
+            "language": response_language,
+            "reply_language_override": response_language,
+            # Empty lists inherit the workspace's optional integrations.
+            # A sentinel intersects to an empty allowlist in the personal app.
+            "skills": ["__mnemosyne_disabled__"],
+            "mcp": ["__mnemosyne_disabled__"],
+        }
+    )
+
+    if capability == "immersive_reading":
+        material_id = str(payload.get("reading_material_id") or "").strip()
+        revision = payload.get("reading_material_revision")
+        if not material_id or isinstance(revision, bool) or not isinstance(revision, int) or revision < 1:
+            raise ValueError("Reading requires a server-resolved material and revision")
+        viewport = payload.get("reading_viewport")
+        if isinstance(viewport, dict):
+            # The native protocol carries only a display selection string, not
+            # a verified Mnemosyne TextAnchor. Do not let it become evidence.
+            payload["reading_viewport"] = {**viewport, "selection": None}
+
+    return TurnRequest.model_validate(payload)
 
 
 def native_turn_request(
@@ -180,7 +242,13 @@ class TutorAdapter:
             material_id=material_id,
             material_revision=material_revision,
         )
-        return await self.turns.start_turn(native)
+        return await self.turns.start_turn(native_protocol_turn_request(native.model_dump()))
+
+    async def start_native_turn(
+        self, request: dict[str, Any]
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
+        """Start from a validated DeepTutor protocol 2.0 command payload."""
+        return await self.turns.start_turn(native_protocol_turn_request(request))
 
     async def subscribe_turn(self, turn_id: str, after_seq: int = 0):
         """Read an existing turn from its native durable event cursor."""
