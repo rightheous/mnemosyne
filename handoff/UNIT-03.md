@@ -107,6 +107,6 @@ These are proposals only: do not copy them into `integration/upstreams.json` wit
 - 차단: 원래 package 경로로 SwiftPM 테스트를 시작하면 CLT의 `Testing` module 부재로 실패한다. 단, 위의 임시 wrapper에서 동일한 Core 테스트 소스를 별도 실행했다. package 기본 macOS target의 CryptoKit/FileHandle 제약 때문에 검사 명령에만 target override를 썼다. 로컬 developer directory는 full Xcode가 아닌 Command Line Tools이며 xcodebuild와 iOS Simulator SDK를 사용할 수 없어 iPad 앱 빌드와 Simulator 검증은 하지 못했다.
 - 미검증: 실제 iPad Pencil, 화면 회전/zoom, 앱 강제 종료 후 복구, export PDF 렌더, 기기에서의 sidecar 보호 권한. Cloud 실행 환경의 Apple SDK 상태도 이 로컬 세션에서는 확인되지 않았다.
 - Cloud Apple SDK 점검: 이 세션에서 사용할 수 있는 Cloud Xcode 실행/SDK 점검 도구가 없어 상태는 미확인이다. SDK가 없다고 단정하지 않는다.
-- remote 목록은 비어 있다. 따라서 Cloud dispatch/PR 게시 여부는 미확인이다. 공통 registry의 `product_ready=false`를 유지하며 제품 완료로 보고하지 않는다.
+- `git remote -v`는 비어 있다. GitHub 연결 계정에서 `Mnemosyne`를 검색한 결과 `rightheous/mnemosyne`가 보였지만, 저장소 크기는 0이고 `main`/`codex/unit-03-reader` branch 검색과 PR 검색 모두 비어 있었다. 이 저장소가 이 workspace의 승인된 원격인지 확인되지 않았고 PR base도 없어 push, 저장소 초기화, PR 생성을 하지 않았다. 사용할 원격과 기존 base branch를 확인한 뒤 연결한다. 공통 registry의 `product_ready=false`를 유지하며 제품 완료로 보고하지 않는다.
 
 UNIT-03 변경은 `codex/unit-03-reader` 격리 브랜치에 고정한다. 정확한 commit SHA는 작업 종료 보고에 기록한다.
