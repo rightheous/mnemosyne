@@ -26,6 +26,20 @@
 
 `source_adapters.py` 결과는 다른 유닛의 로컬 변경이 섞이지 않은 확정 commit 결과로 간주하지 않는다. 현재 공유 worktree에는 UNIT-01/02/03/05 경로의 비커밋 변경이 보인다. 보존했으며 검사·stage·commit 대상에서 제외한다. 각 구현은 사용자 제공 commit/PR 목록을 받은 뒤 해당 revision으로 다시 검사한다.
 
+## 계약 fixture와 제품 인수의 경계
+
+| 요구 | 현재 증거 | 남은 제품 검사 |
+|---|---|---|
+| PDF hash, geometry, quote, 잘못된 locator 거부 | fixture validator에서 계약 hash/좌표/인용 negative cases PASS | 서버 업로드·파싱·원본 파일 hash 불변의 runtime 재검사 |
+| 주석 upsert/delete/tombstone/중복 mutation | 10개 fixture sync step의 reference model PASS | 실제 서버 transaction, 다른 클라이언트 수신, app 재시작 복구 |
+| Tutor event/citation/Reader/quiz/learning state | schema와 fixture linkage, native wire/replay fixture 검사 PASS | 실제 `/ws` streaming, 인용 이후 Reader 명령, durable quiz/mastery/memory 저장·재시작 |
+| 마이그레이션·export | 이번 검사에서 실행 안 함 | UNIT-01 storage/migration 적용 뒤 원본 보존, export 산출물, rollback 검사 |
+| 사설 접속·최소 보호·secret | Compose loopback 기본값, Redis 비공개 포트, Compose env의 key/token/secret 부재를 정적 검사 | 앱 pairing/Origin 보호는 UNIT-02, WSL2 firewall/Tailscale는 실제 기기에서 검사 |
+| 백업·복원 | 중지·tar·복원 절차만 문서화 | Docker daemon 복구 후 실제 데이터를 넣어 restore smoke test |
+| LLM no-secret 경로 | PublicSettings의 secret 필드 거부 fixture PASS | test-only provider는 제품 경계에 구현되지 않아 미검증. 실제 provider 연결은 별도 실행 필요 |
+
+fixture PASS는 표의 runtime 검사를 완료했다는 뜻이 아니다.
+
 ## Codex Cloud 및 재현 명령
 
 새 환경의 install command:
