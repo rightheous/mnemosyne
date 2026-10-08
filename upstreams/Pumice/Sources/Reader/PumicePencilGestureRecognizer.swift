@@ -36,12 +36,15 @@ final class PumicePencilGestureRecognizer: UIGestureRecognizer {
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent) {
         super.touchesBegan(touches, with: event)
         guard let touch = touches.first,
-              touch.type == .pencil,
-              event.allTouches?.count == 1
+              touch.type == .pencil
         else {
             state = .failed
             return
         }
+        // `allowedTouchTypes` filters this recognizer to Pencil touches.
+        // Do not also reject based on `event.allTouches`: UIKit can expose
+        // a concurrent direct finger/palm touch there, which must remain
+        // available to PDFView without cancelling the Pencil stroke.
         let path = UIBezierPath()
         path.lineJoinStyle = .round
         path.lineCapStyle = .round
