@@ -4,8 +4,6 @@ import "./globals.css";
 import ThemeScript from "@/components/ThemeScript";
 import ToastViewport from "@/components/common/ToastViewport";
 import MotionProvider from "@/components/common/MotionProvider";
-import SettingsReturnTracker from "@/components/settings/SettingsReturnTracker";
-import { WorkspaceNavigation } from "@/components/workspaces/WorkspaceNavigation";
 import { AppShellProvider } from "@/context/AppShellContext";
 import { I18nClientBridge } from "@/i18n/I18nClientBridge";
 
@@ -24,8 +22,8 @@ const fontSerif = Lora({
 });
 
 export const metadata: Metadata = {
-  title: "DeepTutor",
-  description: "Agent-native intelligent learning companion",
+  title: "므네모시네",
+  description: "개인 학습 자료와 기록을 보관하는 공간",
   icons: {
     icon: [
       { url: "/favicon-16x16.png", sizes: "16x16", type: "image/png" },
@@ -42,7 +40,7 @@ export default function RootLayout({
 }>) {
   return (
     <html
-      lang="en"
+      lang="ko"
       suppressHydrationWarning
       data-scroll-behavior="smooth"
       className={`${fontSans.variable} ${fontSerif.variable}`}
@@ -55,8 +53,6 @@ export default function RootLayout({
         suppressHydrationWarning
       >
         <AppShellProvider>
-          <SettingsReturnTracker />
-          <WorkspaceNavigation />
           <MotionProvider>
             <I18nClientBridge>{children}</I18nClientBridge>
           </MotionProvider>

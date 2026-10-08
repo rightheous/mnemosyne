@@ -1,5 +1,10 @@
-import { ReadingWorkspacePage } from "@/components/reading/workspace/ReadingWorkspace";
+import { MnemosyneReader } from "@/features/mnemosyne/screens";
 
-export default function NewImmersiveReadingSessionRoute() {
-  return <ReadingWorkspacePage />;
+export default async function NewImmersiveReadingSessionRoute({
+  params,
+}: {
+  params: Promise<{ workspaceId: string }>;
+}) {
+  const { workspaceId } = await params;
+  return <MnemosyneReader documentID={workspaceId} />;
 }

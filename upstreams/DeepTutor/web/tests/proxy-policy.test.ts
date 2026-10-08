@@ -29,10 +29,12 @@ function makeToken(payload: Record<string, unknown>): string {
   return `${encode({ alg: "HS256" })}.${encode(payload)}.signature`;
 }
 
-test("isBackendPath matches /api and /ws paths only", () => {
+test("isBackendPath matches /api, /v1, and /ws paths only", () => {
   assert.equal(isBackendPath("/api/knowledge-bases"), true);
+  assert.equal(isBackendPath("/v1/readiness"), true);
   assert.equal(isBackendPath("/ws/chat"), true);
   assert.equal(isBackendPath("/chat"), false);
+  assert.equal(isBackendPath("/v10/readiness"), false);
   assert.equal(isBackendPath("/apidocs"), false); // no trailing slash → not backend
   assert.equal(isBackendPath("/logo.png"), false);
   assert.equal(isWebSocketPath("/ws"), true);

@@ -4,7 +4,13 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { loadPdfjs, outputScale, type PdfDocument } from "@/lib/pdfjs-loader";
 import type { AnnotationItem } from "@/lib/reading-api";
-import { AnnotationLayer } from "./AnnotationLayer";
+import { AnnotationLayer, type InkOverlayStroke } from "./AnnotationLayer";
+
+export interface PdfCanonicalGeometry {
+  crop_box: [number, number, number, number];
+  rotation_degrees: 0 | 90 | 180 | 270;
+  user_unit: number;
+}
 
 export interface PdfPageProps {
   doc: PdfDocument;
@@ -16,10 +22,12 @@ export interface PdfPageProps {
   /** False while the page is far outside the viewport — keeps memory bounded. */
   active: boolean;
   annotations: AnnotationItem[];
+  inkStrokes?: InkOverlayStroke[];
   highlightedAnnotationId?: string | null;
   /** Transient highlight from `reader_goto`, as normalised rects. */
   flashRects?: Array<[number, number, number, number]>;
   onAnnotationClick?: (annotation: AnnotationItem) => void;
+  onPageGeometryChange?: (locator: number, geometry: PdfCanonicalGeometry) => void;
 }
 
 /**
@@ -40,9 +48,11 @@ export function PdfPage({
   fallbackRatio,
   active,
   annotations,
+  inkStrokes,
   highlightedAnnotationId,
   flashRects,
   onAnnotationClick,
+  onPageGeometryChange,
 }: PdfPageProps) {
   const { t } = useTranslation();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -63,6 +73,14 @@ export function PdfPage({
         const pdfjs = await loadPdfjs();
         const page = await doc.getPage(locator);
         if (cancelled) return;
+
+        if ([0, 90, 180, 270].includes(page.rotate)) {
+          onPageGeometryChange?.(locator, {
+            crop_box: [...page.view] as [number, number, number, number],
+            rotation_degrees: page.rotate as 0 | 90 | 180 | 270,
+            user_unit: page.userUnit || 1,
+          });
+        }
 
         const base = page.getViewport({ scale: 1 });
         if (base.width > 0) {
@@ -156,7 +174,7 @@ export function PdfPage({
         // Already settled.
       }
     };
-  }, [doc, locator, width, active]);
+  }, [doc, locator, width, active, onPageGeometryChange]);
 
   // Free the canvas bitmap when the page scrolls far away. Without this a
   // 600-page document accumulates every page it ever showed.
@@ -173,6 +191,10 @@ export function PdfPage({
   const pageAnnotations = useMemo(
     () => annotations.filter((a) => a.locator === locator),
     [annotations, locator],
+  );
+  const pageInk = useMemo(
+    () => inkStrokes?.filter((stroke) => stroke.locator === undefined || stroke.locator === locator),
+    [inkStrokes, locator],
   );
 
   return (
@@ -191,6 +213,7 @@ export function PdfPage({
       />
       <AnnotationLayer
         annotations={pageAnnotations}
+        inkStrokes={pageInk}
         highlightedAnnotationId={highlightedAnnotationId}
         flashRects={flashRects}
         onAnnotationClick={onAnnotationClick}

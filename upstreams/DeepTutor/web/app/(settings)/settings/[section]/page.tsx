@@ -1,10 +1,10 @@
-import SettingsPageContent from "@/components/settings/SettingsPageContent";
+import { redirect } from "next/navigation";
 
 export default async function SettingsSectionPage({
   params,
 }: {
   params: Promise<{ section: string }>;
 }) {
-  const { section } = await params;
-  return <SettingsPageContent section={section} />;
+  await params;
+  redirect("/settings");
 }

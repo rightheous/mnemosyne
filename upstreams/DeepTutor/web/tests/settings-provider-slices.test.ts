@@ -6,16 +6,29 @@ import test from "node:test";
 const read = (relative: string) =>
   fs.readFileSync(path.resolve(process.cwd(), relative), "utf8");
 
-test("settings layout installs independently memoized provider slices", () => {
+test("personal settings route mounts the Mnemosyne settings screen directly", () => {
   const layout = read("app/(settings)/settings/layout.tsx");
+  const page = read("app/(settings)/settings/page.tsx");
+  assert.match(page, /MnemosyneSettings/);
   for (const provider of [
     "UiSettingsProvider",
     "ModelCatalogProvider",
     "SettingsDraftProvider",
   ]) {
-    assert.match(layout, new RegExp(`<${provider}>`));
+    assert.doesNotMatch(layout, new RegExp(`<${provider}>`));
   }
 
+  const providers = [
+    read("features/settings/store/UiSettingsProvider.tsx"),
+    read("features/settings/store/ModelCatalogProvider.tsx"),
+    read("features/settings/store/SettingsDraftProvider.tsx"),
+  ];
+  for (const source of providers) {
+    assert.match(source, /useMemo/);
+  }
+});
+
+test("legacy settings provider slices remain independently memoized", () => {
   const ui = read("features/settings/store/UiSettingsProvider.tsx");
   const catalog = read("features/settings/store/ModelCatalogProvider.tsx");
   const draft = read("features/settings/store/SettingsDraftProvider.tsx");

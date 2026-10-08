@@ -8,7 +8,7 @@
 | UNIT-02 | upstreams/DeepTutor/deeptutor/mnemosyne/tutor.py; runtime/, agents/, capabilities/, services/llm/, learning/서비스, practice/서비스, api/routers/ (DB·공유 계약·main 제외) | 1738 |
 | UNIT-03 | upstreams/Pumice/Sources/Reader/, Packages/PumiceCore/Sources/와 Tests/, Tests/PumiceTests/; geometry/Reader facade/local sidecar-outbox | 42 |
 | UNIT-04 | upstreams/Pumice/App/, Sources/{Browser,Vault,Onboarding,Markdown,Extraction,Network}/; Config/, project.yml, Core Package.swift/Package.resolved, UI tests; screens/network/sync/Xcode | 82 |
-| UNIT-05 | upstreams/DeepTutor/web/** 전체 (MnemosyneContracts 복사본은 제외); 웹 manifest/lockfile, app/features/components 및 checks/web-consumer.mjs | 1407 |
+| UNIT-05 | upstreams/DeepTutor/web/** 전체 (MnemosyneContracts 복사본은 제외); 웹 manifest/lockfile, app/features/components 및 checks/web-consumer.mjs | 1408 |
 | UNIT-06 | checks/{validate_contracts,source_adapters}.py, ipad-consumer.swift, requirements.txt; DeepTutor scripts/, Docker/Compose/.github/, backend requirements/pyproject와 packaging; Pumice 자동화 scripts/fastlane | 77 |
 | INTEGRATOR | 루트 docs/contracts/integration/AGENTS; deeptutor/api/main.py, app/container.py, api/contracts/, mnemosyne/{bootstrap,ports,__init__}.py; 동일 계약 생성 복사본과 checks/sync_contracts.py; 보존 reference/license/docs | 299 |
 

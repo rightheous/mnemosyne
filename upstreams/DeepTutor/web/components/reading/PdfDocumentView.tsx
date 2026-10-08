@@ -24,7 +24,8 @@ import {
   locatorOfSelection,
   normaliseRects,
 } from "@/lib/reading-selection";
-import { PdfPage } from "./PdfPage";
+import { PdfPage, type PdfCanonicalGeometry } from "./PdfPage";
+import type { InkOverlayStroke } from "./AnnotationLayer";
 
 /** Pages kept rendered on each side of the viewport. */
 const RENDER_MARGIN = 1;
@@ -55,13 +56,19 @@ export interface JumpRequest {
 
 export interface PdfDocumentViewProps {
   materialId: string;
+  /** Direct source for contract-backed immutable PDFs. */
+  sourceUrl?: string;
+  /** Same-origin contract headers used by the Mnemosyne file endpoint. */
+  sourceHeaders?: Record<string, string>;
   unitCount: number;
   annotations: AnnotationItem[];
+  inkStrokes?: InkOverlayStroke[];
   jump: JumpRequest | null;
   highlightedAnnotationId?: string | null;
   onSelection: (payload: SelectionPayload | null) => void;
   onAnnotationClick?: (annotation: AnnotationItem) => void;
   onVisibleLocatorChange?: (locator: number) => void;
+  onPageGeometryChange?: (locator: number, geometry: PdfCanonicalGeometry) => void;
 }
 
 /**
@@ -75,13 +82,17 @@ export interface PdfDocumentViewProps {
  */
 export function PdfDocumentView({
   materialId,
+  sourceUrl,
+  sourceHeaders,
   unitCount,
   annotations,
+  inkStrokes,
   jump,
   highlightedAnnotationId,
   onSelection,
   onAnnotationClick,
   onVisibleLocatorChange,
+  onPageGeometryChange,
 }: PdfDocumentViewProps) {
   const { t } = useTranslation();
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -131,7 +142,8 @@ export function PdfDocumentView({
       try {
         const pdfjs = await loadPdfjs();
         const loadingTask = pdfjs.getDocument({
-          url: rawMaterialUrl(materialId),
+          url: sourceUrl ?? rawMaterialUrl(materialId),
+          httpHeaders: sourceHeaders,
           // PDF.js loads OpenJPEG/JBIG2/QCMS from these assets when a PDF uses
           // JPEG2000 or other formats that are not decoded in pure JS.
           wasmUrl: pdfjsWasmUrl(),
@@ -168,7 +180,7 @@ export function PdfDocumentView({
       // document leaks a worker port for the life of the session.
       void task?.destroy();
     };
-  }, [materialId, t]);
+  }, [materialId, sourceUrl, sourceHeaders, t]);
 
   // -- width ---------------------------------------------------------------
 
@@ -507,6 +519,7 @@ export function PdfDocumentView({
                 fallbackRatio={fallbackRatio}
                 active={isActive(locator)}
                 annotations={annotations}
+                inkStrokes={inkStrokes}
                 highlightedAnnotationId={highlightedAnnotationId}
                 flashRects={
                   activeFlash?.locator === locator
@@ -514,6 +527,7 @@ export function PdfDocumentView({
                     : undefined
                 }
                 onAnnotationClick={onAnnotationClick}
+                onPageGeometryChange={onPageGeometryChange}
               />
             ),
           )}

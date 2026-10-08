@@ -13,12 +13,32 @@ const COLOR_INK: Record<string, string> = {
   purple: "199 174 250",
 };
 
-function ink(color: string): string {
-  return COLOR_INK[color] ?? COLOR_INK.yellow;
+function colorWithOpacity(color: string, opacity: number): string {
+  const hex = /^#([a-f\d]{6})([a-f\d]{2})?$/i.exec(color);
+  if (hex) {
+    const value = hex[1];
+    const alpha = hex[2] ? Number.parseInt(hex[2], 16) / 255 : 1;
+    const red = Number.parseInt(value.slice(0, 2), 16);
+    const green = Number.parseInt(value.slice(2, 4), 16);
+    const blue = Number.parseInt(value.slice(4, 6), 16);
+    return `rgb(${red} ${green} ${blue} / ${opacity * alpha})`;
+  }
+  return `rgb(${COLOR_INK[color] ?? COLOR_INK.yellow} / ${opacity})`;
+}
+
+export interface InkOverlayStroke {
+    stroke_id: string;
+    locator?: number;
+    tool: "pen" | "highlighter";
+    color: string;
+    width: number;
+    points: Array<[number, number]>;
 }
 
 export interface AnnotationLayerProps {
   annotations: AnnotationItem[];
+  /** Read-only Pencil ink transformed from canonical PDF coordinates. */
+  inkStrokes?: InkOverlayStroke[];
   highlightedAnnotationId?: string | null;
   flashRects?: NormalisedRect[];
   onAnnotationClick?: (annotation: AnnotationItem) => void;
@@ -39,6 +59,7 @@ export interface AnnotationLayerProps {
  */
 export function AnnotationLayer({
   annotations,
+  inkStrokes = [],
   highlightedAnnotationId,
   flashRects,
   onAnnotationClick,
@@ -46,6 +67,27 @@ export function AnnotationLayer({
   const { t } = useTranslation();
   return (
     <div className="pointer-events-none absolute inset-0">
+      {inkStrokes.length > 0 && (
+        <svg
+          aria-label={t("Ink annotations")}
+          className="pointer-events-none absolute inset-0 h-full w-full"
+          viewBox="0 0 1 1"
+          preserveAspectRatio="none"
+        >
+          {inkStrokes.map((stroke) => (
+            <polyline
+              key={stroke.stroke_id}
+              points={stroke.points.map(([x, y]) => `${x},${y}`).join(" ")}
+              fill="none"
+              stroke={stroke.color}
+              strokeWidth={stroke.width}
+              strokeOpacity={stroke.tool === "highlighter" ? 0.45 : 1}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          ))}
+        </svg>
+      )}
       {annotations.map((annotation) =>
         annotation.rects.map((rect, index) => {
           const [x0, y0, x1, y1] = rect;
@@ -79,9 +121,9 @@ export function AnnotationLayer({
                 height: `${Math.max(0, y1 - y0) * 100}%`,
                 background: isUnderline
                   ? undefined
-                  : `rgb(${ink(annotation.color)} / ${isFocused ? 0.85 : 0.6})`,
+                  : colorWithOpacity(annotation.color, isFocused ? 0.85 : 0.6),
                 borderBottom: isUnderline
-                  ? `2px solid rgb(${ink(annotation.color)})`
+                  ? `2px solid ${colorWithOpacity(annotation.color, 1)}`
                   : undefined,
                 borderRadius: isUnderline ? 0 : 2,
               }}

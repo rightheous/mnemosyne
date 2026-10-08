@@ -92,12 +92,12 @@ test("reading is reachable only through its own workspace", () => {
   assert.doesNotMatch(css, /dt-reader-shell|--reader-width/);
 });
 
-test("reading reuses the workspace runtime without nesting another provider", () => {
+test("Mnemosyne reading route does not mount the legacy workspace providers", () => {
   const layout = source("app/(workspace)/learning/reading/layout.tsx");
 
   assert.doesNotMatch(layout, /UnifiedChatProvider|ChatRuntimeProvider/);
-  assert.match(layout, /QuizFollowupProvider/);
-  assert.match(layout, /GeogebraTabProvider/);
+  assert.doesNotMatch(layout, /QuizFollowupProvider|GeogebraTabProvider/);
+  assert.match(source("app/(workspace)/learning/reading/[workspaceId]/page.tsx"), /MnemosyneReader/);
 });
 
 test("Reading V2 inherits product theme tokens instead of a fixed cream palette", () => {

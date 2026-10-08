@@ -1,7 +1,5 @@
-import { Suspense } from "react";
-import { PracticePage } from "@/components/learning/practice/PracticePage";
-import { LearningSkeleton } from "@/components/learning/LearningShell";
+import { MnemosyneLearning } from "@/features/mnemosyne/screens";
 
 export default function Page() {
-  return <Suspense fallback={<LearningSkeleton />}><PracticePage /></Suspense>;
+  return <MnemosyneLearning />;
 }

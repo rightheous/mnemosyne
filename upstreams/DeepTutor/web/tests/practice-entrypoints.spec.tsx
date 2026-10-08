@@ -88,18 +88,11 @@ it("keeps Learning Space in its own collection route with scoped imports and no 
   expect(replace).toHaveBeenLastCalledWith("/space/questions?workspace=work-a&view=mistakes");
 });
 
-it("retains analytics, daily review and collections in Personalized Learning", async () => {
+it("routes Personalized Learning to Mnemosyne's server-backed study history", () => {
   render(<PracticeRoutePage />);
-  expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Practice");
-  expect(await screen.findByRole("button", { name: /New questions\s*2/ })).toBeVisible();
-  expect(screen.getByRole("region", { name: "Today's review" })).toBeVisible();
-  expect(screen.getByRole("button", { name: "Start today's review" })).toBeEnabled();
-  expect(screen.getByRole("button", { name: "Practice this page" })).toBeVisible();
-  fireEvent.click(screen.getByRole("tab", { name: "Question Bank67" }));
-  expect(replace).toHaveBeenLastCalledWith(
-    "/learning/practice?course=course-a&workspace=work-a&view=bank",
-    { scroll: false }
-  );
+  expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("학습 기록·복습");
+  expect(screen.getByText("서버에 저장된 읽기, 평가, 숙련도와 기억 카드를 확인합니다.")).toBeVisible();
+  expect(screen.queryByRole("region", { name: "Today's review" })).not.toBeInTheDocument();
 });
 
 

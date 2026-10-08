@@ -1,5 +1,5 @@
-import { LearningDashboard } from '@/components/learning/LearningDashboard'
+import { MnemosyneLearning } from "@/features/mnemosyne/screens";
 
 export default function LearningPage() {
-  return <LearningDashboard />
+  return <MnemosyneLearning />;
 }

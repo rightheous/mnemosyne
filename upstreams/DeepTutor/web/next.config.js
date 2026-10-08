@@ -143,19 +143,47 @@ const nextConfig = {
   // Compatibility lives here; every rendered link uses learning-routes.ts.
   async redirects() {
     return [
-      // The workspace root has one destination; sessions live under /chat.
+      // Mnemosyne is the single default entry point for the personal web app.
       // Kept out of a page component on purpose: a page that only calls
       // redirect() throws mid-render, and React 19.2's dev performance track
       // then measures that aborted render with a negative end time — the
       // "cannot have a negative time stamp" overlay (vercel/next.js#86060).
-      { source: "/", destination: "/chat", permanent: false },
+      { source: "/", destination: "/learning/reading", permanent: false },
       { source: "/mastery/:pathId/study", destination: "/learning/mastery/:pathId/sessions", statusCode: 301 },
       { source: "/mastery/:pathId/study/:sessionId", destination: "/learning/mastery/:pathId/sessions/:sessionId", statusCode: 301 },
-      ...["books", "mastery", "reading", "watching"].map((surface) => ({
-        source: `/${surface}/:path*`,
-        destination: `/learning/${surface}/:path*`,
-        statusCode: 301,
+      { source: "/books/:path*", destination: "/learning/reading", permanent: false },
+      { source: "/mastery/:path*", destination: "/learning", permanent: false },
+      { source: "/reading/:path*", destination: "/learning/reading/:path*", permanent: false },
+      { source: "/watching/:path*", destination: "/learning/reading", permanent: false },
+      ...[
+        "/chat/:path*",
+        "/co-writer/:path*",
+        "/partners/:path*",
+        "/learning/books/:path*",
+        "/learning/mastery/:path*",
+        "/learning/watching/:path*",
+        "/learning/reading/materials",
+        "/learning/reading/folders/:path*",
+        "/learning/reading/:documentId/sessions/:path*",
+        "/memory/:path*",
+        "/notebooks/:path*",
+        "/courses/:path*",
+        "/knowledge-bases/:path*",
+        "/space/:path*",
+        "/agents/:path*",
+        "/admin/:path*",
+        "/session-handoff",
+        "/handoff",
+        "/kanban",
+        "/whisper",
+        "/avatar-preview",
+        "/profile",
+      ].map((source) => ({
+        source,
+        destination: "/learning/reading",
+        permanent: false,
       })),
+      { source: "/settings/:section", destination: "/settings", permanent: false },
     ];
   },
 

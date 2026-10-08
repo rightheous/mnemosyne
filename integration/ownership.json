@@ -2781,6 +2781,7 @@
       "upstreams/DeepTutor/web/features/knowledge/components/engines/LlamaIndexForm.tsx",
       "upstreams/DeepTutor/web/features/knowledge/model/types.ts",
       "upstreams/DeepTutor/web/features/mnemosyne/register.ts",
+      "upstreams/DeepTutor/web/features/mnemosyne/screens.tsx",
       "upstreams/DeepTutor/web/features/multi-user/api.ts",
       "upstreams/DeepTutor/web/features/multi-user/components/BookPermissionEditor.tsx",
       "upstreams/DeepTutor/web/features/multi-user/components/GrantEditor.tsx",

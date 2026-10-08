@@ -64,21 +64,11 @@ test("administrators can create, review, revoke, and reset guardian access", () 
   assert.match(adminEditor, /PERMISSIONS/);
 });
 
-test("settings visibility is shared by the navigator and independent pages", () => {
-  const nav = readWebFile("components", "settings", "SettingsNav.tsx");
-  const settingsPage = readWebFile(
-    "components",
-    "settings",
-    "SettingsPageContent.tsx",
-  );
+test("personal settings use the Mnemosyne settings surface", () => {
   const layout = readWebFile("app", "(settings)", "settings", "layout.tsx");
-
-  assert.match(nav, /useSettingsAccess/);
-  assert.match(nav, /visibleSettingsPages/);
-  assert.match(settingsPage, /useSettingsAccess/);
-  assert.match(settingsPage, /visibleSettingsPages/);
-  assert.match(settingsPage, /if \(!access\.resolved\)/);
-  assert.match(layout, /<SettingsAccessProvider>/);
+  const entry = readWebFile("app", "(settings)", "settings", "page.tsx");
+  assert.match(entry, /MnemosyneSettings/);
+  assert.doesNotMatch(layout, /SettingsAccessProvider|SettingsMain|SettingsTourOverlay/);
 });
 
 test("learner and guardian sections follow the resolved account type", () => {

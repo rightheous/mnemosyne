@@ -6,12 +6,13 @@ import test from "node:test";
 const source = (relative: string) =>
   fs.readFileSync(path.resolve(process.cwd(), relative), "utf8");
 
-test("workspace owns one runtime and Reading does not nest another", () => {
-  assert.match(source("app/(workspace)/layout.tsx"), /ChatRuntimeProvider/);
+test("the personal workspace does not mount the legacy chat runtime", () => {
+  assert.doesNotMatch(source("app/(workspace)/layout.tsx"), /ChatRuntimeProvider|ReadingProvider|AppShell/);
   assert.doesNotMatch(
     source("app/(workspace)/learning/reading/layout.tsx"),
     /ChatRuntimeProvider|ChatStateAdapterProvider/,
   );
+  assert.match(source("app/(workspace)/learning/reading/page.tsx"), /MnemosyneLibrary/);
 });
 
 test("Mastery study inherits the workspace runtime without nesting", () => {
