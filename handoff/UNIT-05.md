@@ -56,6 +56,7 @@
 
 - `/settings`의 Mnemosyne 화면에 UNIT-02가 추가한 `mnemosyne_chat`, `mnemosyne_reading`, `mnemosyne_quiz`, `mnemosyne_assessment`, `mnemosyne_mastery`, `mnemosyne_solve` 각각의 모델 선택기를 연결했다. 현재 대화 모델을 쓰는 `inherit` 선택을 기본으로 보여주며, catalog에 저장된 LLM/task 모델을 고르면 기존 `/api/settings/apply/registry`에 저장하고 서버 확인·실패 상태를 화면에 표시한다. 일반 Task Models 화면에도 여섯 목적의 이름·설명과 `Follow the chat model` 기본 선택을 반영했다.
 - 기존 `Ink annotations` 번역 키 누락을 en/zh/de/pl에 추가해 strict locale audit를 통과시켰다.
-- PASS: `typecheck`; `contracts:check`; `test:node` 1,304/1,304; `i18n:check`; `build` (Next.js compile 5.3분, TypeScript 완료, 44 static pages); 최신 UNIT-01 library/citation fixture 5개 (5 passed, 6 warnings).
-- 주의: `test:unit`은 146개 파일 중 142개 통과, 653개 중 649개 통과, 4개 실패했다. `tests/i18n-audit.spec.ts`, `tests/question-bank-picker.spec.tsx`, `tests/usage-statistics.spec.tsx`는 5초 timeout, `tests/task-board.spec.tsx`는 `Task note` textbox 조회 실패였다. 이는 전체 UNIT-05 UI 회귀 통과로 보고하지 않는다.
+- PASS: `typecheck`; `contracts:check`; `test:node` 1,304/1,304; `i18n:check`; final `build` (Next.js compile 2.0분, TypeScript 완료, 44 static pages); 최신 UNIT-01 library/citation fixture 5개 (5 passed, 6 warnings).
+- `test:unit` 기본 worker 실행은 146개 파일 중 142개 통과, 653개 중 649개 통과, 4개 실패했다. `tests/i18n-audit.spec.ts`, `tests/question-bank-picker.spec.tsx`, `tests/usage-statistics.spec.tsx`는 5초 timeout, `tests/task-board.spec.tsx`는 `Task note` textbox 조회 실패였다. 이 네 파일을 `--maxWorkers=1`로 다시 실행해 18/18 통과했고, 전체 `test:unit --maxWorkers=1 --reporter=dot`도 146/146 파일·653/653 테스트 통과했다. 따라서 병렬 worker 실행에서는 시간 민감한 기존 fixture 실패가 있었으며 직렬 전체 회귀는 통과했다.
+- 수정 TSX 두 파일의 ESLint 검사는 exit 0, 0 errors, 38 `i18n/no-literal-ui-text` warnings였다. Mnemosyne 화면의 한국어 JSX 문구가 이 규칙의 literal UI warning 대상이다.
 - 실제 브라우저 설정 round-trip은 확인하지 못했다. 현재 `deeptutor/api/main.py`는 bootstrap service만 lifespan에 등록하고 Library REST router를 mount하지 않는다. `integration/registry.json`은 `product_ready: false`, cloud access는 `local_only_no_origin` 상태다.
