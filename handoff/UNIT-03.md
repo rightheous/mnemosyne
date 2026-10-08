@@ -1,6 +1,6 @@
 # UNIT-03 인수: iPad PDF·Pencil·로컬 Reader
 
-이 파일이 소유권 manifest의 canonical handoff 경로다. 요청에 적힌 docs/handoffs/unit-03.md는 현재 UNIT-03 소유 경로에 없어 여기에서 만들거나 수정하지 않았다.
+이 파일은 integration/ownership.json에서 UNIT-03에 배정된 canonical handoff 경로다. docs/handoffs/unit-03.md는 소유권에 배정되지 않아 만들지 않았고, 사용자는 현재 소유 경로를 유지하기로 했다.
 
 담당 범위는 `integration/ownership.json`의 `owners.UNIT-03`에 맞춘다. 계약은 `0.1.0`이며 계약 원본/복사본, `Package.swift`, Xcode 설정은 수정하지 않았다. 기존 Pumice 소스 파일만 확장했으므로 새 XcodeGen 등록은 없다. `makeReaderFacade(factory, localStore)` 등록 경로와 빈 no-op 대체 금지 원칙을 유지한다.
 
@@ -36,13 +36,28 @@ let facade = try makeReaderFacade(
 
 ## Mac/Xcode 및 iPad 수동 검증 절차
 
-Pumice 디렉터리에서 Xcode가 설치된 Mac에 아래 명령을 실행한다.
+현재 로컬 검증 환경은 XcodeGen/full Xcode/iOS SDK를 제공하지 않는다. xcode-select -p는 /Library/Developer/CommandLineTools를 반환한다. xcodebuild -version은 active developer directory가 Command Line Tools라 Xcode가 필요하다고 실패했고, xcrun --sdk iphonesimulator --show-sdk-path는 SDK를 찾지 못했다. xcodegen 명령도 설치되어 있지 않다.
 
+Cloud Apple SDK 확인 결과도 미확인이다. 현재 도구 목록에는 Cloud Xcode/SDK probe나 원격 Mac build 실행기가 없고, project 목록에서 Cloud Mac project를 찾지 못했다. registry의 cloud_repository_access는 local_only_no_origin이다. 이는 이 환경에서 확인할 수 없다는 뜻이며 Cloud에 SDK가 없다는 증거는 아니다. Cloud runner에 접근할 수 있으면 아래도 기록한다.
+
+    xcodebuild -version
+    xcodebuild -showsdks
+    xcrun --sdk iphoneos --show-sdk-path
+    xcrun --sdk iphonesimulator --show-sdk-path
+
+Full Xcode와 XcodeGen이 설치된 Mac에서 upstreams/Pumice 디렉터리로 이동해 실행한다. project.yml의 Pumice scheme은 PumiceTests를, PumiceUITests scheme은 UI test target을 실행한다. 사용 가능한 iPad Simulator UDID는 먼저 확인한다.
+
+    cd upstreams/Pumice
     xcodegen generate
-    xcodebuild -project Pumice.xcodeproj -scheme Pumice -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
     swift test --package-path Packages/PumiceCore
+    xcodebuild -project Pumice.xcodeproj -scheme Pumice -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
+    xcrun simctl list devices available
+    xcodebuild test -project Pumice.xcodeproj -scheme Pumice -destination 'platform=iOS Simulator,id=<iPad Simulator UDID>' CODE_SIGNING_ALLOWED=NO
+    xcodebuild test -project Pumice.xcodeproj -scheme PumiceUITests -destination 'platform=iOS Simulator,id=<iPad Simulator UDID>' CODE_SIGNING_ALLOWED=NO
 
-그다음 Xcode에서 Pumice.xcodeproj의 Pumice scheme을 iPad Simulator와 실제 iPad에 실행하고 아래를 확인한다.
+실제 iPad에서는 로컬 Xcode signing team을 설정한 뒤 Pumice scheme을 연결 기기로 빌드/실행한다. signing 설정과 비밀값은 commit하지 않는다. 새 Swift source file은 추가하지 않았고 기존 project.yml이 App/Sources 디렉터리를 포함하므로 XcodeGen source 등록 변경은 없다.
+
+그다음 iPad Simulator와 실제 iPad에서 아래를 확인한다.
 
 1. PDF를 한 번 내려받아 캐시에 둔 뒤 네트워크를 끄고 다시 연다. 캐시된 원본이 열리고 검색, 목차, 페이지 이동이 동작하는지 본다.
 2. Apple Pencil로 여러 획을 쓰고 저장한 뒤 앱을 강제 종료하고 재실행한다. 획의 위치·색·두께가 복구되는지 본다.
@@ -57,11 +72,15 @@ Pumice 디렉터리에서 Xcode가 설치된 Mac에 아래 명령을 실행한�
 
 docs/INTEGRATION.md의 UNIT-03 등록 표에는 아직 concrete Reader facade 구현이 없다고 적혀 있다. 현재 구현과 충돌하므로 통합 담당이 연결 시 해당 표와 구현 상태를 갱신해야 한다. UNIT-03은 통합 소유 문서를 직접 수정하지 않았다.
 
+`integration/upstreams.json`은 INTEGRATOR 소유다. UNIT-03이 소유한 `upstreams/Pumice/Packages/PumiceCore/Tests/PumiceCoreTests/PageGeometryTests.swift`에 geometry·local persistence 검증을 추가해 현재 SHA-256은 `ddee012d4a74f97adcdd3ade6c131d6fcdd32548082096db51fddf650d6b068e`이며, manifest의 원본 SHA-256은 `15b3e7eb94398bd558ec454ea793c1bc965676d5e9a9c6812518972118a2f639`다. `checks/validate_contracts.py --require-ready`가 `Upstream snapshot differs`로 실패했다. 통합 담당은 `modified_originals`에 현재 SHA와 변경 사유를 기록한 뒤 준비 gate를 다시 실행해야 한다. UNIT-03은 통합 manifest를 수정하지 않았다.
+
 ## 검증과 미검증
 
 - 통과: Core `ReaderFacade.swift`와 `MnemosyneGeometry.swift` 직접 Swift 타입검사.
 - 통과: 변경된 Pumice Reader 소스와 Core geometry 테스트 파일의 Swift 구문 파싱.
 - 통과: 임시 실행 harness에서 해시 캐시 설치/읽기 검증, context 재시작 복구, pending/failure/retry, receipt 적용, idempotency, cursor 원자 적용, 승인 이벤트 재생, 0/90/180/270 회전 역변환, CropBox clipping, verified selection 복구와 selection-change 무효화를 실행했다.
+- 통과: `checks/validate_contracts.py`가 OpenAPI operation 30개, schema instance 80건, negative case 19건, sync step 10건, geometry case 4건과 전체 ownership check를 통과했다. 이 실행은 `source_gate_checked=false`다.
+- 실패: `checks/validate_contracts.py --require-ready`는 `Upstream snapshot differs: upstreams/Pumice/Packages/PumiceCore/Tests/PumiceCoreTests/PageGeometryTests.swift`로 중단됐다. 위 통합 담당 후속 manifest 예외를 기록하고 다시 확인해야 한다.
 - 통과: UNIT-03 변경 경로의 `git diff --check`.
 - 차단: SwiftPM 전체 테스트와 iPad 제품 빌드. swift test는 기본 macOS 10.13 target에서 CryptoKit/FileHandle availability 오류가 났다. arm64-apple-macosx10.15.4로 다시 빌드하자 PumiceCore 소스는 컴파일됐지만 테스트 target이 no such module: Testing으로 실패했다. 로컬 developer directory는 full Xcode가 아닌 Command Line Tools이며 xcodebuild와 iOS Simulator SDK를 사용할 수 없다. 직접 타입검사와 standalone harness는 Package 테스트를 대체하지 않는다.
 - 미검증: 실제 iPad Pencil, 화면 회전/zoom, 앱 강제 종료 후 복구, export PDF 렌더, 기기에서의 sidecar 보호 권한. Cloud 실행 환경의 Apple SDK 상태도 이 로컬 세션에서는 확인되지 않았다.
