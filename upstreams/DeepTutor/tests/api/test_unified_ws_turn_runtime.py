@@ -1846,3 +1846,93 @@ async def test_unified_ws_uses_registered_tutor_for_start_cancel_and_reconnect(m
     assert observed["subscribe"] == [("turn_1", 0), ("turn_1", 7)]
     assert observed["cancel"] == ("turn_1", "cancel-command-1")
     assert websocket.sent[-1]["accepted"] is True
+
+
+@pytest.mark.asyncio
+async def test_tutor_learning_mutations_match_contract_revision_fields():
+    from deeptutor.mnemosyne.tutor import TutorAdapter
+
+    observed: dict[str, object] = {}
+
+    class RecordingLearningStore:
+        async def submit_attempt(self, attempt):
+            observed["attempt"] = attempt
+            return {"attempt_id": attempt["attempt_id"]}
+
+        async def review_memory(self, review):
+            observed["review"] = review
+            return {"memory_id": review["memory_id"]}
+
+    tutor = TutorAdapter(
+        object(), SimpleNamespace(annotation_sync=object()), RecordingLearningStore()
+    )
+    attempt = {
+        "attempt_id": "00000000-0000-0000-0000-00000000002a",
+        "client_mutation_id": "00000000-0000-0000-0000-00000000006c",
+        "quiz_id": "00000000-0000-0000-0000-000000000028",
+        "document_id": "00000000-0000-0000-0000-000000000001",
+        "version_id": "sha256:" + "a" * 64,
+        "base_learning_revision": 1,
+        "submitted_at": "2026-10-08T07:00:00Z",
+        "answers": [
+            {
+                "question_id": "00000000-0000-0000-0000-000000000029",
+                "answer": "  learner answer  ",
+            }
+        ],
+    }
+    review = {
+        "client_mutation_id": "00000000-0000-0000-0000-00000000006d",
+        "memory_id": "00000000-0000-0000-0000-00000000006e",
+        "base_learning_revision": 1,
+        "grade": 3,
+        "reviewed_at": "2026-10-08T07:01:00Z",
+    }
+
+    assert await tutor.submit_attempt(attempt) == {"attempt_id": attempt["attempt_id"]}
+    assert observed["attempt"] == attempt
+    assert await tutor.review_memory(review) == {"memory_id": review["memory_id"]}
+    assert observed["review"] == review
+
+
+@pytest.mark.asyncio
+async def test_tutor_learning_mutations_reject_legacy_revision_and_invalid_review_grade():
+    from deeptutor.mnemosyne.tutor import TutorAdapter
+
+    class RecordingLearningStore:
+        async def submit_attempt(self, _attempt):
+            raise AssertionError("invalid attempts must not reach the store")
+
+        async def review_memory(self, _review):
+            raise AssertionError("invalid reviews must not reach the store")
+
+    tutor = TutorAdapter(
+        object(), SimpleNamespace(annotation_sync=object()), RecordingLearningStore()
+    )
+    attempt = {
+        "attempt_id": "00000000-0000-0000-0000-00000000002a",
+        "client_mutation_id": "00000000-0000-0000-0000-00000000006c",
+        "quiz_id": "00000000-0000-0000-0000-000000000028",
+        "document_id": "00000000-0000-0000-0000-000000000001",
+        "version_id": "sha256:" + "a" * 64,
+        "base_revision": 1,
+        "submitted_at": "2026-10-08T07:00:00Z",
+        "answers": [
+            {
+                "question_id": "00000000-0000-0000-0000-000000000029",
+                "answer": "learner answer",
+            }
+        ],
+    }
+    review = {
+        "client_mutation_id": "00000000-0000-0000-0000-00000000006d",
+        "memory_id": "00000000-0000-0000-0000-00000000006e",
+        "base_learning_revision": 1,
+        "grade": True,
+        "reviewed_at": "2026-10-08T07:01:00Z",
+    }
+
+    with pytest.raises(ValueError, match="base_learning_revision"):
+        await tutor.submit_attempt(attempt)
+    with pytest.raises(ValueError, match="grade"):
+        await tutor.review_memory(review)

@@ -27,6 +27,7 @@
 
 - 이제 `api/routers/unified_ws.py`가 lifespan에 등록된 `app.state.mnemosyne.tutor`를 사용해 native protocol 2.0의 turn 시작·cursor 재구독·취소를 처리한다. turn ID와 sequence는 upstream 저장 이벤트를 그대로 쓴다. 등록된 tutor가 없을 때의 기존 fallback도 남아 있다. route fixture는 한국어 기본값, start, `resume_from(seq=7)`, cancel 라우팅을 확인한다.
 - `TaskKind`에 `mnemosyne_chat`, `mnemosyne_reading`, `mnemosyne_quiz`, `mnemosyne_assessment`, `mnemosyne_mastery`, `mnemosyne_solve`를 추가했다. 기존 `/api/settings`의 동적 `task_kinds`와 task model catalog override를 재사용한다. 각 목적을 명시적으로 고르지 않으면 현재 turn의 모델을 계속 사용하고, 선택한 목적에만 task-service 모델을 적용한다. 별도 비밀값 저장소나 클라이언트 credential 필드는 추가하지 않았다. 평가 WebSocket도 assessment 목적 override와 그 모델의 vision 지원을 사용한다. 다만 현재 judge 입력은 클라이언트가 `correct_answer`/`explanation`을 보낼 수 있고 결과를 durable Assessment로 저장하지 않으므로, 새 quiz attempt 채점 API로 간주할 수 없다.
+- `TutorAdapter.submit_attempt`와 `review_memory` 입력 검증을 0.1.0 `Attempt`/`MemoryReview` 필드에 맞췄다. `base_learning_revision`, safe integer, UUID, full SHA-256 document version, RFC 3339 시각, 답안/grade 범위를 확인하고 검증된 payload만 learning store port에 전달한다. 이는 저장소 구현의 idempotency·transaction 검증을 대체하지 않는다.
 - 설정 API 데이터에는 목적 ID가 추가됐지만 제품 UI의 현지화 이름/도움말은 검증하지 않았다. 현재 TaskModelsWorkspace는 미등록 ID를 그대로 표시하고, 목적별 기본값을 “전역 task 모델 사용”이라고 표시한다. UNIT-05는 위 6개 ID의 한국어 라벨/설명을 추가하고, 이 6개 목적에는 `inherit` 선택지를 “현재 대화 모델 사용”으로 표시해야 한다. 목적별 미설정/`inherit`는 현재 대화 모델을 유지하고 명시 override만 task model을 쓰도록 화면과 API 동작을 함께 확인해야 한다.
 - 사용한 확인은 fixture 범위다. real provider 호출, 브라우저 설정 흐름, 사용자별 catalog 설정 round-trip은 수행하지 않았다.
 
@@ -58,7 +59,7 @@
 
 ## 이번 checkpoint 검증
 
-- 임시 `DEEPTUTOR_HOME`과 uv 의존성 런타임으로 다음 6개 파일을 실행: `deeptutor/learning/tests/test_prompt_language_fallback.py`, `tests/api/routers/test_quiz_judge_unit.py`, `tests/runtime/test_lazy_builtin_catalogs.py`, `tests/api/test_unified_ws_turn_runtime.py`, `tests/multi_user/test_learning_reading_turns.py`, `tests/services/test_task_models.py` — **129 passed, 4 warnings**. Quiz provider 호출은 mock이며 실제 provider 호출은 없었다.
+- 임시 `DEEPTUTOR_HOME`과 uv 의존성 런타임으로 다음 6개 파일을 실행: `deeptutor/learning/tests/test_prompt_language_fallback.py`, `tests/api/routers/test_quiz_judge_unit.py`, `tests/runtime/test_lazy_builtin_catalogs.py`, `tests/api/test_unified_ws_turn_runtime.py`, `tests/multi_user/test_learning_reading_turns.py`, `tests/services/test_task_models.py` — **131 passed, 4 warnings**. Quiz provider 호출은 mock이며 실제 provider 호출은 없었다.
 - 이 결과는 fixture/unit 수준이다. DeepTutor 제품 설치/build, 인증/Origin을 포함한 mounted API, citation UI, server restart replay, provider credentials, iPadOS simulator/device는 검증하지 않았다.
 - 정확한 committed owner map에서 `docs/handoffs/unit-02.md`는 배정되지 않았고 새 경로는 통합 담당이 소유권에 추가해야 한다. 이 checkpoint는 배정된 `handoff/UNIT-02.md`에 기록했다.
 - UNIT-02 변경 파일에 한정한 `git diff --check`는 통과했다. 이번 checkpoint에서 바뀐 Python 7개 파일은 `compile()` 기반 문법 검사에 통과했다. `python3 -m py_compile`은 macOS Python 3.9가 workspace 밖 `~/Library/Caches/...`에 bytecode cache를 쓰려다 권한 오류로 중단되어, bytecode 생성 검사는 수행하지 못했다.

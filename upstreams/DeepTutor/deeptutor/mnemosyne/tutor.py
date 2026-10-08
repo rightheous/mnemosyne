@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 import re
 from typing import Any
 from uuid import UUID
@@ -29,6 +30,10 @@ SUPPORTED_CAPABILITIES = frozenset(
 )
 REQUIRED_LEARNING_SERVICES = ("assessment", "memory", "progress", "review")
 _VERSION_RE = re.compile(r"^sha256:[a-f0-9]{64}$")
+_DATETIME_RE = re.compile(
+    r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$"
+)
+_MAX_SAFE_INTEGER = 9_007_199_254_740_991
 
 
 def _required_id(value: Any, field: str, *, uuid_value: bool = False) -> str:
@@ -40,6 +45,19 @@ def _required_id(value: Any, field: str, *, uuid_value: bool = False) -> str:
             UUID(normalized)
         except (ValueError, AttributeError) as exc:
             raise ValueError(f"{field} must be a UUID") from exc
+    return normalized
+
+
+def _required_timestamp(value: Any, field: str) -> str:
+    normalized = str(value or "").strip()
+    if not _DATETIME_RE.fullmatch(normalized):
+        raise ValueError(f"{field} must be an RFC 3339 date-time")
+    try:
+        datetime.fromisoformat(
+            normalized[:-1] + "+00:00" if normalized.endswith("Z") else normalized
+        )
+    except ValueError as exc:
+        raise ValueError(f"{field} must be an RFC 3339 date-time") from exc
     return normalized
 
 
@@ -278,12 +296,61 @@ class TutorAdapter:
     async def submit_attempt(self, attempt: dict[str, Any]) -> dict[str, Any]:
         if not isinstance(attempt, dict):
             raise ValueError("attempt must be an object")
-        for name in ("attempt_id", "quiz_id", "document_id", "client_mutation_id"):
-            _required_id(attempt.get(name), name, uuid_value=True)
-        base_revision = attempt.get("base_revision")
-        if isinstance(base_revision, bool) or not isinstance(base_revision, int) or base_revision < 0:
-            raise ValueError("base_revision must be a non-negative integer")
-        return await _learning_store(self.learning_store).submit_attempt(dict(attempt))
+        fields = {
+            "attempt_id",
+            "client_mutation_id",
+            "quiz_id",
+            "document_id",
+            "version_id",
+            "base_learning_revision",
+            "submitted_at",
+            "answers",
+        }
+        missing = fields.difference(attempt)
+        if missing:
+            raise ValueError(f"attempt is missing required fields: {', '.join(sorted(missing))}")
+        extra = set(attempt).difference(fields)
+        if extra:
+            raise ValueError(f"attempt has unsupported fields: {', '.join(sorted(extra))}")
+
+        normalized = dict(attempt)
+        for name in ("attempt_id", "client_mutation_id", "quiz_id", "document_id"):
+            normalized[name] = _required_id(attempt.get(name), name, uuid_value=True)
+        version_id = str(attempt.get("version_id") or "").strip()
+        if not _VERSION_RE.fullmatch(version_id):
+            raise ValueError("version_id must be a full SHA-256 version")
+        normalized["version_id"] = version_id
+
+        base_revision = attempt.get("base_learning_revision")
+        if (
+            isinstance(base_revision, bool)
+            or not isinstance(base_revision, int)
+            or base_revision < 0
+            or base_revision > _MAX_SAFE_INTEGER
+        ):
+            raise ValueError("base_learning_revision must be a non-negative safe integer")
+        normalized["submitted_at"] = _required_timestamp(attempt.get("submitted_at"), "submitted_at")
+
+        answers = attempt.get("answers")
+        if not isinstance(answers, list) or not answers:
+            raise ValueError("answers must contain at least one answer")
+        normalized_answers: list[dict[str, str]] = []
+        for answer in answers:
+            if not isinstance(answer, dict) or set(answer) != {"question_id", "answer"}:
+                raise ValueError("each answer must contain only question_id and answer")
+            answer_text = answer.get("answer")
+            if not isinstance(answer_text, str) or not answer_text.strip():
+                raise ValueError("answer must not be empty")
+            normalized_answers.append(
+                {
+                    "question_id": _required_id(
+                        answer.get("question_id"), "question_id", uuid_value=True
+                    ),
+                    "answer": answer_text,
+                }
+            )
+        normalized["answers"] = normalized_answers
+        return await _learning_store(self.learning_store).submit_attempt(normalized)
 
     async def save_activity(
         self, activity: dict[str, Any], mutation_id: str, base_revision: int
@@ -301,12 +368,36 @@ class TutorAdapter:
     async def review_memory(self, review: dict[str, Any]) -> dict[str, Any]:
         if not isinstance(review, dict):
             raise ValueError("review must be an object")
+        fields = {
+            "client_mutation_id",
+            "memory_id",
+            "base_learning_revision",
+            "grade",
+            "reviewed_at",
+        }
+        missing = fields.difference(review)
+        if missing:
+            raise ValueError(f"review is missing required fields: {', '.join(sorted(missing))}")
+        extra = set(review).difference(fields)
+        if extra:
+            raise ValueError(f"review has unsupported fields: {', '.join(sorted(extra))}")
+
+        normalized = dict(review)
         for name in ("memory_id", "client_mutation_id"):
-            _required_id(review.get(name), name, uuid_value=True)
-        base_revision = review.get("base_revision")
-        if isinstance(base_revision, bool) or not isinstance(base_revision, int) or base_revision < 0:
-            raise ValueError("base_revision must be a non-negative integer")
-        return await _learning_store(self.learning_store).review_memory(dict(review))
+            normalized[name] = _required_id(review.get(name), name, uuid_value=True)
+        base_revision = review.get("base_learning_revision")
+        if (
+            isinstance(base_revision, bool)
+            or not isinstance(base_revision, int)
+            or base_revision < 0
+            or base_revision > _MAX_SAFE_INTEGER
+        ):
+            raise ValueError("base_learning_revision must be a non-negative safe integer")
+        grade = review.get("grade")
+        if isinstance(grade, bool) or not isinstance(grade, int) or not 0 <= grade <= 3:
+            raise ValueError("grade must be an integer between 0 and 3")
+        normalized["reviewed_at"] = _required_timestamp(review.get("reviewed_at"), "reviewed_at")
+        return await _learning_store(self.learning_store).review_memory(normalized)
 
 
 def register_tutor(
