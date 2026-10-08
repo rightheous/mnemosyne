@@ -1097,9 +1097,12 @@ final class PDFReaderViewController: UIViewController {
                           let body = payload["body"] as? String else { continue }
                     let point = CGPoint(x: CGFloat(truncating: position[0]), y: CGFloat(truncating: position[1]))
                     let box = page.bounds(for: .cropBox)
-                    let bounds = CGRect(x: min(max(point.x, box.minX), box.maxX - 160),
-                                        y: min(max(point.y, box.minY), box.maxY - 56),
-                                        width: 160, height: 56)
+                    let width = min(160, box.width)
+                    let height = min(56, box.height)
+                    guard width > 0, height > 0 else { throw MnemosyneReaderError.documentMismatch }
+                    let bounds = CGRect(x: min(max(point.x, box.minX), box.maxX - width),
+                                        y: min(max(point.y, box.minY), box.maxY - height),
+                                        width: width, height: height)
                     let note = PDFAnnotation(bounds: bounds, forType: .freeText, withProperties: nil)
                     note.contents = body
                     note.font = UIFont.systemFont(ofSize: 12)
@@ -1123,6 +1126,7 @@ final class PDFReaderViewController: UIViewController {
                     continue
                 }
             }
+            try appendLocalSidecarHighlights(from: originalURL, digest: digest, to: document)
             guard document.write(to: staging) else { throw CocoaError(.fileWriteUnknown) }
             guard !FileManager.default.fileExists(atPath: destination.path) else {
                 throw CocoaError(.fileWriteFileExists)
@@ -1131,6 +1135,43 @@ final class PDFReaderViewController: UIViewController {
         } catch {
             try? FileManager.default.removeItem(at: staging)
             throw error
+        }
+    }
+
+    private static func appendLocalSidecarHighlights(from originalURL: URL,
+                                                     digest: String,
+                                                     to document: PDFDocument) throws {
+        let url = try sidecarURL(for: originalURL)
+        guard FileManager.default.fileExists(atPath: url.path) else { return }
+        let data = try Data(contentsOf: url)
+        let sidecar = try JSONDecoder().decode(PumiceReaderSidecar.self, from: data)
+        guard sidecar.schema_version == 1, sidecar.source_sha256 == digest else { return }
+
+        for item in sidecar.highlights {
+            guard let annotationID = UUID(uuidString: item.annotation_id),
+                  item.page_index >= 0, item.page_index < document.pageCount,
+                  let page = document.page(at: item.page_index) else { continue }
+            let cropBox = page.bounds(for: .cropBox)
+            let rects = item.rects.map {
+                CGRect(x: CGFloat($0.x), y: CGFloat($0.y),
+                       width: CGFloat($0.width), height: CGFloat($0.height))
+            }
+            guard !rects.isEmpty,
+                  rects.allSatisfy({ rect in
+                      [rect.minX, rect.minY, rect.width, rect.height].allSatisfy(\.isFinite) &&
+                          rect.width > 0 && rect.height > 0 &&
+                          rect.minX >= cropBox.minX && rect.minY >= cropBox.minY &&
+                          rect.maxX <= cropBox.maxX && rect.maxY <= cropBox.maxY
+                  }) else { continue }
+            let color = color(fromHex: item.color)
+            let highlight = Highlight(
+                quads: rects.map(Quad.init(rect:)),
+                color: HighlightColor.closest(to: StrokeColor(uiColor: color)),
+                pageIndex: item.page_index,
+                extractedText: item.text
+            )
+            page.addAnnotation(HighlightAnnotationBuilder.makeAnnotation(highlight: highlight,
+                                                                           uuid: annotationID))
         }
     }
 

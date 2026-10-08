@@ -238,6 +238,10 @@ extension PDFReaderController {
 
     func exportAnnotatedCopy(originalURL: URL, annotations: [Data],
                              to destination: URL) async throws {
+        if let reader {
+            reader.saveIfNeeded()
+            if let error = reader.lastLocalSaveError { throw error }
+        }
         try PDFReaderViewController.exportAnnotatedCopy(from: originalURL,
                                                        annotations: annotations,
                                                        to: destination)
