@@ -65,11 +65,12 @@
 
 - `codex/unit-05-api-integration` (`b1a8224c91118b8d11edfdf5b785c8207b902b5f`)에는 `build_library_router` 구현과 router 단독 TestClient 검사가 있지만 `deeptutor/api/main.py`, `mnemosyne/bootstrap.py` 어디에도 mount가 없다.
 - `codex/unit-06-cloud-runtime` (`470a01f2e4bcccdbfdb725bea65526dc32731ec2`)도 `build_library_router`를 제품 main에 mount하지 않는다. 이 브랜치의 `register_mnemosyne`는 `register_library`에 store/annotation_sync만 전달하고 `ports.py::DocumentRepository`에는 `get_page_assets`가 없다.
+- 현재 Unit06 checkout의 미커밋 `tutor.py`는 학습 상태와 citation DTO를 검증하지만 document search/page/asset/citation verification을 호출하지 않는다. 미커밋 `library.py`와 `test_ingestion.py`도 같은 Unit01 경로를 수정한다. 이 library diff는 Unit01의 DB 권한/schema v3 및 index watchdog, provider URL policy callback, page asset repository adapter, upload indexing wrapper, 폴더 입력 검증/pagination 등 일부 hardening을 제거하므로 통합 시 dirty copy로 파일 전체를 덮어쓰지 말고 항목별로 reconcile한다.
 - 두 branch tip 모두 계약 0.1.0과 준비 gate를 바꾸지 않는다. root main checkout의 미커밋 파일은 이 Unit01 작업에 복사하거나 병합하지 않았다. Remote가 없어 PR도 만들지 않았다.
 
 ## 검증 결과와 남은 검증
 
-`upstreams/DeepTutor` 기준으로 다음 선택 fixture 검사 3개를 실행했다.
+`upstreams/DeepTutor` 기준으로 다음 선택 fixture 검사 7개를 실행했다.
 
 ```sh
 PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/private/tmp/mnemosyne-unit01-deps:. \
