@@ -1946,10 +1946,6 @@ async def test_tutor_learning_mutations_match_contract_revision_fields():
             assert quiz_id == quiz["quiz_id"]
             return quiz
 
-        async def submit_attempt(self, attempt):
-            observed["attempt"] = attempt
-            return assessment
-
         async def review_memory(self, review):
             observed["review"] = review
             return state
@@ -1959,8 +1955,17 @@ async def test_tutor_learning_mutations_match_contract_revision_fields():
             observed["activity_mutation"] = (mutation_id, base_revision)
             return state
 
+    class RecordingAssessmentService:
+        async def submit_attempt(self, submitted_attempt, public_quiz):
+            observed["attempt"] = submitted_attempt
+            observed["assessment_quiz"] = public_quiz
+            return assessment
+
     tutor = TutorAdapter(
-        object(), SimpleNamespace(annotation_sync=object()), RecordingLearningStore()
+        object(),
+        SimpleNamespace(annotation_sync=object()),
+        RecordingLearningStore(),
+        RecordingAssessmentService(),
     )
     attempt = {
         "attempt_id": "00000000-0000-0000-0000-00000000002a",
@@ -1988,6 +1993,7 @@ async def test_tutor_learning_mutations_match_contract_revision_fields():
 
     assert await tutor.submit_attempt(attempt) == assessment
     assert observed["attempt"] == attempt
+    assert observed["assessment_quiz"] == quiz
     assert await tutor.review_memory(review) == state
     assert observed["review"] == review
     assert await tutor.save_activity(activity, activity_mutation_id, 1) == state
@@ -2056,7 +2062,7 @@ async def test_tutor_quiz_and_learning_state_fail_closed_on_private_or_wrong_ver
         async def get_quiz(self, _quiz_id):
             return quiz
 
-        async def get_state(self, document_id):
+        async def get_state(self, document_id, _version_id):
             return {
                 "document_id": document_id,
                 "version_id": "sha256:" + "b" * 64,
@@ -2107,7 +2113,7 @@ async def test_tutor_learning_state_rejects_invalid_nested_entries_and_activity_
     }
 
     class LearningStore:
-        async def get_state(self, _document_id):
+        async def get_state(self, _document_id, _version_id):
             return state
 
     tutor = TutorAdapter(object(), SimpleNamespace(annotation_sync=object()), LearningStore())
@@ -2149,3 +2155,352 @@ async def test_tutor_save_activity_rejects_malformed_activity_before_store_write
             "00000000-0000-0000-0000-000000000036",
             0,
         )
+
+
+@pytest.mark.asyncio
+async def test_mnemosyne_assessment_service_keeps_grading_private_and_replays_persisted_result():
+    from datetime import datetime, timezone
+
+    from deeptutor.learning.service import MnemosyneAssessmentService
+
+    document_id = "00000000-0000-0000-0000-000000000001"
+    quiz_id = "00000000-0000-0000-0000-000000000028"
+    question_id = "00000000-0000-0000-0000-000000000029"
+    version_id = "sha256:" + "a" * 64
+    citation = {
+        "citation_id": "00000000-0000-0000-0000-000000000032",
+        "verification_id": "00000000-0000-0000-0000-000000000033",
+        "verified": True,
+        "anchor": {
+            "document_id": document_id,
+            "version_id": version_id,
+            "page_index": 0,
+            "parse_revision": "fixture-v1",
+            "text_sha256": "b" * 64,
+            "start_scalar": 0,
+            "end_scalar": 4,
+            "quote": "E=mc",
+            "rects": [[1, 2, 3, 4]],
+        },
+    }
+    quiz = {
+        "quiz_id": quiz_id,
+        "document_id": document_id,
+        "version_id": version_id,
+        "title": "질량과 에너지",
+        "questions": [
+            {
+                "question_id": question_id,
+                "prompt": "식에서 m은 무엇을 뜻하나요?",
+                "kind": "free_text",
+                "choices": [],
+                "citations": [citation],
+            }
+        ],
+        "response_language": "ko",
+    }
+    attempt = {
+        "attempt_id": "00000000-0000-0000-0000-00000000002a",
+        "client_mutation_id": "00000000-0000-0000-0000-00000000006c",
+        "quiz_id": quiz_id,
+        "document_id": document_id,
+        "version_id": version_id,
+        "base_learning_revision": 5,
+        "submitted_at": "2026-10-09T07:00:00Z",
+        "answers": [{"question_id": question_id, "answer": "질량입니다."}],
+    }
+    grading_input = {
+        "quiz_id": quiz_id,
+        "document_id": document_id,
+        "version_id": version_id,
+        "questions": [
+            {
+                "question_id": question_id,
+                "answer_key": "질량",
+                "rubric": "질량이라고 설명하면 정답입니다.",
+                "explanation": "m은 질량을 나타냅니다.",
+                "concept_id": "mass-energy",
+                "label_ko": "질량과 에너지 관계",
+            }
+        ],
+    }
+    observed: dict[str, object] = {}
+
+    class AssessmentStore:
+        def __init__(self):
+            self.assessment = None
+            self.claim_count = 0
+
+        async def begin_attempt(self, submitted_attempt, payload_sha256):
+            observed["payload_sha256"] = payload_sha256
+            self.claim_count += 1
+            if self.assessment is not None:
+                return {"status": "completed_replay", "assessment": self.assessment}
+            return {"status": "claimed"}
+
+        async def get_grading_input(self, submitted_quiz_id, submitted_document_id, submitted_version_id):
+            assert (submitted_quiz_id, submitted_document_id, submitted_version_id) == (
+                quiz_id,
+                document_id,
+                version_id,
+            )
+            return grading_input
+
+        async def commit_assessment(
+            self, submitted_attempt, payload_sha256, assessment, *, question_results
+        ):
+            observed["question_results"] = question_results
+            observed["committed_hash"] = payload_sha256
+            self.assessment = assessment
+            return assessment
+
+        async def release_attempt_for_retry(self, *_args):
+            raise AssertionError("successful grading must not release its claim")
+
+    async def evaluate(payload):
+        observed["provider_payload"] = payload
+        return {
+            "results": [
+                {
+                    "question_id": question_id,
+                    "score": 0.75,
+                    "feedback_ko": "핵심 개념을 이해했습니다. 기호 m의 역할도 함께 설명해 보세요.",
+                    "memory_front_ko": "식 E=mc에서 m은 무엇을 뜻하나요?",
+                    "memory_back_ko": "질량을 뜻합니다.",
+                }
+            ]
+        }
+
+    store = AssessmentStore()
+    service = MnemosyneAssessmentService(
+        store,
+        evaluator=evaluate,
+        clock=lambda: datetime(2026, 10, 9, 7, tzinfo=timezone.utc),
+    )
+    assert service.ready is True
+
+    assessment = await service.submit_attempt(attempt, quiz)
+    replay = await service.submit_attempt(attempt, quiz)
+
+    assert assessment == replay
+    assert assessment["score"] == 0.75
+    assert assessment["learning_revision"] == 6
+    assert assessment["citations"] == [citation]
+    assert store.claim_count == 2
+    assert observed["provider_payload"]["questions"][0]["answer_key"] == "질량"
+    assert "answer_key" not in observed["question_results"][0]
+    assert observed["question_results"][0]["concept_id"] == "mass-energy"
+    assert observed["question_results"][0]["score"] == 0.75
+    assert observed["question_results"][0]["memory"]["due_at"] == "2026-10-10T07:00:00Z"
+    assert observed["question_results"][0]["memory"]["citations"] == [citation]
+
+
+@pytest.mark.asyncio
+async def test_mnemosyne_assessment_service_releases_invalid_private_claim_without_leaking_data():
+    from deeptutor.learning.service import MnemosyneAssessmentError, MnemosyneAssessmentService
+
+    observed: dict[str, object] = {}
+
+    class AssessmentStore:
+        async def begin_attempt(self, *_args):
+            return {"status": "claimed"}
+
+        async def get_grading_input(self, *_args):
+            return {"invalid": "private key must not appear in errors"}
+
+        async def commit_assessment(self, *_args, **_kwargs):
+            raise AssertionError("invalid private grading input reached commit")
+
+        async def release_attempt_for_retry(self, attempt_id, payload_sha256, error_code):
+            observed["release"] = (attempt_id, payload_sha256, error_code)
+
+    quiz = {
+        "quiz_id": "00000000-0000-0000-0000-000000000028",
+        "document_id": "00000000-0000-0000-0000-000000000001",
+        "version_id": "sha256:" + "a" * 64,
+        "questions": [
+            {
+                "question_id": "00000000-0000-0000-0000-000000000029",
+                "prompt": "문제",
+                "kind": "free_text",
+                "choices": [],
+                "citations": [{"citation_id": "c", "verification_id": "v", "verified": True, "anchor": {}}],
+            }
+        ],
+    }
+    attempt = {
+        "attempt_id": "00000000-0000-0000-0000-00000000002a",
+        "client_mutation_id": "00000000-0000-0000-0000-00000000006c",
+        "quiz_id": quiz["quiz_id"],
+        "document_id": quiz["document_id"],
+        "version_id": quiz["version_id"],
+        "base_learning_revision": 0,
+        "submitted_at": "2026-10-09T07:00:00Z",
+        "answers": [
+            {
+                "question_id": "00000000-0000-0000-0000-000000000029",
+                "answer": "학습자 답",
+            }
+        ],
+    }
+
+    service = MnemosyneAssessmentService(AssessmentStore(), evaluator=lambda _payload: None)
+    with pytest.raises(MnemosyneAssessmentError) as captured:
+        await service.submit_attempt(attempt, quiz)
+
+    assert captured.value.code == "assessment_failed"
+    assert "private key" not in str(captured.value)
+    assert observed["release"][2] == "assessment_failed"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("failure_phase", ["provider", "commit"])
+async def test_mnemosyne_assessment_service_releases_failed_claim_for_retry(failure_phase):
+    from deeptutor.learning.service import MnemosyneAssessmentError, MnemosyneAssessmentService
+
+    question_id = "00000000-0000-0000-0000-000000000029"
+    quiz = {
+        "quiz_id": "00000000-0000-0000-0000-000000000028",
+        "document_id": "00000000-0000-0000-0000-000000000001",
+        "version_id": "sha256:" + "a" * 64,
+        "questions": [
+            {
+                "question_id": question_id,
+                "prompt": "문제",
+                "kind": "free_text",
+                "choices": [],
+                "citations": [
+                    {
+                        "citation_id": "00000000-0000-0000-0000-000000000032",
+                        "verification_id": "00000000-0000-0000-0000-000000000033",
+                        "verified": True,
+                        "anchor": {"quote": "원문"},
+                    }
+                ],
+            }
+        ],
+    }
+    attempt = {
+        "attempt_id": "00000000-0000-0000-0000-00000000002a",
+        "client_mutation_id": "00000000-0000-0000-0000-00000000006c",
+        "quiz_id": quiz["quiz_id"],
+        "document_id": quiz["document_id"],
+        "version_id": quiz["version_id"],
+        "base_learning_revision": 0,
+        "submitted_at": "2026-10-09T07:00:00Z",
+        "answers": [{"question_id": question_id, "answer": "답"}],
+    }
+    grading_input = {
+        "quiz_id": quiz["quiz_id"],
+        "document_id": quiz["document_id"],
+        "version_id": quiz["version_id"],
+        "questions": [
+            {
+                "question_id": question_id,
+                "answer_key": "비공개 답안",
+                "rubric": "기준",
+                "explanation": "설명",
+                "concept_id": "concept-a",
+                "label_ko": "개념 A",
+            }
+        ],
+    }
+    observed: dict[str, object] = {}
+
+    class AssessmentStore:
+        async def begin_attempt(self, *_args):
+            return {"status": "claimed"}
+
+        async def get_grading_input(self, *_args):
+            return grading_input
+
+        async def commit_assessment(self, *_args, **_kwargs):
+            if failure_phase == "provider":
+                raise AssertionError("provider failure must not commit")
+            raise RuntimeError("private commit diagnostic")
+
+        async def release_attempt_for_retry(self, attempt_id, payload_sha256, error_code):
+            observed["release"] = (attempt_id, payload_sha256, error_code)
+
+    async def fail_provider(_payload):
+        if failure_phase == "provider":
+            raise RuntimeError("private provider diagnostic")
+        return {
+            "results": [
+                {
+                    "question_id": question_id,
+                    "score": 1,
+                    "feedback_ko": "정답입니다.",
+                    "memory_front_ko": "",
+                    "memory_back_ko": "",
+                }
+            ]
+        }
+
+    service = MnemosyneAssessmentService(AssessmentStore(), evaluator=fail_provider)
+    with pytest.raises(MnemosyneAssessmentError) as captured:
+        await service.submit_attempt(attempt, quiz)
+
+    expected_code = (
+        "assessment_failed" if failure_phase == "provider" else "assessment_commit_unavailable"
+    )
+    expected_release_code = (
+        "assessment_failed" if failure_phase == "provider" else "assessment_commit_failed"
+    )
+    assert captured.value.code == expected_code
+    assert captured.value.retryable is True
+    assert "private" not in str(captured.value)
+    assert observed["release"][2] == expected_release_code
+
+
+def test_next_mnemosyne_memory_due_at_uses_grade_and_server_clock():
+    from datetime import datetime, timezone
+
+    from deeptutor.learning.service import next_mnemosyne_memory_due_at
+
+    now = datetime(2026, 10, 9, 7, tzinfo=timezone.utc)
+    assert next_mnemosyne_memory_due_at(0, 0, now=now) == (
+        "2026-10-09T07:10:00Z",
+        1,
+    )
+    assert next_mnemosyne_memory_due_at(1, 0, now=now) == (
+        "2026-10-10T07:00:00Z",
+        1,
+    )
+    assert next_mnemosyne_memory_due_at(2, 2, now=now) == (
+        "2026-10-21T07:00:00Z",
+        3,
+    )
+    assert next_mnemosyne_memory_due_at(2, 5, now=now) == (
+        "2027-01-07T07:00:00Z",
+        6,
+    )
+    assert next_mnemosyne_memory_due_at(3, 5, now=now) == (
+        "2027-04-07T07:00:00Z",
+        6,
+    )
+
+
+@pytest.mark.parametrize("grade", [True, -1, 4, 1.0])
+def test_next_mnemosyne_memory_due_at_rejects_invalid_grades(grade):
+    from deeptutor.learning.service import next_mnemosyne_memory_due_at
+
+    with pytest.raises(ValueError):
+        next_mnemosyne_memory_due_at(grade, 0)
+
+
+@pytest.mark.parametrize("review_count", [True, -1, 9_007_199_254_740_991])
+def test_next_mnemosyne_memory_due_at_rejects_unsafe_review_count(review_count):
+    from deeptutor.learning.service import next_mnemosyne_memory_due_at
+
+    with pytest.raises(ValueError):
+        next_mnemosyne_memory_due_at(1, review_count)
+
+
+def test_next_mnemosyne_memory_due_at_rejects_naive_clock():
+    from datetime import datetime
+
+    from deeptutor.learning.service import next_mnemosyne_memory_due_at
+
+    with pytest.raises(ValueError):
+        next_mnemosyne_memory_due_at(1, 0, now=datetime(2026, 10, 9, 7))

@@ -12,7 +12,7 @@
 
 이 문서는 사용자 요청에 따라 DB, API, contract, dependency 경계와 소유자별 패치 제안을 모은다. `integration/ownership.json`에는 이 문서 경로가 아직 배정되지 않았다. 통합 담당은 다음 통합 기준선에서 `docs/handoffs/unit-02.md`를 담당 경로에 등록해야 한다. 기존 담당 경로를 수정하지 않고 명세 인수에 사용한다.
 
-현재 UNIT-02 구현은 DeepTutor native `/ws` protocol 2.0 tutor route, 목적별 모델 선택, Attempt/MemoryReview 입력 검증, public Quiz/Assessment/LearningState 출력 검증을 포함한다. contract는 `0.1.0`이고 `/v1/*` 경로는 `contracts/openapi.yaml`에서 `planned-unit-extension`으로 표시된다. `TutorAdapter`가 등록된다는 사실은 해당 HTTP API가 mount됐거나 제품 기능이 완료됐다는 뜻이 아니다.
+현재 UNIT-02 구현은 DeepTutor native `/ws` protocol 2.0 tutor route, 목적별 모델 선택, Attempt/MemoryReview 입력 검증, public Quiz/Assessment/LearningState 출력 검증을 포함한다. `learning/service.py`에 private grading input, assessment-purpose OpenAI-compatible stream, strict result validation, retryable claim 해제, attempt replay, concept mastery evidence와 오답 Memory 후보 생성을 orchestration하는 `MnemosyneAssessmentService`를 추가했다. `register_tutor`는 store가 주어지면 이 service를 연결하고 `TutorAdapter.submit_attempt`는 서비스가 없으면 fail closed 한다. 오답/부분 정답은 다음날 복습할 한국어 flashcard 후보와 검증 citation을 같은 commit에 전달한다. contract는 `0.1.0`이고 `/v1/*` 경로는 `contracts/openapi.yaml`에서 `planned-unit-extension`으로 표시된다. `LearningStateStore` 미주입과 missing store methods 때문에 제품 동작과 `product_ready`는 여전히 false다.
 
 `TutorAdapter.get_quiz`는 현재 `LearningStateStore.get_quiz`를 duck-typing으로 요구하지만, 통합 담당 소유 `mnemosyne/ports.py`의 Protocol에는 아직 이 메서드가 없다. `LearningStateStore` 주입도 bootstrap에서 `None`이다. 따라서 durable quiz/learning 기능과 `product_ready`는 미완료다. `get_learning_state`는 요청 버전과 저장 상태 버전을 비교하지만, 현재 port의 `get_state(document_id)` 입력에는 version이 없으므로 DB adapter가 문서·버전 조회 경계를 명확히 제공해야 한다.
 
@@ -56,18 +56,18 @@ OpenAPI에 이미 기재된 경로는 다음과 같으며 모두 아직 계획�
 
 ## 통합 담당에 전달할 port patch 제안
 
-현재 `LearningStateStore`의 네 메서드만으로는 private grading 조회, provider 호출 전 idempotency claim, 채점 후 atomic commit을 분리할 수 없다. 통합 담당은 다음 경계를 `ports.py`에 제안하고 bootstrap에서 실제 store를 주입한다. 반환 타입은 실제 저장소 의미에 맞는 dataclass/enum으로 정리하며 아래는 이름과 상태 의미를 합의하기 위한 pseudo-signature다.
+현재 `LearningStateStore.submit_attempt`는 저장소가 평가까지 소유하는 경계라 Unit02 provider service를 거치지 않는다. 통합 담당은 이 경계를 대체해 다음 port signature/반환 값을 `ports.py`에 정의하고 bootstrap에서 실제 store를 주입한다. 반환 타입은 실제 저장소 의미에 맞는 dataclass/enum으로 정리하며 아래는 이름과 상태 의미를 합의하기 위한 pseudo-signature다.
 
 ```python
-async def get_quiz(user_id, quiz_id) -> PublicQuiz: ...
-async def get_grading_input(user_id, quiz_id, document_id, version_id) -> PrivateQuiz: ...
-async def begin_attempt(user_id, attempt, payload_sha256) -> AttemptClaim: ...
-async def commit_assessment(user_id, attempt_id, payload_sha256, assessment) -> LearningState: ...
-async def release_attempt_for_retry(user_id, attempt_id, payload_sha256, safe_error_code) -> None: ...
-async def get_state(user_id, document_id, version_id) -> LearningState: ...
+async def get_quiz(quiz_id) -> PublicQuiz: ...
+async def get_grading_input(quiz_id, document_id, version_id) -> PrivateQuiz: ...
+async def begin_attempt(attempt, payload_sha256) -> AttemptClaim: ...
+async def commit_assessment(attempt, payload_sha256, assessment, question_results) -> Assessment: ...
+async def release_attempt_for_retry(attempt_id, payload_sha256, safe_error_code) -> None: ...
+async def get_state(document_id, version_id) -> LearningState: ...
 ```
 
-`PrivateQuiz`는 backend service 전용이다. router/DTO/log/UI로 직렬화하지 않고 provider 입력 생성에만 쓴다. `AttemptClaim`의 상태 의미는 `claimed`, `completed_replay`, `in_progress`, `payload_conflict`다. 외부 error body가 새 contract shape를 요구하면 통합 담당이 버전과 generated fixture 변경을 제안한다. 현재 server store가 인증된 user ID를 가지고 있지 않으면 `user_id`는 API 계층이 검증한 주체로 전달하고 body/query/header에서 임의로 신뢰하지 않는다.
+`PrivateQuiz`는 backend service 전용이며 저장 shape는 `{quiz_id,document_id,version_id,questions:[{question_id,answer_key,rubric,explanation,concept_id,label_ko}]}`다. router/DTO/log/UI로 직렬화하지 않고 provider 입력 생성에만 쓴다. DB/API 경계는 paired owner scope에 묶이고 브라우저가 보낸 식별자를 권한으로 사용하지 않는다. `AttemptClaim`의 상태 의미는 `claimed`, `completed_replay`, `in_progress`, `payload_conflict`, `revision_conflict`다. `commit_assessment`는 public `Assessment`를 반환하며 per-question score/concept/Memory delta를 same transaction으로 저장한다. 외부 error body가 새 contract shape를 요구하면 통합 담당이 버전과 generated fixture 변경을 제안한다.
 
 UNIT-02 채점 service 처리 순서:
 
@@ -75,9 +75,10 @@ UNIT-02 채점 service 처리 순서:
 2. 정규화된 `Attempt`를 UTF-8 JSON, key 정렬, 고정 separator로 직렬화해 SHA-256 payload hash를 만든다. 정규화 규칙은 fixture로 고정한다.
 3. 짧은 DB transaction에서 `(user_id, client_mutation_id)`를 claim한다. 같은 ID·같은 hash의 완료 요청은 저장된 원 Assessment를 돌려주며 provider를 다시 호출하지 않는다. 같은 ID·다른 hash는 conflict다. 진행 중 동일 요청은 두 번째 provider 평가를 시작하지 않고 pending/retry 규칙으로 처리한다.
 4. transaction을 끝낸 뒤 server-only grading input과 사용자 answer를 평가 provider에 전달한다. provider timeout/error는 durable 상태를 부분 반영하지 않고 재시도 가능한 claim 상태와 안전한 내부 error code로 기록한다. private rubric/answer와 credentials는 client 또는 일반 로그에 쓰지 않는다.
-5. Assessment citations가 해당 immutable quiz의 검증된 citation 집합 안에 있고, quiz document/version과 일치하는지 검사한다. 현재 in-process 구조 검증은 `verified: true`를 읽는 단계만 한다. 실제 quote/page/hash 검증은 citation verifier에 맡기고 그 결과를 연결한다.
-6. 두 번째 짧은 transaction에서 claim/hash를 재확인하고 `base_learning_revision` CAS를 수행한다. 성공 시 attempt, Assessment, 근거가 있는 mastery 변화, progress/activity 및 새 revision을 한 번에 저장한다. revision conflict면 일부 학습 데이터 변경 없이 conflict를 반환한다. 응답에서 `Assessment.learning_revision`과 저장 `LearningState.learning_revision`이 같다.
-7. 성공 후 동일 mutation replay는 저장된 동일 Assessment를 반환한다. process가 claim 이후 종료된 경우 lease/expiry 또는 명시적 retry 경로가 provider 중복 호출을 안전하게 복구해야 한다.
+5. Assessment citations는 답한 quiz question의 검증 citation을 서버가 선택한다. provider는 citation ID를 만들지 않는다. 현재 in-process 구조 검증은 `verified: true` DTO를 검사한다. 실제 quote/page/hash 검증은 citation verifier에 맡기고 그 결과를 연결한다.
+6. per-question score와 비공개 grading input의 concept ID/한국어 label을 묶어 mastery evidence를 만든다. 같은 attempt에서 concept가 중복되면 점수 평균을 낸다. transaction은 이전 `evidence_attempt_ids` 수를 n으로 하고 `new_score=(old_score*n+attempt_concept_mean)/(n+1)`로 갱신하며 attempt ID를 한 번만 추가한다. 대화 수는 mastery로 계산하지 않는다. score가 1보다 낮은 문항에는 한국어 Memory front/back, 해당 검증 citation, `due_at=server clock + 1 day`, review_count 0을 생성해 함께 저장한다.
+7. 두 번째 짧은 transaction에서 claim/hash를 재확인하고 `base_learning_revision` CAS를 수행한다. 성공 시 attempt, Assessment, per-question mastery evidence, 오답 Memory, quiz activity 및 새 revision을 한 번에 저장한다. revision conflict면 일부 학습 데이터 변경 없이 terminal conflict를 반환한다. transaction 실패는 저장소에서 rollback하고 claim을 재시도 가능하게 풀어야 한다. 응답에서 `Assessment.learning_revision`과 저장 `LearningState.learning_revision`이 같다.
+8. 성공 후 동일 mutation replay는 저장된 동일 Assessment와 기존 Memory를 유지하며 provider를 다시 부르지 않는다. process가 claim 이후 종료된 경우 lease/expiry 또는 명시적 retry 경로가 provider 중복 호출을 안전하게 복구해야 한다.
 
 ## UNIT-01 DB 및 migration patch 제안
 
@@ -126,6 +127,19 @@ CREATE TABLE mnemosyne_learning_revisions (
   updated_at TEXT NOT NULL,
   PRIMARY KEY (user_id, document_id, version_id)
 );
+
+CREATE TABLE mnemosyne_question_evidence (
+  user_id TEXT NOT NULL,
+  attempt_id TEXT NOT NULL,
+  question_id TEXT NOT NULL,
+  concept_id TEXT NOT NULL,
+  label_ko TEXT NOT NULL,
+  score REAL NOT NULL CHECK (score >= 0 AND score <= 1),
+  feedback_ko TEXT NOT NULL,
+  memory_json TEXT,
+  PRIMARY KEY (user_id, attempt_id, question_id),
+  FOREIGN KEY (user_id, attempt_id) REFERENCES mnemosyne_attempts(user_id, attempt_id)
+);
 ```
 
 Migration acceptance points:
@@ -134,13 +148,15 @@ Migration acceptance points:
 - Quiz public and private grading payloads are immutable after creation; quiz ID points to exactly one document/version. A replacement quiz gets a new ID.
 - User scope is included in primary/unique keys and every read/update predicate. Document/version foreign association is checked on reads and writes.
 - Attempt claim uniqueness enforces idempotency under concurrent requests. A request hash mismatch never overwrites the first payload. Completed `assessment_json` is immutable.
-- `commit_assessment` compares the current revision to the attempt's base revision and writes attempt completion plus all derived state under one transaction. A failed constraint, crash, or stale revision leaves no partial mastery/progress/activity update.
+- `commit_assessment` accepts only public Assessment plus sanitized per-question score, feedback, concept evidence and optional Memory cards. It never stores answer keys/rubrics in the evidence or LearningState JSON. It compares the current revision to the attempt's base revision and writes attempt completion plus all derived state under one transaction. A failed constraint, crash, or stale revision leaves no partial mastery/progress/activity update.
+- Evidence is unique per attempt/question. For each concept, average duplicate question scores within the same attempt. Update mastery by `(old_score * prior_distinct_attempts + attempt_mean) / (prior_distinct_attempts + 1)` and append the attempt ID once. A missed/partial response stores its generated Korean Memory card with the corresponding verified citation and a due date one day after the server clock.
 - If existing storage already keeps normalized state rows, use those rows instead of `state_json`; the transaction, public DTO, replay and CAS guarantees remain the same.
 
 ## Mastery, memory, activity 및 model 동작
 
 - Mastery는 assessment 또는 명시적으로 검증된 학습 근거에서만 갱신한다. 대화 횟수만으로 점수를 올리지 않는다. `evidence_attempt_ids`는 같은 user/document/version의 저장된 attempt로 FK 또는 동등 검증을 한다.
 - Memory review는 `client_mutation_id` 중복 방지와 `base_learning_revision` CAS를 적용하고 `MemoryReview`만으로 카드 내용이나 citation을 신뢰하지 않는다. 결과 state 전체를 revision과 함께 atomic 반환한다.
+- `learning.service.next_mnemosyne_memory_due_at(grade, review_count, now=server_clock)`는 저장소가 transaction 안에서 쓸 순수 scheduling 규칙이다: grade 0은 10분, grade 1은 1일, grade 2는 3일×2^review_count(최대 90일), grade 3은 7일×2^review_count(최대 180일) 뒤로 예약하고 count를 1 올린다. 현재 TutorAdapter/실제 store에는 아직 연결되지 않았으므로 이 함수만으로 Memory review가 제품 동작한다고 보지 않는다. UNIT-01 저장 transaction이 client `reviewed_at`을 무시하고 server clock으로 호출해 due date/count/state revision을 원자 저장해야 한다.
 - Activity/progress 기록은 document/version 및 native `turn_id`와 연결한다. 복구/재생 시 중복 행이 생기지 않도록 native event identity 또는 mutation ID에 유니크 제약을 둔다.
 - 기존 `/api/settings` purpose catalog를 재사용한다. purpose override가 비어 있거나 `inherit`이면 현재 turn 모델을 계속 사용한다. UI의 tutor 6개 purpose에는 한국어 표시와 “현재 대화 모델 사용” 선택지를 제공한다.
 - 신규 provider SDK, DB package 또는 frontend package는 이 명세에 포함하지 않는다. 현재 서비스 경계로 충분하다. 실제 의존성이 필요해지면 UNIT-06/UNIT-05 담당이 해당 manifest, lockfile, container/CI와 license/source를 함께 갱신한다. UNIT-02는 다른 담당의 dependency 파일을 수정하지 않는다.
@@ -162,9 +178,9 @@ Migration acceptance points:
 
 | 영역 | 지금 확인된 것 | 제품 인수 전에 추가할 것 |
 |---|---|---|
-| DTO/adapter fixture | public Quiz의 추가 private field 거부, immutable document version match, Attempt/MemoryReview/activity 입력, LearningState의 quiz attempt/mastery/memory/progress/activity nested schema, 잘못된 activity turn ID 거부, native turn routing fixture | malformed citation, 중복 answer/question, Assessment attempt/citation/version mismatch |
+| DTO/adapter fixture | public Quiz의 추가 private field 거부, immutable document version match, Attempt/MemoryReview/activity 입력, LearningState의 quiz attempt/mastery/memory/progress/activity nested schema, 잘못된 activity turn ID 거부, native turn routing fixture, fake evaluator의 private grading 및 persisted replay, mastery evidence/오답 Memory candidate 생성 | malformed citation, 중복 answer/question, Assessment attempt/citation/version mismatch |
 | DB | 이번 UNIT-02 checkpoint는 실제 DB patch를 적용하지 않음 | migration fresh/upgrade/replay, atomic rollback, 동시 idempotency, 같은 ID 다른 hash, revision CAS, user isolation, process restart replay |
-| Provider | 기존 fixture는 mock/provider-free | private rubric의 server-only 접근, 한국어 feedback, timeout/error/retry, provider 중복 방지, 실제 credential 환경의 평가 |
+| Provider | fake evaluator가 private grading, replay, provider 오류 retry, commit 오류 claim 해제를 검사 | private rubric의 server-only 접근, 한국어 feedback, timeout/error/retry, provider 중복 방지, 실제 credential 환경의 평가 |
 | API | `contracts/openapi.yaml` 경로 확인. Router mount 검증은 없음 | auth/user scope, contract header, status/error mapping, `/v1/*` 실 mount, API integration fixture |
 | Citation | adapter에서 citation DTO의 shape와 quiz source set membership을 확인 | citation verifier가 page text/hash/quote/geometry를 source document에 대조하고 실패를 거부하는 end-to-end fixture |
 | 앱 | 이 checkpoint에서 browser, iPad simulator/device, 설치형 product build 수행 안 함 | UNIT-05 한국어 UI, iPad online/offline 상태, 제품 build/device 검증 |
@@ -175,4 +191,4 @@ Migration acceptance points:
 env DEEPTUTOR_HOME=/private/tmp/mnemosyne-unit02-test-home uv run --directory upstreams/DeepTutor --no-project --with pytest --with pytest-asyncio --with fastapi --with httpx --with pydantic --with pydantic-settings --with PyYAML --with PyMuPDF --with openai --with aiosqlite --with python-multipart --with jinja2 --with tiktoken --with requests --with aiohttp --with ddgs --with tenacity --with packaging --with jsonschema --with redis --with loguru --with json-repair --with croniter --with psutil --with 'python-jose[cryptography]' --with defusedxml --with bcrypt -- python -m pytest deeptutor/learning/tests/test_prompt_language_fallback.py tests/api/routers/test_quiz_judge_unit.py tests/runtime/test_lazy_builtin_catalogs.py tests/api/test_unified_ws_turn_runtime.py tests/multi_user/test_learning_reading_turns.py tests/services/test_task_models.py
 ```
 
-결과: **134 passed, 4 warnings**. `tutor.py` 및 해당 runtime fixture는 Python AST parse를 통과했고, 변경 UNIT-02 파일의 `git diff --check`도 통과했다. `LearningState`의 nested quiz-attempt, mastery, memory/citation, progress, activity entry 및 `save_activity` 입력/저장 결과를 schema 형태로 검사한다. 이 결과는 source fixture/unit 검사다. mounted API, 실제 SQLite migration/restart, 실제 provider 호출, iPadOS build/device는 검증하지 않았다. 테스트 및 문법 검사는 upstream 라이선스/원본 경로를 변경하지 않았다.
+결과: **147 passed, 4 warnings**. 전체 suite에서 변경 Python 모듈이 import/compile됐고, 변경 UNIT-02 파일의 `git diff --check`도 통과했다. 별도 AST-only probe는 sandbox의 uv cache 접근 거부로 실행되지 않았다. fake evaluator는 private grading input을 받아도 persisted question result에 answer key가 들어가지 않는지, 같은 attempt replay가 provider를 다시 부르지 않는지, concept evidence와 다음날 Memory candidate가 만들어지는지 확인한다. provider/commit 실패 시 claim release와 retry, 복습 schedule fixture의 grade별 due date·간격 상한·안전한 review count·timezone-aware server clock을 확인한다. 첫 재실행에서 commit 실패 fixture citation ID 누락으로 1개 테스트가 평가 구성 단계에서 실패해 ID를 보완했다. 이 결과는 source fixture/unit 검사다. mounted API, 실제 SQLite migration/restart, 실제 provider 호출, iPadOS build/device는 검증하지 않았다. 테스트 및 문법 검사는 upstream 라이선스/원본 경로를 변경하지 않았다.

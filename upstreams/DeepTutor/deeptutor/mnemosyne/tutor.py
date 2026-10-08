@@ -593,6 +593,7 @@ class TutorAdapter:
     turns: Any
     library: Any
     learning_store: LearningStateStore | None
+    assessment_service: Any | None = None
 
     @property
     def product_ready(self) -> bool:
@@ -601,17 +602,21 @@ class TutorAdapter:
             for name in (
                 "get_quiz",
                 "get_state",
-                "submit_attempt",
                 "save_activity",
                 "review_memory",
             )
+        )
+        assessment_service_ready = (
+            self.assessment_service is not None
+            and getattr(self.assessment_service, "ready", False) is True
+            and callable(getattr(self.assessment_service, "submit_attempt", None))
         )
         annotation_sync = getattr(self.library, "annotation_sync", None)
         sync_ready = annotation_sync is not None and all(
             callable(getattr(annotation_sync, name, None))
             for name in ("apply_mutations", "snapshot", "changes")
         )
-        return store_ready and sync_ready
+        return store_ready and assessment_service_ready and sync_ready
 
     @property
     def capabilities(self) -> tuple[str, ...]:
@@ -673,7 +678,7 @@ class TutorAdapter:
         normalized_version_id = str(version_id or "").strip()
         if not _VERSION_RE.fullmatch(normalized_version_id):
             raise ValueError("version_id must be a full SHA-256 version")
-        state = await store.get_state(normalized_document_id)
+        state = await store.get_state(normalized_document_id, normalized_version_id)
         return _validate_learning_state(
             state,
             document_id=normalized_document_id,
@@ -751,7 +756,10 @@ class TutorAdapter:
             raise ValueError("attempt contains duplicate question answers")
         if any(question_id not in quiz_question_ids for question_id in answer_ids):
             raise ValueError("attempt contains a question outside the stored quiz")
-        result = await _learning_store(self.learning_store).submit_attempt(normalized)
+        assessment_submitter = getattr(self.assessment_service, "submit_attempt", None)
+        if not callable(assessment_submitter):
+            raise RuntimeError("Learning state is not ready; private assessment service is unavailable")
+        result = await assessment_submitter(normalized, quiz)
         return _validate_assessment(result, attempt=normalized, quiz=quiz)
 
     async def save_activity(
@@ -807,6 +815,14 @@ class TutorAdapter:
 
 
 def register_tutor(
-    turns, library, *, learning_store: LearningStateStore | None = None
+    turns,
+    library,
+    *,
+    learning_store: LearningStateStore | None = None,
+    assessment_service: Any | None = None,
 ) -> TutorAdapter:
-    return TutorAdapter(turns, library, learning_store)
+    if assessment_service is None and learning_store is not None:
+        from deeptutor.learning.service import MnemosyneAssessmentService
+
+        assessment_service = MnemosyneAssessmentService(learning_store)
+    return TutorAdapter(turns, library, learning_store, assessment_service)
