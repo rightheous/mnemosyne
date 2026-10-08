@@ -1,9 +1,23 @@
+import Combine
+import CryptoKit
 import Foundation
 import PumiceCore
 
 /// UNIT-04 owns network and screens; it calls Reader facade instead of its DB.
 @MainActor protocol MnemosyneSyncWorker: AnyObject {
     func synchronize() async throws
+}
+
+/// UNIT-03 localStore owns these durable sync facts. The worker never opens or edits its DB.
+@MainActor protocol MnemosyneSyncStateStore: AnyObject {
+    func syncCursor(documentID: UUID, versionID: String) throws -> String?
+    func applyRemoteSnapshot(_ snapshot: Data) throws
+}
+
+/// Native seq includes frames without metadata.mnemosyne and must survive process restarts.
+@MainActor protocol MnemosyneTutorCheckpointStore: AnyObject {
+    func lastTutorSequence(turnID: String) throws -> Int
+    func commitTutorFrame(_ nativeFrame: Data) throws
 }
 
 @MainActor struct MnemosyneAppDependencies {
@@ -17,4 +31,472 @@ import PumiceCore
                            syncWorker: any MnemosyneSyncWorker,
                            serverURL: URL) -> MnemosyneAppDependencies {
     MnemosyneAppDependencies(reader: reader, syncWorker: syncWorker, serverURL: serverURL)
+}
+
+enum MnemosyneSection: String, CaseIterable, Identifiable {
+    case library, study, settings
+    var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .library: "라이브러리"
+        case .study: "학습 기록"
+        case .settings: "서버 설정"
+        }
+    }
+}
+
+@MainActor
+final class MnemosyneAppModel: ObservableObject {
+    enum ConnectionState: Equatable {
+        case notConfigured, checking, online, offline(String)
+    }
+
+    @Published var serverURLText = UserDefaults.standard.string(forKey: "mnemosyne.serverURL") ?? ""
+    @Published var pairingCode = ""
+    @Published var deviceName = "iPad"
+    @Published var selectedSection: MnemosyneSection = .library
+    @Published var selectedSubjectId: UUID?
+    @Published var selectedDocumentId: UUID?
+    @Published private(set) var connectionState: ConnectionState = .notConfigured
+    @Published private(set) var isPaired = false
+    @Published private(set) var serverReadyState: Bool?
+    @Published private(set) var readiness: MnemosyneReadiness?
+    @Published private(set) var publicSettings: MnemosynePublicSettings?
+    @Published private(set) var subjects: [MnemosyneSubject] = []
+    @Published private(set) var documents: [MnemosyneDocument] = []
+    @Published private(set) var learningState: MnemosyneLearningState?
+    @Published private(set) var activeQuiz: MnemosyneQuiz?
+    @Published private(set) var lastAssessment: MnemosyneAssessment?
+    @Published private(set) var busyMessage: String?
+    @Published private(set) var alertMessage: String?
+    @Published private(set) var tutorText = ""
+    @Published private(set) var tutorStatus = "튜터 연결을 확인하세요."
+    @Published private(set) var pendingAnnotationEvent: Data?
+    @Published private(set) var downloadStates: [UUID: String] = [:]
+
+    private(set) var reader: (any MnemosyneReaderFacade)?
+    private(set) var syncWorker: (any MnemosyneSyncWorker)?
+    private var api: MnemosyneAPIClient?
+    private var tutorTransport: MnemosyneTutorTransport?
+    private var verifiedCitations: [UUID: MnemosyneVerifiedCitation] = [:]
+    private var tutorTask: Task<Void, Never>?
+    private var currentTurnId = UserDefaults.standard.string(forKey: "mnemosyne.lastTurnId")
+    private var currentTurnDocumentId = UserDefaults.standard.string(forKey: "mnemosyne.lastTurnDocumentId")
+        .flatMap(UUID.init(uuidString:))
+    private var cancelCommandId: UUID?
+
+    var selectedDocument: MnemosyneDocument? {
+        guard let selectedDocumentId else { return nil }
+        return documents.first { $0.documentId == selectedDocumentId }
+    }
+
+    var hasReaderFacade: Bool { reader != nil }
+    var isTutorRunning: Bool { tutorTask != nil }
+
+    func dismissAlert() { alertMessage = nil }
+    func presentError(_ message: String) { alertMessage = message }
+
+    var connectionSummary: String {
+        switch connectionState {
+        case .notConfigured: "서버 주소를 설정해 주세요"
+        case .checking: "서버 연결 확인 중"
+        case .online: isPaired ? "서버 연결됨 · 기기 연결됨" : "서버 연결됨 · 기기 연결 필요"
+        case let .offline(message): message
+        }
+    }
+
+    func attachReader(_ reader: any MnemosyneReaderFacade, syncWorker: any MnemosyneSyncWorker) {
+        self.reader = reader
+        self.syncWorker = syncWorker
+    }
+
+    func connectSavedServer() async {
+        guard !serverURLText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        await connectAndRefresh()
+    }
+
+    func connectAndRefresh() async {
+        connectionState = .checking
+        busyMessage = "서버 연결을 확인하고 있습니다"
+        defer { busyMessage = nil }
+        let client: MnemosyneAPIClient
+        do {
+            let url = try MnemosyneAPIClient.validatedURL(serverURLText)
+            client = try MnemosyneAPIClient(baseURL: url)
+            api = client
+            try await client.health()
+            serverURLText = url.absoluteString.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+            UserDefaults.standard.set(serverURLText, forKey: "mnemosyne.serverURL")
+            connectionState = .online
+            isPaired = await client.isPaired()
+            serverReadyState = try await client.serverReady()
+        } catch {
+            connectionState = .offline(error.localizedDescription)
+            alertMessage = error.localizedDescription
+            return
+        }
+        guard isPaired else {
+            readiness = nil
+            publicSettings = nil
+            subjects = []
+            documents = []
+            return
+        }
+        do {
+                readiness = try await client.readiness()
+                publicSettings = try await client.settings()
+                try await refreshLibrary()
+                if currentTurnId != nil, reader is (any MnemosyneTutorCheckpointStore) {
+                    tutorStatus = "이전 튜터 응답을 이어 받을 수 있습니다."
+                }
+        } catch {
+            // /health is observed upstream; typed Mnemosyne routes are planned extensions.
+            alertMessage = "서버는 응답하지만 Mnemosyne API를 사용할 수 없습니다. \(error.localizedDescription)"
+        }
+    }
+
+    func pairDevice() async {
+        guard let api else { alertMessage = "먼저 서버 주소를 확인해 주세요."; return }
+        guard pairingCode.count >= 8 else { alertMessage = "서버에서 받은 일회용 코드를 입력해 주세요."; return }
+        busyMessage = "기기를 연결하고 있습니다"
+        defer { busyMessage = nil; pairingCode = "" }
+        do {
+            _ = try await api.pair(oneTimeCode: pairingCode, deviceName: deviceName)
+            isPaired = true
+            readiness = try await api.readiness()
+            publicSettings = try await api.settings()
+            try await refreshLibrary()
+        } catch { alertMessage = error.localizedDescription }
+    }
+
+    func unpairDevice() async {
+        guard let api else { return }
+        busyMessage = "기기 연결을 해제하고 있습니다"
+        defer { busyMessage = nil }
+        do {
+            try await api.unpair()
+            isPaired = false
+            readiness = nil
+            publicSettings = nil
+            subjects = []
+            documents = []
+            // Local drafts and their outbox remain in the Reader facade for a later pairing.
+        } catch { alertMessage = error.localizedDescription }
+    }
+
+    func refreshLibrary() async throws {
+        guard let api, isPaired else { throw MnemosyneAPIError.pairingRequired }
+        async let fetchedSubjects = api.subjects()
+        async let fetchedDocuments = api.documents(subjectId: selectedSubjectId)
+        subjects = try await fetchedSubjects
+        documents = try await fetchedDocuments
+        if let reader {
+            for document in documents {
+                guard let state = try? reader.downloadState(documentID: document.documentId,
+                                                           versionID: document.versionId) else { continue }
+                switch state {
+                case .cached: downloadStates[document.documentId] = "기기에 저장됨"
+                case .downloading: downloadStates[document.documentId] = "다운로드 중"
+                case .invalid: downloadStates[document.documentId] = "다시 다운로드 필요"
+                case .missing: downloadStates.removeValue(forKey: document.documentId)
+                }
+            }
+        }
+        if let selectedDocumentId, !documents.contains(where: { $0.documentId == selectedDocumentId }) {
+            self.selectedDocumentId = nil
+        }
+    }
+
+    func refreshLibraryFromUI() async {
+        busyMessage = "라이브러리를 새로 고치고 있습니다"
+        defer { busyMessage = nil }
+        do { try await refreshLibrary() } catch { alertMessage = error.localizedDescription }
+    }
+
+    func selectSubject(_ subjectId: UUID?) async {
+        selectedSubjectId = subjectId
+        selectedDocumentId = nil
+        await refreshLibraryFromUI()
+    }
+
+    func createSubject(name: String) async {
+        guard let api, isPaired else { alertMessage = "기기를 서버에 연결해 주세요."; return }
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        do {
+            let subject = try await api.createSubject(name: trimmed)
+            subjects.append(subject)
+            selectedSubjectId = subject.subjectId
+        } catch { alertMessage = error.localizedDescription }
+    }
+
+    func deleteSubject(_ subject: MnemosyneSubject) async {
+        guard let api, isPaired else { alertMessage = "기기를 서버에 연결해 주세요."; return }
+        do {
+            try await api.deleteSubject(subject)
+            if selectedSubjectId == subject.subjectId { selectedSubjectId = nil }
+            try await refreshLibrary()
+        } catch { alertMessage = error.localizedDescription }
+    }
+
+    func uploadPDF(from url: URL) async {
+        guard let api, isPaired else { alertMessage = "기기를 서버에 연결해 주세요."; return }
+        let hasAccess = url.startAccessingSecurityScopedResource()
+        defer { if hasAccess { url.stopAccessingSecurityScopedResource() } }
+        busyMessage = "PDF를 서버에 올리고 있습니다"
+        defer { busyMessage = nil }
+        do {
+            let document = try await api.uploadDocument(fileURL: url,
+                title: url.deletingPathExtension().lastPathComponent, subjectId: selectedSubjectId)
+            selectedDocumentId = document.documentId
+            try await refreshLibrary()
+        } catch { alertMessage = error.localizedDescription }
+    }
+
+    func deleteDocument(_ document: MnemosyneDocument) async {
+        guard let api else { alertMessage = "서버 연결을 확인해 주세요."; return }
+        busyMessage = "문서를 삭제하고 있습니다"
+        defer { busyMessage = nil }
+        do {
+            try await api.deleteDocument(document)
+            if selectedDocumentId == document.documentId { selectedDocumentId = nil }
+            try await refreshLibrary()
+        } catch { alertMessage = error.localizedDescription }
+    }
+
+    func openDocument(_ document: MnemosyneDocument) async {
+        selectedDocumentId = document.documentId
+        guard let reader else {
+            alertMessage = "PDF Reader와 sidecar 저장소가 UNIT-03에서 연결되기 전입니다. 다운로드를 완료 상태로 표시하지 않았습니다."
+            return
+        }
+        busyMessage = "원본 PDF 상태를 확인하고 있습니다"
+        downloadStates[document.documentId] = "확인 중"
+        defer { busyMessage = nil }
+        do {
+            let localState = try reader.downloadState(documentID: document.documentId, versionID: document.versionId)
+            switch localState {
+            case .cached:
+                busyMessage = "기기에 저장된 원본을 열고 있습니다"
+                try await reader.openCached(documentID: document.documentId, versionID: document.versionId)
+                downloadStates[document.documentId] = "기기에 저장됨"
+            case .missing, .invalid:
+                guard document.originalAvailable, let api else {
+                    throw api == nil ? MnemosyneAPIError.pairingRequired : MnemosyneAPIError.invalidPDF
+                }
+                busyMessage = "원본 PDF를 다운로드하고 있습니다"
+                downloadStates[document.documentId] = "다운로드 중"
+                let temporaryURL = try await api.downloadOriginal(document)
+                defer { try? FileManager.default.removeItem(at: temporaryURL) }
+                try await reader.installDownloadedOriginal(from: temporaryURL, documentID: document.documentId,
+                                                             versionID: document.versionId)
+                busyMessage = "검증된 PDF를 Reader에 연결하고 있습니다"
+                try await reader.openCached(documentID: document.documentId, versionID: document.versionId)
+                downloadStates[document.documentId] = "기기에 저장됨"
+            case .downloading:
+                downloadStates[document.documentId] = "다운로드 중"
+            }
+        } catch {
+            downloadStates[document.documentId] = "오류 · 다시 시도"
+            alertMessage = error.localizedDescription
+        }
+    }
+
+    func synchronizeNow() async {
+        guard let syncWorker else {
+            alertMessage = "Reader outbox와 sync cursor를 연결하는 UNIT-03 facade가 아직 제공되지 않았습니다."
+            return
+        }
+        busyMessage = "필기와 주석을 동기화하고 있습니다"
+        defer { busyMessage = nil }
+        do { try await syncWorker.synchronize() } catch { alertMessage = error.localizedDescription }
+    }
+
+    func refreshLearning() async {
+        guard let api, let document = selectedDocument, isPaired else { return }
+        do { learningState = try await api.learning(documentId: document.documentId, versionId: document.versionId) }
+        catch { alertMessage = error.localizedDescription }
+    }
+
+    func loadQuiz(quizId: UUID) async {
+        guard let api, isPaired else { alertMessage = "기기를 서버에 연결해 주세요."; return }
+        do { activeQuiz = try await api.quiz(quizId: quizId) }
+        catch { alertMessage = error.localizedDescription }
+    }
+
+    func submitQuizAnswers(_ answers: [UUID: String]) async {
+        guard let api, let quiz = activeQuiz, let document = selectedDocument,
+              let learningState else { return }
+        let nonempty = answers.filter { !$0.value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+        guard !nonempty.isEmpty else { alertMessage = "답을 입력해 주세요."; return }
+        let now = ISO8601DateFormatter().string(from: Date())
+        let attempt = MnemosyneAttempt(attemptId: UUID(), clientMutationId: UUID(), quizId: quiz.quizId,
+            documentId: document.documentId, versionId: document.versionId,
+            baseLearningRevision: learningState.learningRevision, submittedAt: now,
+            answers: nonempty.map { .init(questionId: $0.key, answer: $0.value) })
+        busyMessage = "서버에서 답을 평가하고 있습니다"
+        defer { busyMessage = nil }
+        do {
+            // Score and feedback always come from DeepTutor's assessment response.
+            lastAssessment = try await api.submitAttempt(attempt)
+            await refreshLearning()
+        } catch { alertMessage = error.localizedDescription }
+    }
+
+    func reviewMemory(_ memory: MnemosyneLearningState.Memory, grade: Int) async {
+        guard let api, let learningState, (0...3).contains(grade) else { return }
+        let review = MnemosyneMemoryReview(clientMutationId: UUID(), memoryId: memory.memoryId,
+            baseLearningRevision: learningState.learningRevision, grade: grade,
+            reviewedAt: ISO8601DateFormatter().string(from: Date()))
+        do { learningState = try await api.reviewMemory(review) }
+        catch { alertMessage = error.localizedDescription }
+    }
+
+    /// The caller builds a native start_turn only after UNIT-02/integrator
+    /// provides the documented ReaderContext-to-native mapping.
+    func startTutor(startCommand: Data) {
+        guard let api, let reader, let document = selectedDocument,
+              let checkpointStore = reader as? any MnemosyneTutorCheckpointStore,
+              let url = try? MnemosyneAPIClient.validatedURL(serverURLText) else {
+            tutorStatus = "튜터 스트림 또는 Reader checkpoint 연결을 기다리는 중입니다."
+            return
+        }
+        guard tutorTask == nil else { return }
+        tutorText = ""
+        verifiedCitations = [:]
+        let transport = MnemosyneTutorTransport(baseURL: url)
+        tutorTransport = transport
+        tutorStatus = "튜터에 연결하고 있습니다"
+        let resumeId = currentTurnDocumentId == document.documentId ? currentTurnId : nil
+        currentTurnDocumentId = document.documentId
+        let resumeSequence = resumeId.flatMap { try? checkpointStore.lastTutorSequence(turnId: $0) } ?? 0
+        tutorTask = Task { [weak self] in
+            guard let self else { return }
+            defer { tutorTask = nil }
+            do {
+                try await transport.run(startCommand: resumeId == nil ? startCommand : nil,
+                    resumeTurnId: resumeId, afterSequence: resumeSequence,
+                    checkpoint: { turnId, _, rawFrame in
+                        try checkpointStore.commitTutorFrame(rawFrame)
+                        currentTurnId = turnId
+                        UserDefaults.standard.set(turnId, forKey: "mnemosyne.lastTurnId")
+                        UserDefaults.standard.set(document.documentId.uuidString, forKey: "mnemosyne.lastTurnDocumentId")
+                    },
+                    onEvent: { event in try await handleTutorEvent(event, document: document, reader: reader, api: api) })
+                tutorStatus = "응답 완료"
+                currentTurnId = nil
+                currentTurnDocumentId = nil
+                UserDefaults.standard.removeObject(forKey: "mnemosyne.lastTurnId")
+                UserDefaults.standard.removeObject(forKey: "mnemosyne.lastTurnDocumentId")
+            } catch is CancellationError {
+                tutorStatus = "응답을 취소했습니다"
+            } catch {
+                tutorStatus = "연결 오류 · 재시도할 수 있습니다"
+                alertMessage = error.localizedDescription
+            }
+        }
+    }
+
+    func cancelTutor() async {
+        guard let tutorTransport else { return }
+        let id = cancelCommandId ?? UUID()
+        cancelCommandId = id
+        tutorStatus = "취소 요청 중"
+        do { try await tutorTransport.cancel(commandId: id) }
+        catch { alertMessage = error.localizedDescription }
+    }
+
+    func approvePendingAnnotation() {
+        guard let pendingAnnotationEvent, let reader else { return }
+        do {
+            // Facade owns event-id idempotency and atomically adds the mutation to outbox.
+            try reader.applyReaderEvent(pendingAnnotationEvent)
+            self.pendingAnnotationEvent = nil
+        } catch { alertMessage = error.localizedDescription }
+    }
+
+    func rejectPendingAnnotation() { pendingAnnotationEvent = nil }
+
+    func dismissQuiz() { activeQuiz = nil }
+
+    private func handleTutorEvent(_ eventData: Data, document: MnemosyneDocument,
+                                  reader: any MnemosyneReaderFacade, api: MnemosyneAPIClient) async throws {
+        guard let eventObject = try JSONSerialization.jsonObject(with: eventData) as? [String: Any],
+              let type = eventObject["type"] as? String,
+              let payload = eventObject["payload"] as? [String: Any] else { throw MnemosyneTutorTransportError.unsupportedFrame }
+        if type == "citation.verified" {
+            guard let citation = try MnemosyneReaderEventValidator.verifiedCitation(from: eventData) else {
+                throw MnemosyneReaderEventError.malformed
+            }
+            try await verifyCitationAgainstPage(citation, document: document, api: api)
+            verifiedCitations[citation.citationId] = citation
+            tutorStatus = "문서 근거 확인됨"
+            return
+        }
+        let disposition = try MnemosyneReaderEventValidator.validate(eventData, documentId: document.documentId,
+            versionId: document.versionId, pageCount: document.pageCount, verifiedCitations: verifiedCitations)
+        switch type {
+        case "assistant.delta":
+            tutorText += payload["text"] as? String ?? ""
+            tutorStatus = "응답 중"
+        case "reader.goto", "reader.highlight", "reader.flash":
+            guard disposition == .apply else { throw MnemosyneReaderEventError.malformed }
+            try reader.applyReaderEvent(eventData)
+        case "reader.annotate":
+            guard disposition == .requiresUserConfirmation else { throw MnemosyneReaderEventError.malformed }
+            pendingAnnotationEvent = eventData
+        case "quiz.show":
+            guard let quizId = (payload["quiz_id"] as? String).flatMap(UUID.init(uuidString:)) else {
+                throw MnemosyneReaderEventError.malformed
+            }
+            await loadQuiz(quizId: quizId)
+        case "learning.updated":
+            await refreshLearning()
+        case "turn.started": tutorStatus = "튜터가 문서를 읽고 있습니다"
+        case "turn.done": tutorStatus = payload["summary_ko"] as? String ?? "응답 완료"
+        case "turn.error":
+            tutorStatus = "튜터 응답 오류"
+            if let errorObject = payload["error"] as? [String: Any],
+               let message = errorObject["message_ko"] as? String { alertMessage = message }
+        case "turn.cancelled": tutorStatus = "응답을 취소했습니다"
+        case "question.show": break
+        default: throw MnemosyneTutorTransportError.unsupportedFrame
+        }
+    }
+
+    private func verifyCitationAgainstPage(_ citation: MnemosyneVerifiedCitation,
+                                          document: MnemosyneDocument, api: MnemosyneAPIClient) async throws {
+        let anchor = citation.anchor
+        guard citation.verified, anchor.documentId == document.documentId,
+              anchor.versionId == document.versionId, (0..<document.pageCount).contains(anchor.pageIndex) else {
+            throw MnemosyneReaderEventError.documentMismatch
+        }
+        let page = try await api.page(documentId: document.documentId, versionId: document.versionId,
+                                      pageIndex: anchor.pageIndex, parseRevision: anchor.parseRevision)
+        guard page.documentId == document.documentId, page.versionId == document.versionId,
+              page.pageIndex == anchor.pageIndex, page.parseRevision == anchor.parseRevision,
+              page.textSha256 == anchor.textSha256,
+              SHA256.hash(data: Data(page.text.utf8)).map({ String(format: "%02x", $0) }).joined() == anchor.textSha256 else {
+            throw MnemosyneReaderEventError.geometryMismatch
+        }
+        let scalars = Array(page.text.unicodeScalars)
+        guard anchor.startScalar >= 0, anchor.endScalar > anchor.startScalar,
+              anchor.endScalar <= scalars.count,
+              String(String.UnicodeScalarView(scalars[anchor.startScalar..<anchor.endScalar])) == anchor.quote,
+              anchor.rects.allSatisfy({ rectIsInsideCropBox($0, page.geometry.cropBox) }) else {
+            throw MnemosyneReaderEventError.geometryMismatch
+        }
+        let verification = try await api.verifyCitation(anchor)
+        guard verification.verified, verification.anchor == anchor else {
+            throw MnemosyneReaderEventError.unverifiedCitation
+        }
+    }
+
+    private func rectIsInsideCropBox(_ rect: [Double], _ cropBox: [Double]) -> Bool {
+        guard rect.count == 4, cropBox.count == 4,
+              rect.allSatisfy(\.isFinite), cropBox.allSatisfy(\.isFinite), rect[2] > 0, rect[3] > 0 else { return false }
+        let tolerance = 0.01
+        return rect[0] >= cropBox[0] - tolerance && rect[1] >= cropBox[1] - tolerance &&
+            rect[0] + rect[2] <= cropBox[2] + tolerance && rect[1] + rect[3] <= cropBox[3] + tolerance
+    }
 }
