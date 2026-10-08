@@ -10,6 +10,7 @@ from deeptutor.services.settings import interface_settings
 from deeptutor.tools.builtin import (
     BUILTIN_TOOL_NAMES,
     COMING_SOON_TOOL_NAMES,
+    MNEMOSYNE_DISABLED_TOOL_NAMES,
     USER_TOGGLEABLE_TOOL_NAMES,
 )
 
@@ -29,7 +30,9 @@ async def test_list_builtin_tools_marks_toggleable_set(
     by_name = {tool.name: tool for tool in response.tools}
 
     # Every registered tool + every coming-soon placeholder shows up.
-    assert set(by_name) == set(BUILTIN_TOOL_NAMES) | set(COMING_SOON_TOOL_NAMES)
+    assert set(by_name) == (
+        set(BUILTIN_TOOL_NAMES) | set(COMING_SOON_TOOL_NAMES)
+    ) - set(MNEMOSYNE_DISABLED_TOOL_NAMES)
 
     # Coming-soon entries are NOT toggleable and report enabled=False so
     # the UI can lock the toggle and badge them appropriately.
@@ -45,13 +48,8 @@ async def test_list_builtin_tools_marks_toggleable_set(
     assert toggleable_names == set(USER_TOGGLEABLE_TOOL_NAMES)
     assert toggleable_names == {
         "brainstorm",
-        "web_search",
-        "paper_search",
-        "zotero_search",
         "reason",
         "geogebra_analysis",
-        "imagegen",
-        "videogen",
     }
 
     # Locked-on (non-toggleable, non-coming-soon) tools always report
@@ -103,11 +101,11 @@ async def test_list_builtin_tools_reflects_user_toggle(
     response = await tools_router.list_builtin_tools()
     by_name = {tool.name: tool for tool in response.tools}
 
-    assert response.enabled_optional_tools == ["reason", "web_search"]
-    assert by_name["web_search"].enabled is True
+    assert response.enabled_optional_tools == ["reason"]
+    assert "web_search" not in by_name
     assert by_name["reason"].enabled is True
     assert by_name["brainstorm"].enabled is False
-    assert by_name["paper_search"].enabled is False
+    assert "paper_search" not in by_name
     # Locked-on tools stay on regardless (exec is auto-mounted,
     # gated by sandbox availability rather than a user toggle).
     assert by_name["exec"].enabled is True
@@ -122,26 +120,12 @@ async def test_list_builtin_tools_reflects_user_toggle(
 
 
 @pytest.mark.asyncio
-async def test_web_search_reports_enabled_but_not_configured(
+async def test_personal_tutor_hides_research_tools_from_settings_list(
     monkeypatch: pytest.MonkeyPatch, tmp_path
 ) -> None:
     settings_file = tmp_path / "interface.json"
     monkeypatch.setattr(settings_router, "_settings_file", lambda: settings_file)
-    monkeypatch.setattr(
-        tools_router,
-        "resolve_search_runtime_config",
-        lambda: SimpleNamespace(
-            provider="none",
-            requested_provider="none",
-            unsupported_provider=False,
-            deprecated_provider=False,
-            missing_credentials=False,
-        ),
-    )
-
     response = await tools_router.list_builtin_tools()
-    web_search = next(tool for tool in response.tools if tool.name == "web_search")
+    names = {tool.name for tool in response.tools}
 
-    assert web_search.enabled is True  # saved composer preference
-    assert web_search.available is False  # runtime can actually execute it
-    assert web_search.unavailable_reason == "search_provider_not_configured"
+    assert {"web_search", "paper_search", "zotero_search"}.isdisjoint(names)

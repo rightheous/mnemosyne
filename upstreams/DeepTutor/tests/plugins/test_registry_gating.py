@@ -132,8 +132,9 @@ def test_tool_entry_point_waits_for_approval(monkeypatch, tmp_path) -> None:
     assert disabled.get("declared_tool") is None
 
 
-@pytest.mark.asyncio
-async def test_capability_entry_point_waits_for_approval(monkeypatch, tmp_path) -> None:
+def test_personal_turn_registry_skips_approved_capability_entry_point(
+    monkeypatch, tmp_path
+) -> None:
     registry = _plugin_registry(tmp_path)
     _patch_plugin_registry(monkeypatch, registry)
     _patch_entry_points(monkeypatch, "deeptutor.extensions", "declared_capability", _EchoCapability)
@@ -143,9 +144,9 @@ async def test_capability_entry_point_waits_for_approval(monkeypatch, tmp_path) 
     assert blocked.get("declared_capability") is None
 
     registry.approve("org.author.gated")
-    allowed = CapabilityRegistry()
-    allowed.load_plugins()
-    assert isinstance(allowed.get("declared_capability"), _EchoCapability)
+    after_approval = CapabilityRegistry()
+    after_approval.load_plugins()
+    assert after_approval.get("declared_capability") is None
 
 
 def test_loop_entry_point_waits_for_approval(monkeypatch, tmp_path) -> None:

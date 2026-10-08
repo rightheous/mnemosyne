@@ -70,6 +70,41 @@ _CONDITIONAL_MOUNT_FLAGS: dict[str, str] = {
 # co-selected: retrieval over them, and enumeration of what they hold.
 _KB_COEXISTING_TOOLS: tuple[str, ...] = ("rag", "kb_files", "knowledge_frontier")
 
+# Auto-mounted built-ins exposed by the personal Mnemosyne tutor. This gate is
+# in addition to the UI toggle list: an old or forged request may still carry
+# upstream tool names that are no longer configurable here.
+MNEMOSYNE_AUTO_MOUNT_TOOL_NAMES: frozenset[str] = frozenset(
+    {
+        "rag",
+        "kb_files",
+        "knowledge_frontier",
+        "read_source",
+        "web_fetch",
+        "ask_user",
+        "mastery_topics",
+        "mastery_sessions",
+        "mastery_open_session",
+        "mastery_new_session",
+    }
+)
+
+
+def mnemosyne_builtin_auto_mount_whitelist(
+    active_capability: str | None,
+    requested: Iterable[str] | None = None,
+) -> set[str]:
+    """Return the personal tutor's allowed auto-mounts for one capability.
+
+    Local ``exec`` is available only while solving. A caller-provided list can
+    further narrow the surface, but cannot add upstream tools to it.
+    """
+    allowed = set(MNEMOSYNE_AUTO_MOUNT_TOOL_NAMES)
+    if active_capability == "deep_solve":
+        allowed.add("exec")
+    if requested is not None:
+        allowed.intersection_update(str(name) for name in requested)
+    return allowed
+
 # The workspace is the user's shared content surface, not a capability or an
 # optional enhancement.  These tools therefore survive exclusive capability
 # surfaces and per-partner built-in filters.
@@ -384,11 +419,13 @@ def partner_can_record_questions() -> bool:
 
 __all__ = [
     "AUTO_MOUNTED_TOOLS",
+    "MNEMOSYNE_AUTO_MOUNT_TOOL_NAMES",
     "ToolMountFlags",
     "WORKSPACE_BASELINE_TOOLS",
     "admin_enabled_optional_tools",
     "compose_enabled_tools",
     "default_optional_tools",
+    "mnemosyne_builtin_auto_mount_whitelist",
     "partner_can_record_questions",
     "user_has_mastery_topics",
     "user_has_memory",

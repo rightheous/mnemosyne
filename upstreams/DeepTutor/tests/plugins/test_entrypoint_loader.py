@@ -1,19 +1,14 @@
-"""Contract tests for the plugins entry-point loader.
+"""Contract tests for entry-point plumbing and the personal capability gate.
 
-These pin the *current* behaviour of the three layers that turn entry-point
-registrations into registered capabilities — the shared plumbing in
-``deeptutor.plugins.entry_points``, the neutral discovery in
-``deeptutor.plugins.loader``, and ``CapabilityRegistry.load_plugins`` — so the
-managed-plugin slices (upstream #961 / #1307) extend a documented contract
-instead of an accident.
+The generic entry-point and manifest discovery helpers remain testable, while
+the Mnemosyne turn registry must not load those external capability classes.
 
-Five path families are covered:
+The test covers:
 
 * normal loading
 * missing dependencies
 * load-error isolation
-* duplicate registration
-* disable-gating status quo (structural gates only, no user toggle)
+* the explicit no-plugin personal turn registry
 """
 
 from __future__ import annotations
@@ -36,29 +31,14 @@ from deeptutor.runtime.registry.capability_registry import CapabilityRegistry
 from deeptutor.runtime.stream_bus import StreamBus
 
 PLUGINS_GROUP = "deeptutor.plugins"
-EXTENSIONS_GROUP = "deeptutor.extensions"
 PLUGINS_LOGGER = "deeptutor.plugins.loader"
 PLUMBING_LOGGER = "deeptutor.plugins.entry_points"
-REGISTRY_LOGGER = "deeptutor.runtime.registry.capability_registry"
 
 
 class _PluginCap(TurnCapability):
     manifest = CapabilityManifest(
         name="plugin_cap",
         description="Capability provided by a plugin entry point.",
-        stages=["responding"],
-    )
-
-    async def run(self, context: UnifiedContext, stream: StreamBus) -> None:
-        return None
-
-
-class _PluginCapBis(TurnCapability):
-    """Different plugin class, same declared capability name as _PluginCap."""
-
-    manifest = CapabilityManifest(
-        name="plugin_cap",
-        description="Second plugin shipping the same capability name.",
         stages=["responding"],
     )
 
@@ -75,28 +55,6 @@ class _OtherCap(TurnCapability):
 
     async def run(self, context: UnifiedContext, stream: StreamBus) -> None:
         return None
-
-
-def _make_missing_module_capability() -> type[TurnCapability]:
-    """Capability class whose qualified entry points at a module that is not installed."""
-
-    async def _run(self, context: UnifiedContext, stream: StreamBus) -> None:
-        return None
-
-    cls = type(
-        "_MissingModuleCap",
-        (TurnCapability,),
-        {
-            "manifest": CapabilityManifest(
-                name="missing_cap",
-                description="Capability whose module cannot be imported.",
-                stages=["responding"],
-            ),
-            "run": _run,
-        },
-    )
-    cls.__module__ = "tests.plugins._no_such_module"
-    return cls
 
 
 def _ep(name: str, load):
@@ -149,15 +107,22 @@ def test_discover_plugins_normal_load_from_class_and_instance(monkeypatch):
     assert by_name["other_cap"].entry.endswith("_OtherCap")
 
 
-def test_registry_load_plugins_loads_canonical_extensions_group(monkeypatch):
-    monkeypatch.setattr(
-        ep_module,
-        "entry_points",
-        _fake_groups({EXTENSIONS_GROUP: [_ep("plugin_cap", lambda: _PluginCap)]}),
-    )
+def test_personal_tutor_registry_skips_external_turn_capabilities(monkeypatch):
+    def unexpected_discovery(**_kwargs):
+        raise AssertionError("personal tutor must not enumerate turn capability entry points")
+
+    monkeypatch.setattr(ep_module, "entry_points", unexpected_discovery)
     reg = CapabilityRegistry()
+    reg.load_builtins()
     reg.load_plugins()
-    assert isinstance(reg.get("plugin_cap"), _PluginCap)
+    assert set(reg.list_capabilities()) == {
+        "chat",
+        "immersive_reading",
+        "deep_solve",
+        "deep_question",
+        "mastery_path",
+    }
+    assert reg.get("plugin_cap") is None
 
 
 # ---------------------------------------------------------------------------
@@ -197,34 +162,6 @@ def test_load_plugin_capability_propagates_missing_module():
     )
     with pytest.raises(ModuleNotFoundError):
         load_plugin_capability(manifest)
-
-
-def test_legacy_instantiation_error_aborts_remaining_legacy_manifests(monkeypatch, caplog):
-    """A legacy manifest that fails to instantiate drops every manifest after it."""
-
-    missing_cls = _make_missing_module_capability()
-    monkeypatch.setattr(
-        ep_module,
-        "entry_points",
-        _fake_groups(
-            {
-                EXTENSIONS_GROUP: [],
-                PLUGINS_GROUP: [
-                    _ep("good_first", lambda: _PluginCap),
-                    _ep("needs_dep", lambda: missing_cls),
-                    _ep("good_after", lambda: _OtherCap),
-                ],
-            }
-        ),
-    )
-    reg = CapabilityRegistry()
-    with caplog.at_level(logging.DEBUG, logger=REGISTRY_LOGGER):
-        reg.load_plugins()
-    assert isinstance(reg.get("plugin_cap"), _PluginCap)
-    assert reg.get("other_cap") is None
-    assert any(
-        "Legacy plugin loader unavailable" in record.getMessage() for record in caplog.records
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -279,57 +216,6 @@ def test_coercer_none_rejects_entry_point_without_error(monkeypatch):
         "g", lambda name, obj: obj if name == "keep" else None
     )
     assert loaded == ["kept"]
-
-
-# ---------------------------------------------------------------------------
-# Duplicate registration
-# ---------------------------------------------------------------------------
-
-
-def test_duplicate_extension_registration_first_wins_with_warning(monkeypatch, caplog):
-    monkeypatch.setattr(
-        ep_module,
-        "entry_points",
-        _fake_groups(
-            {
-                EXTENSIONS_GROUP: [
-                    _ep("first_ship", lambda: _PluginCap),
-                    _ep("second_ship", lambda: _PluginCapBis),
-                ]
-            }
-        ),
-    )
-    reg = CapabilityRegistry()
-    with caplog.at_level(logging.WARNING, logger=REGISTRY_LOGGER):
-        reg.load_plugins()
-    assert reg.list_capabilities().count("plugin_cap") == 1
-    cap = reg.get("plugin_cap")
-    assert isinstance(cap, _PluginCap)
-    assert any(
-        "second_ship" in record.getMessage() and "already registered" in record.getMessage()
-        for record in caplog.records
-    )
-
-
-def test_legacy_plugin_with_taken_name_is_ignored(monkeypatch):
-    """Canonical registrations win; a same-named legacy plugin is skipped, and the
-    legacy group's presence is announced with a DeprecationWarning."""
-
-    monkeypatch.setattr(
-        ep_module,
-        "entry_points",
-        _fake_groups(
-            {
-                EXTENSIONS_GROUP: [_ep("plugin_cap", lambda: _PluginCap)],
-                PLUGINS_GROUP: [_ep("legacy_dup", lambda: _PluginCapBis)],
-            }
-        ),
-    )
-    reg = CapabilityRegistry()
-    with pytest.warns(DeprecationWarning, match="deprecated"):
-        reg.load_plugins()
-    assert reg.list_capabilities().count("plugin_cap") == 1
-    assert isinstance(reg.get("plugin_cap"), _PluginCap)
 
 
 # ---------------------------------------------------------------------------

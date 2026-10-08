@@ -192,3 +192,19 @@ env DEEPTUTOR_HOME=/private/tmp/mnemosyne-unit02-test-home uv run --directory up
 ```
 
 결과: **147 passed, 4 warnings**. 전체 suite에서 변경 Python 모듈이 import/compile됐고, 변경 UNIT-02 파일의 `git diff --check`도 통과했다. 별도 AST-only probe는 sandbox의 uv cache 접근 거부로 실행되지 않았다. fake evaluator는 private grading input을 받아도 persisted question result에 answer key가 들어가지 않는지, 같은 attempt replay가 provider를 다시 부르지 않는지, concept evidence와 다음날 Memory candidate가 만들어지는지 확인한다. provider/commit 실패 시 claim release와 retry, 복습 schedule fixture의 grade별 due date·간격 상한·안전한 review count·timezone-aware server clock을 확인한다. 첫 재실행에서 commit 실패 fixture citation ID 누락으로 1개 테스트가 평가 구성 단계에서 실패해 ID를 보완했다. 이 결과는 source fixture/unit 검사다. mounted API, 실제 SQLite migration/restart, 실제 provider 호출, iPadOS build/device는 검증하지 않았다. 테스트 및 문법 검사는 upstream 라이선스/원본 경로를 변경하지 않았다.
+
+## Tutor capability 및 도구 표면 추가 checkpoint — 2026-10-09
+
+개인용 Tutor의 native capability 실행 표면을 다섯 개(`chat`, `immersive_reading`, `deep_solve`, `deep_question`, `mastery_path`)로 고정했다. 개인 loop는 허용된 built-in helper만 만들고 external entry-point loop extension은 탐색하지 않는다. 일반 DeepTutor generic registry 경로는 유지한다.
+
+Chat/Reading/Quiz 요청에서 옛 optional toggle 또는 임의 tool name이 들어와도 research/Zotero/media, GitHub/cron, generic memory/notebook/question-bank/skills 도구가 composer와 schema에 노출되지 않는다. `/api/tools` 및 `/api/settings`도 같은 allowlist를 사용하므로, 오래된 research toggle은 PUT 후 저장 목록에서 제거되고 research 도구는 Settings list에서 숨겨진다. UI/API optional 설정은 `brainstorm`, `reason`, `geogebra_analysis`만 돌려준다. Quiz의 별도 `QuestionPipeline`에도 RAG/source/reading·`ask_user` auto-mount 허용 목록을 적용하고, Chat/Quiz/Reading capability descriptor를 실제 product 표면과 일치시켰다. Local `exec`는 `deep_solve`에서만 격리 policy 확인 후 허용한다.
+
+개인 loop provider scope는 MCP grant를 빈 allowlist로 닫고 CLI apps를 거부한다. PageIndex KB의 resource-bound SDK overlay는 selected KB retrieval 경로로만 유지된다. 이는 MCP/CLI surface가 실제 request registry에 없는 것을 확인한 fixture evidence다. 외부 service 연결 test는 수행하지 않았다.
+
+관련 소유 테스트 묶음 결과:
+
+- 최종 실행: **294 passed, 3 deselected, 3 warnings**. 여기에는 Chat agent loop, Quiz QuestionPipeline, lazy builtin catalog, plugin entry-point/registry gating, Zotero toggle surface, `/api/tools`, `/api/settings`, readiness, core capability runtime, loop registry, mastery pipeline가 포함된다.
+- 앞선 unfiltered 실행에서는 오래된 `web_search` 기대 두 건과 `test_cold_start_stalled_provider_settles_with_bounded_retries[partial_stream]` 한 건이 실패했다. 기존 기대와 tool/readiness fixture를 새 정책에 맞게 갱신했다. 최종 실행에서는 time-bound provider test의 `connect`, `stream`, `partial_stream` 세 case를 제외했으므로 provider timeout 회귀는 검증되지 않았다.
+- 실행은 pytest fixture/source 수준이다. 실제 MCP/CLI, provider credential, SQLite restart, mounted API, iPadOS build/device는 확인하지 않았다. 최종 suite 명령은 [UNIT-02 handoff](../../handoff/UNIT-02.md)에 기록했다.
+
+계약은 `0.1.0` 유지, `/v1/*` planned/unmounted, `LearningStateStore` 주입·재시작 보존 및 citation source quote/hash 검증 미완료다. 제품 준비 상태는 여전히 `product_ready:false`다. 이 문서는 사용자가 요청한 추가 handoff로 작성했지만 `docs/handoffs/unit-02.md`는 committed `integration/ownership.json`에 배정되어 있지 않다. 통합 담당이 다음 통합 기준선에서 해당 경로를 소유권에 등록해야 한다.

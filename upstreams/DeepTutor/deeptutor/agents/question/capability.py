@@ -31,7 +31,7 @@ class DeepQuestionCapability(TurnCapability):
         name="deep_question",
         description="Fast question generation (Template batches -> Generate).",
         stages=["ideation", "generation"],
-        tools_used=["rag", "web_search", "exec"],
+        tools_used=["rag"],
         cli_aliases=["quiz"],
         request_schema=get_capability_request_schema("deep_question"),
     )

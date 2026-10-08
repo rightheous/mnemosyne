@@ -11,6 +11,7 @@ import sys
 from deeptutor.runtime.bootstrap.builtin_capabilities import BUILTIN_CAPABILITY_SPECS
 from deeptutor.tools.builtin_specs import BUILTIN_TOOL_SPECS
 from deeptutor.runtime.registry.capability_registry import CapabilityRegistry
+from deeptutor.core.context import UnifiedContext
 
 
 def test_builtin_tool_descriptors_match_implementations() -> None:
@@ -75,3 +76,25 @@ def test_personal_tutor_registry_exposes_only_its_five_native_capabilities() -> 
 
     assert set(registry.list_capabilities()) == expected
     assert registry.get("deep_research") is None
+
+
+def test_personal_tutor_loop_registry_skips_external_and_unrelated_extensions(
+    monkeypatch,
+) -> None:
+    from deeptutor.agents.loop.pipeline import AgenticLoopPipeline
+    import deeptutor.capabilities.registry as loop_registry
+
+    def fail_external_discovery():
+        raise AssertionError("personal tutor must not discover entry-point extensions")
+
+    monkeypatch.setattr(loop_registry, "discover_external_loop_capabilities", fail_external_discovery)
+    context = UnifiedContext(user_message="설명해 주세요", active_capability="chat")
+    pipeline = AgenticLoopPipeline.__new__(AgenticLoopPipeline)
+
+    capabilities = pipeline._active_loop_capabilities(context)
+
+    assert all(
+        capability.name in loop_registry.MNEMOSYNE_LOOP_CAPABILITY_NAMES
+        for capability in capabilities
+    )
+    assert "subagent" not in {capability.name for capability in capabilities}

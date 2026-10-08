@@ -155,12 +155,10 @@ def test_selected_remote_parser_must_be_installed_ready_and_reachable() -> None:
 
 
 def test_optional_capability_left_unconfigured_is_not_reported_as_a_fault() -> None:
-    """A fresh install owes nobody a video model.
+    """The personal tutor ignores stale media-tool selections.
 
-    Everything in this scenario is untouched default state: no chat model, no
-    image model, and the imagegen/videogen tools still switched on because
-    that is how they ship.  Only the chat model -- the one thing the install
-    cannot run without -- may be graded as a problem.
+    These tools are no longer in the personal optional tool set, so legacy
+    saved values must not create readiness rows or backend warnings.
     """
 
     catalog_rows = catalog_service_rows(_empty_catalog())
@@ -168,9 +166,9 @@ def test_optional_capability_left_unconfigured_is_not_reported_as_a_fault() -> N
     tools = tool_rows(["imagegen", "videogen"], dependency_rows)
     snapshot = readiness_snapshot(catalog_rows + tools)
 
-    videogen_tool = next(row for row in tools if row["id"] == "tool.videogen")
-    assert videogen_tool["state"] == "unavailable"
-    assert videogen_tool["detail_code"] == "tool_backend_not_configured"
+    assert not {"tool.imagegen", "tool.videogen"}.intersection(
+        row["id"] for row in tools
+    )
 
     assert _notice_codes(snapshot, "blocker") == ["active_profile_not_selected"]
     assert [notice["row_id"] for notice in snapshot["notices"]] == ["catalog.llm"]
@@ -205,20 +203,20 @@ def test_enabled_tool_whose_configured_backend_broke_is_a_warning() -> None:
         manim_available=False,
     )
     dependency_rows = {row["id"]: row for row in visualizers}
-    dependency_rows["catalog.imagegen"] = {
-        "id": "catalog.imagegen",
+    dependency_rows["catalog.task"] = {
+        "id": "catalog.task",
         "state": "misconfigured",
     }
 
-    tools = tool_rows(["geogebra_analysis", "imagegen"], dependency_rows)
+    tools = tool_rows(["reason"], dependency_rows)
     snapshot = readiness_snapshot(visualizers + tools)
 
     # Installed-and-on by default with no manim package: unavailable, not a fault.
     assert visualizers[0]["state"] == "unavailable"
     assert visualizers[0]["detail_code"] == "visualizer_runtime_missing"
-    imagegen = next(row for row in tools if row["id"] == "tool.imagegen")
-    assert imagegen["state"] == "misconfigured"
-    assert imagegen["detail_code"] == "enabled_tool_backend_failing"
+    reason = next(row for row in tools if row["id"] == "tool.reason")
+    assert reason["state"] == "misconfigured"
+    assert reason["detail_code"] == "enabled_tool_backend_failing"
     assert _notice_codes(snapshot, "warning") == ["enabled_tool_backend_failing"]
     assert _notice_codes(snapshot, "blocker") == []
 

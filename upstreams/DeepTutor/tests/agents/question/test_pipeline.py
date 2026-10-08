@@ -523,19 +523,42 @@ def test_tool_schemas_populated_when_kb_attached() -> None:
 
     resolved = pipeline._resolved_tools(ctx)
     assert "rag" in resolved
-    assert "web_search" in resolved
+    assert "web_search" not in resolved
     assert pipeline._use_native_tools(ctx) is True
 
     schemas = pipeline._build_llm_tool_schemas(ctx)
     names = [s["function"]["name"] for s in schemas if isinstance(s, dict)]
     assert "rag" in names
-    assert "web_search" in names
+    assert "web_search" not in names
 
     rag = next(s for s in schemas if s.get("function", {}).get("name") == "rag")
     kb_schema = rag["function"]["parameters"]["properties"].get("kb_name", {})
     assert kb_schema.get("enum") == ["demo-kb"], (
         "kb_name enum must be populated so the model can't hallucinate"
     )
+
+
+def test_personal_quiz_tool_surface_blocks_research_and_exec() -> None:
+    from deeptutor.core.context import UnifiedContext
+
+    pipeline = QuestionPipeline(
+        language="en",
+        kb_name="demo-kb",
+        enabled_tools=["web_search", "paper_search", "exec", "brainstorm", "reason"],
+    )
+    context = UnifiedContext(
+        user_message="생물학 개념을 퀴즈로 만들어 줘",
+        active_capability="deep_question",
+        enabled_tools=["web_search", "paper_search", "exec", "brainstorm", "reason"],
+        knowledge_bases=["demo-kb"],
+    )
+
+    tools = pipeline._resolved_tools(context)
+
+    assert "rag" in tools
+    assert "brainstorm" in tools
+    assert "reason" in tools
+    assert {"web_search", "paper_search", "exec", "github", "cron"}.isdisjoint(tools)
 
 
 def test_use_native_tools_false_when_no_tools_resolved() -> None:

@@ -3480,7 +3480,7 @@ def test_compose_enabled_tools_injects_rag_when_kb_selected(
         knowledge_bases=["kb-a"],
     )
     assert "rag" in pipeline._compose_enabled_tools(context)
-    assert "web_search" in pipeline._compose_enabled_tools(context)
+    assert "web_search" not in pipeline._compose_enabled_tools(context)
 
 
 def test_compose_enabled_tools_mounts_mastery_plugin_only_in_mastery_mode(
@@ -3515,6 +3515,132 @@ def test_compose_enabled_tools_mounts_mastery_plugin_only_in_mastery_mode(
     # surface (always-on defaults included) and just adds its owned tools.
     assert {"web_fetch", "github", "cron"}.issubset(mastery_tools)
     assert {"web_fetch", "github", "cron"}.issubset(ordinary_tools)
+
+
+def test_personal_tutor_composes_only_safe_tools_and_solve_local_exec(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from deeptutor.agents.loop import pipeline as pipeline_module
+
+    for name in (
+        "user_has_memory",
+        "user_has_notebooks",
+        "user_has_question_bank",
+        "user_has_mastery_topics",
+    ):
+        monkeypatch.setattr(pipeline_module, name, lambda: False)
+    monkeypatch.setattr(pipeline_module, "drop_unconfigured_generation_tools", lambda names: names)
+
+    class Registry:
+        @staticmethod
+        def get_enabled(selected):
+            return [SimpleNamespace(name=name) for name in selected]
+
+        @staticmethod
+        def get(_name):
+            return None
+
+    pipeline = AgenticChatPipeline.__new__(AgenticChatPipeline)
+    pipeline.registry = Registry()
+    pipeline._tool_view = None
+    pipeline._deferred_loader = None
+    pipeline._exec_enabled = True
+    monkeypatch.setattr(pipeline, "_coexisting_rag_kbs", lambda _context: [])
+    monkeypatch.setattr(pipeline, "_mastery_nav_available", lambda _context: False)
+    monkeypatch.setattr(pipeline, "_exclusive_capability_active", lambda _context: False)
+    monkeypatch.setattr(
+        pipeline,
+        "_capability_owned_tools",
+        lambda _context: [
+            "solve_plan",
+            "web_search",
+            "exec",
+            "github",
+            "cron",
+            "cli_shell",
+            "mcp_remote",
+            "partner_search",
+        ],
+    )
+
+    requested = [
+        "web_search",
+        "paper_search",
+        "zotero_search",
+        "imagegen",
+        "videogen",
+        "brainstorm",
+        "reason",
+        "geogebra_analysis",
+        "github",
+        "cron",
+        "cli_search",
+        "mcp_remote",
+        "partner_search",
+    ]
+    allowed_builtins = [
+        "github",
+        "cron",
+        "exec",
+        "rag",
+        "read_source",
+        "write_memory",
+        "web_fetch",
+        "ask_user",
+    ]
+    chat_context = UnifiedContext(
+        user_message="수업 내용을 설명해 줘",
+        active_capability="chat",
+        enabled_tools=requested,
+        allowed_builtin_tools=allowed_builtins,
+    )
+    solve_context = UnifiedContext(
+        user_message="이 문제를 단계별로 풀어 줘",
+        active_capability="deep_solve",
+        enabled_tools=requested,
+        allowed_builtin_tools=allowed_builtins,
+    )
+
+    chat_tools = pipeline._compose_enabled_tools(chat_context)
+    solve_tools = pipeline._compose_enabled_tools(solve_context)
+
+    assert {"brainstorm", "reason", "geogebra_analysis"}.issubset(chat_tools)
+    assert {"web_fetch", "ask_user"}.issubset(chat_tools)
+    assert "exec" not in chat_tools
+    assert {"exec", "solve_plan"}.issubset(solve_tools)
+    forbidden = {
+        "web_search",
+        "paper_search",
+        "zotero_search",
+        "imagegen",
+        "videogen",
+        "github",
+        "cron",
+        "read_source",  # no source index was attached
+        "write_memory",
+        "workspace_export",
+        "cli_shell",
+        "cli_search",
+        "mcp_remote",
+        "partner_search",
+    }
+    assert forbidden.isdisjoint(chat_tools)
+    assert forbidden.isdisjoint(solve_tools)
+
+
+def test_personal_tutor_provider_scope_disables_account_mcp_and_cli(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from deeptutor.agents.loop.pipeline import AgenticLoopPipeline
+
+    pipeline = AgenticLoopPipeline.__new__(AgenticLoopPipeline)
+    monkeypatch.setattr(pipeline, "_current_owner_id", lambda: "owner")
+    monkeypatch.setattr(pipeline, "_is_partner_turn", lambda _context: False)
+
+    scope = pipeline._tool_scope(UnifiedContext(user_message="질문", active_capability="chat"))
+
+    assert scope.workspace_mcp == frozenset()
+    assert scope.exclusive_capability is True
 
 
 def test_augment_tool_kwargs_injects_mastery_path_id() -> None:

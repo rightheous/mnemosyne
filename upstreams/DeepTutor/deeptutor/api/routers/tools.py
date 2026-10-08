@@ -23,6 +23,7 @@ from deeptutor.services.settings.interface_settings import get_enabled_optional_
 from deeptutor.tools.builtin import (
     BUILTIN_TOOL_TYPES,
     COMING_SOON_TOOL_TYPES,
+    MNEMOSYNE_DISABLED_TOOL_NAMES,
     TOOL_ALIASES,
     USER_TOGGLEABLE_TOOL_NAMES,
 )
@@ -254,6 +255,7 @@ async def list_builtin_tools() -> ToolsListResponse:
             continue
         seen.add(payload.name)
         deduped.append(payload)
+    deduped = [payload for payload in deduped if payload.name not in MNEMOSYNE_DISABLED_TOOL_NAMES]
     # Toggleable tools outside the user's admin grant don't exist for them:
     # hidden here so the settings page and composer match what turn_runtime
     # will actually allow.

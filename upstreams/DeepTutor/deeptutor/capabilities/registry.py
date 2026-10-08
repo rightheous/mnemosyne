@@ -14,6 +14,7 @@ import warnings
 from deeptutor.capabilities.protocol import LoopExtension
 from deeptutor.core.context import UnifiedContext
 from deeptutor.plugins.entry_points import load_entry_point_group
+from deeptutor.runtime.bootstrap.builtin_capabilities import MNEMOSYNE_CAPABILITY_NAMES
 from deeptutor.runtime.capability_catalog import EmptyConfig, get_capability_catalog
 
 logger = logging.getLogger(__name__)
@@ -88,6 +89,14 @@ BUILTIN_LOOP_CAPABILITY_SPECS: tuple[LoopCapabilitySpec, ...] = (
         "visualization_generation",
         "deeptutor.visualizers.loop_capability:VisualizationLoopCapability",
     ),
+)
+
+# The personal tutor only needs these built-in loop helpers for its five
+# registered turn capabilities. External entry points and unrelated upstream
+# loops remain available to generic DeepTutor callers, but are never loaded on
+# a Mnemosyne turn.
+MNEMOSYNE_LOOP_CAPABILITY_NAMES = frozenset(
+    {"ask_questions", "mastery", "solve", "immersive_reading", "explore_context"}
 )
 
 # Compatibility surface: the descriptors remain zero-argument callables.
@@ -219,6 +228,27 @@ def active_loop_capabilities(context: UnifiedContext) -> tuple[LoopExtension, ..
     return tuple(extension for extension in all_loop_capabilities() if extension.is_active(context))
 
 
+def active_mnemosyne_loop_capabilities(context: UnifiedContext) -> tuple[LoopExtension, ...]:
+    """Create only the explicit built-in loop helpers allowed for Mnemosyne.
+
+    This path deliberately does not enumerate package entry points. The
+    ordinary DeepTutor registry remains available through
+    :func:`active_loop_capabilities` for non-Mnemosyne hosts.
+    """
+    if context.active_capability not in MNEMOSYNE_CAPABILITY_NAMES:
+        return ()
+    catalog = get_capability_catalog()
+    active: list[LoopExtension] = []
+    for spec in BUILTIN_LOOP_CAPABILITY_SPECS:
+        if spec.name not in MNEMOSYNE_LOOP_CAPABILITY_NAMES:
+            continue
+        _register_loop_entry(spec.name, spec)
+        extension = cast(LoopExtension, catalog.create("loop_extension", spec.name))
+        if extension.is_active(context):
+            active.append(extension)
+    return tuple(active)
+
+
 def any_exclusive_capability_active(context: UnifiedContext) -> bool:
     return any(
         getattr(extension, "exclusive_tools", False)
@@ -240,7 +270,9 @@ __all__ = [
     "LOOP_CAPABILITIES",
     "LOOP_CAPABILITIES_GROUP",
     "LOOP_EXTENSION_FACTORIES",
+    "MNEMOSYNE_LOOP_CAPABILITY_NAMES",
     "active_loop_capabilities",
+    "active_mnemosyne_loop_capabilities",
     "all_loop_capabilities",
     "any_exclusive_capability_active",
     "capability_tool_owners",

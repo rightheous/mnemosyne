@@ -39,6 +39,7 @@ from deeptutor.agents._shared.tool_composition import (
     ToolMountFlags,
     compose_enabled_tools,
     default_optional_tools,
+    mnemosyne_builtin_auto_mount_whitelist,
     user_has_memory,
     user_has_notebooks,
     user_has_question_bank,
@@ -75,6 +76,7 @@ from deeptutor.runtime.agentic.tool_dispatch import (
     tool_error_message_factory,
 )
 from deeptutor.runtime.agentic.usage import record_streamed_usage
+from deeptutor.runtime.bootstrap.builtin_capabilities import MNEMOSYNE_CAPABILITY_NAMES
 from deeptutor.runtime.registry.tool_registry import get_tool_registry
 from deeptutor.runtime.stream_bus import StreamBus
 from deeptutor.services.config import parse_language
@@ -1604,11 +1606,17 @@ class QuestionPipeline:
         )
 
     def _resolved_tools(self, context: UnifiedContext) -> list[str]:
+        is_mnemosyne = context.active_capability in MNEMOSYNE_CAPABILITY_NAMES
         names = compose_enabled_tools(
             registry=self.registry,
             requested_tools=self.enabled_tools,
             optional_whitelist=self._optional_tools,
             mount_flags=self._mount_flags(context),
+            builtin_whitelist=(
+                mnemosyne_builtin_auto_mount_whitelist(context.active_capability)
+                if is_mnemosyne
+                else None
+            ),
         )
         resolved = list(dict.fromkeys([*names, *self._pageindex_tool_names()]))
         return drop_unconfigured_generation_tools(resolved)

@@ -31,6 +31,7 @@ from deeptutor.agents._shared.tool_composition import (
     ToolMountFlags,
     compose_enabled_tools,
     default_optional_tools,
+    mnemosyne_builtin_auto_mount_whitelist,
     partner_can_record_questions,
     user_has_mastery_topics,
     user_has_memory,
@@ -50,6 +51,7 @@ from deeptutor.capabilities import (
     active_loop_capabilities,
     any_exclusive_capability_active,
 )
+from deeptutor.capabilities.registry import active_mnemosyne_loop_capabilities
 from deeptutor.capabilities.protocol import END_LOOP
 from deeptutor.core.context import UnifiedContext
 from deeptutor.core.tool_protocol import ToolLookup
@@ -69,6 +71,7 @@ from deeptutor.runtime.agentic import (
     can_use_native_tool_calling,
     dispatch_tool_calls,
 )
+from deeptutor.runtime.bootstrap.builtin_capabilities import MNEMOSYNE_CAPABILITY_NAMES
 from deeptutor.runtime.agentic.tool_dispatch import (
     MAX_PARALLEL_TOOL_CALLS,
     tool_error_message_factory,
@@ -79,6 +82,7 @@ from deeptutor.runtime.registry.deferred_tools import DeferredToolLoader
 from deeptutor.runtime.registry.tool_registry import get_tool_registry
 from deeptutor.runtime.stream_bus import StreamBus
 from deeptutor.services.config import get_chat_params
+from deeptutor.services.cli_apps.models import TOOL_PREFIX as CLI_APP_TOOL_PREFIX
 from deeptutor.services.llm import (
     get_llm_config,
     get_token_limit_kwargs,  # noqa: F401  (re-exported for tests)
@@ -88,12 +92,18 @@ from deeptutor.services.llm import (
 from deeptutor.services.llm.context_window import resolve_effective_context_window
 from deeptutor.services.prompt import get_prompt_manager, normalize_language
 from deeptutor.services.prompt.lookup import prompt_text as _prompt_text
-from deeptutor.tools.builtin import PARTNER_BUILTIN_TOOL_NAMES
+from deeptutor.tools.builtin import (
+    MNEMOSYNE_DISABLED_TOOL_NAMES,
+    MNEMOSYNE_OPTIONAL_TOOL_NAMES,
+    PARTNER_BUILTIN_TOOL_NAMES,
+)
 
 logger = logging.getLogger(__name__)
 
 # Chat memory tools a partner turn replaces with the partner_* variants.
 _PARTNER_SUPPRESSED_TOOLS: tuple[str, ...] = ("read_memory", "write_memory")
+
+MNEMOSYNE_DISABLED_TOOL_PREFIXES = (CLI_APP_TOOL_PREFIX, "mcp_", "partner_")
 
 
 LOOP_EXCLUDED_TOOLS: set[str] = set()
@@ -640,11 +650,16 @@ class AgenticLoopPipeline:
         """Per-turn policy inputs for the provider layer."""
         from deeptutor.services.workspace.resources import current_resources
 
-        selected_mcp = current_resources().mcp
+        is_mnemosyne = context.active_capability in MNEMOSYNE_CAPABILITY_NAMES
+        selected_mcp = None if is_mnemosyne else current_resources().mcp
         raw_filter = context.metadata.get("mcp_tools_filter")
         return ToolScope(
             owner_id=self._current_owner_id(),
-            workspace_mcp=frozenset(selected_mcp) if selected_mcp is not None else None,
+            workspace_mcp=(
+                frozenset()
+                if is_mnemosyne
+                else frozenset(selected_mcp) if selected_mcp is not None else None
+            ),
             is_partner=self._is_partner_turn(context),
             session_id=context.session_id,
             caller_whitelist=(
@@ -652,7 +667,9 @@ class AgenticLoopPipeline:
                 if isinstance(raw_filter, list)
                 else None
             ),
-            exclusive_capability=self._exclusive_capability_active(context),
+            exclusive_capability=(
+                is_mnemosyne or self._exclusive_capability_active(context)
+            ),
         )
 
     async def _pageindex_sdk_tool_bundles(self, context: UnifiedContext):
@@ -691,6 +708,11 @@ class AgenticLoopPipeline:
         return view.manifest if view is not None else ""
 
     async def _exec_allowed(self, context: UnifiedContext) -> bool:
+        if (
+            context.active_capability in MNEMOSYNE_CAPABILITY_NAMES
+            and context.active_capability != "deep_solve"
+        ):
+            return False
         try:
             from deeptutor.services.sandbox import IsolationLevel, get_sandbox_service
 
@@ -725,12 +747,17 @@ class AgenticLoopPipeline:
 
     def _compose_enabled_tools(self, context: UnifiedContext) -> list[str]:
         is_partner = self._is_partner_turn(context)
+        is_mnemosyne = context.active_capability in MNEMOSYNE_CAPABILITY_NAMES
         from deeptutor.tools.research_tools import scientific_context
 
         composed = compose_enabled_tools(
             registry=self.tool_lookup,
             requested_tools=context.enabled_tools,
-            optional_whitelist=LOOP_OPTIONAL_TOOLS,
+            optional_whitelist=(
+                [name for name in LOOP_OPTIONAL_TOOLS if name in MNEMOSYNE_OPTIONAL_TOOL_NAMES]
+                if is_mnemosyne
+                else LOOP_OPTIONAL_TOOLS
+            ),
             mount_flags=ToolMountFlags(
                 has_scientific_research=scientific_context(
                     context.user_message, context.active_capability, context.enabled_tools or []
@@ -769,21 +796,37 @@ class AgenticLoopPipeline:
             capability_owned=self._capability_owned_tools(context),
             exclusive=self._exclusive_capability_active(context),
             builtin_whitelist=(
-                set(context.allowed_builtin_tools)
-                if context.allowed_builtin_tools is not None
-                else None
+                mnemosyne_builtin_auto_mount_whitelist(
+                    context.active_capability, context.allowed_builtin_tools
+                )
+                if is_mnemosyne
+                else (
+                    set(context.allowed_builtin_tools)
+                    if context.allowed_builtin_tools is not None
+                    else None
+                )
             ),
             # Partners get the partner_* memory/history tools force-mounted and
             # chat's read_memory/write_memory suppressed — the split-memory model
             # (own workspace writable, owner's memory read-only) lives in those
             # tools, not in chat's.
-            forced=PARTNER_BUILTIN_TOOL_NAMES if is_partner else (),
+            forced=PARTNER_BUILTIN_TOOL_NAMES if is_partner and not is_mnemosyne else (),
             suppressed=_PARTNER_SUPPRESSED_TOOLS if is_partner else (),
         )
         composed = drop_unconfigured_generation_tools(composed)
         lookup_get = getattr(self.tool_lookup, "get", None)
-        if callable(lookup_get) and lookup_get("workspace_export") is not None:
+        if not is_mnemosyne and callable(lookup_get) and lookup_get("workspace_export") is not None:
             composed.append("workspace_export")
+        if is_mnemosyne:
+            disabled = MNEMOSYNE_DISABLED_TOOL_NAMES
+            if context.active_capability != "deep_solve":
+                disabled = disabled | {"exec"}
+            composed = [
+                name
+                for name in composed
+                if name not in disabled
+                and not any(name.startswith(prefix) for prefix in MNEMOSYNE_DISABLED_TOOL_PREFIXES)
+            ]
         return list(dict.fromkeys(composed))
 
     def _mastery_nav_available(self, context: UnifiedContext) -> bool:
@@ -801,6 +844,8 @@ class AgenticLoopPipeline:
         return available
 
     def _active_loop_capabilities(self, context: UnifiedContext) -> tuple[LoopExtension, ...]:
+        if context.active_capability in MNEMOSYNE_CAPABILITY_NAMES:
+            return active_mnemosyne_loop_capabilities(context)
         return active_loop_capabilities(context)
 
     @staticmethod
@@ -811,6 +856,11 @@ class AgenticLoopPipeline:
         (mount / KB seed / kb note) is still provided for any co-selected KBs the
         capability does NOT own — see ``_coexisting_rag_kbs`` (issue #650).
         """
+        if context.active_capability in MNEMOSYNE_CAPABILITY_NAMES:
+            return any(
+                bool(getattr(capability, "exclusive_tools", False))
+                for capability in active_mnemosyne_loop_capabilities(context)
+            )
         return any_exclusive_capability_active(context)
 
     def _capability_owned_tools(self, context: UnifiedContext) -> tuple[str, ...]:

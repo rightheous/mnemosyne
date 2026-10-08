@@ -22,10 +22,9 @@ from deeptutor.services.prompt.lookup import prompt_text as _prompt_text
 class SolveLoopCapability:
     """Turn-scoped integration for deep problem solving.
 
-    Reuses the full chat tool surface — every built-in, with the user's
-    composer toggles respected (web_search / reason / geogebra_analysis mount
-    iff the user enabled them, exactly as in chat) — and adds the solve spine
-    (plan / finish-step / replan) on top.
+    Reuses the personal tutor's safe built-in surface and available optional
+    toggles, adds isolated local ``exec`` for solving, and mounts the solve
+    spine (plan / finish-step / replan) on top.
     """
 
     name = "solve"

@@ -175,7 +175,7 @@ async def test_zotero_tool_maps_request_error(
     assert result.metadata["status_code"] == 500
 
 
-def test_zotero_tool_is_registered_and_user_toggleable() -> None:
+def test_zotero_tool_is_registered_but_not_exposed_as_a_personal_tutor_toggle() -> None:
     definition = ZoteroSearchToolWrapper().get_definition()
     parameters = {parameter.name: parameter for parameter in definition.parameters}
 
@@ -183,7 +183,7 @@ def test_zotero_tool_is_registered_and_user_toggleable() -> None:
     assert definition.name in BUILTIN_TOOL_NAMES
     assert parameters["api_key"].sensitive is True
     assert parameters["max_results"].default == 5
-    assert "zotero_search" in USER_TOGGLEABLE_TOOL_NAMES
+    assert "zotero_search" not in USER_TOGGLEABLE_TOOL_NAMES
 
 
 @pytest.mark.parametrize("language", ["en", "zh"])

@@ -1287,8 +1287,8 @@ async def test_enabled_tools_roundtrip(monkeypatch: pytest.MonkeyPatch, tmp_path
         enabled_tools=["web_search", "reason", "not_a_real_tool"]
     )
     response = await settings_router.update_enabled_tools(update)
-    assert response == {"enabled_optional_tools": ["web_search", "reason"]}
-    assert settings_router.get_enabled_optional_tools() == ["web_search", "reason"]
+    assert response == {"enabled_optional_tools": ["reason"]}
+    assert settings_router.get_enabled_optional_tools() == ["reason"]
 
     # Empty selection is a valid "all off" state.
     response = await settings_router.update_enabled_tools(

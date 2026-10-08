@@ -1981,16 +1981,40 @@ COMING_SOON_TOOL_NAMES: tuple[str, ...] = tuple(
 # automatically by the chat pipeline under per-tool context gates and is
 # locked-on from the user's perspective. Ordering here is the canonical
 # display order for the settings page.
-USER_TOGGLEABLE_TOOL_NAMES: tuple[str, ...] = (
+MNEMOSYNE_OPTIONAL_TOOL_NAMES: tuple[str, ...] = (
     "brainstorm",
-    "web_search",
-    "paper_search",
-    "zotero_search",
     "reason",
     "geogebra_analysis",
-    "imagegen",
-    "videogen",
 )
+
+MNEMOSYNE_DISABLED_TOOL_NAMES: frozenset[str] = frozenset(
+    {
+        "web_search",
+        "paper_search",
+        "zotero_search",
+        "preprint",
+        "research_audit",
+        "research_lit",
+        "github",
+        "cron",
+        "read_memory",
+        "write_memory",
+        "learning_status",
+        "learning_update",
+        "read_skill",
+        "load_tools",
+        "list_notebook",
+        "write_note",
+        "question_bank",
+        "imagegen",
+        "videogen",
+        "workspace_export",
+    }
+)
+
+# Research, media generation, and external library integrations remain in the
+# upstream catalog but are not exposed in the personal tutor surface.
+USER_TOGGLEABLE_TOOL_NAMES: tuple[str, ...] = MNEMOSYNE_OPTIONAL_TOOL_NAMES
 
 # Built-in tools the chat agent loop auto-mounts under context gates (a KB
 # attached, the sandbox enabled, the user having memory/notebooks, …) rather
@@ -2063,6 +2087,8 @@ __all__ = [
     "COMING_SOON_TOOL_NAMES",
     "COMING_SOON_TOOL_TYPES",
     "CONFIGURABLE_BUILTIN_TOOL_NAMES",
+    "MNEMOSYNE_DISABLED_TOOL_NAMES",
+    "MNEMOSYNE_OPTIONAL_TOOL_NAMES",
     "PARTNER_BUILTIN_TOOL_NAMES",
     "TOOL_ALIASES",
     "USER_TOGGLEABLE_TOOL_NAMES",

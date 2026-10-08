@@ -1,10 +1,9 @@
 """Immersive-reading loop capability.
 
 Active whenever the turn carries an open reading material. It augments the
-normal chat surface (it is not a :class:`KnowledgeCapability` — the user keeps
-web search, code execution and everything else) with the five reading tools, and
-tells the model three things it cannot infer: what document is open, where the
-user is currently looking, and how to cite.
+personal tutor's safe chat surface with the reading tools, and tells the model
+three things it cannot infer: what document is open, where the user is currently
+looking, and how to cite.
 
 **The locate pre-pass.** The capability implements the optional async
 ``pre_loop`` hook, but *without* a second LLM loop: it runs the same
