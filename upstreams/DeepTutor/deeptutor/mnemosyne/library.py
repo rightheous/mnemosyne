@@ -21,6 +21,7 @@ import unicodedata
 from urllib.parse import urlsplit
 import uuid
 
+from deeptutor.reading.models import ReadingError
 from deeptutor.reading.service import search_material
 from deeptutor.reading.store import ReadingStore
 
@@ -660,26 +661,54 @@ class LibraryAdapter:
 
     def create_folder(self, name: str, description: str = "") -> dict[str, Any]:
         """Reuse DeepTutor's durable reading workspaces as Library folders."""
-        record = self.catalog.create_workspace(str(name or "").strip(), description=description)
+        if not isinstance(name, str) or not name.strip() or len(name.strip()) > 300:
+            raise LibraryError("folder name must be 1–300 characters")
+        if not isinstance(description, str) or len(description) > 2000:
+            raise LibraryError("folder description must be at most 2000 characters")
+        try:
+            record = self.catalog.create_workspace(name.strip(), description=description.strip())
+        except (ReadingError, ValueError) as exc:
+            raise LibraryError("folder could not be created") from exc
         return record.to_dict()
 
     def list_folders(self) -> list[dict[str, Any]]:
-        return [row.to_dict() for row in self.catalog.list_workspaces(limit=500)]
+        result: list[dict[str, Any]] = []
+        offset = 0
+        while True:
+            page = self.catalog.list_workspaces(limit=500, offset=offset)
+            result.extend(row.to_dict() for row in page)
+            if len(page) < 500:
+                return result
+            offset += len(page)
+
+    @staticmethod
+    def _workspace_id(folder_id: Any) -> str:
+        if not isinstance(folder_id, str) or not folder_id.strip() or len(folder_id) > 128:
+            raise LibraryError("folder ID is invalid")
+        return folder_id.strip()
 
     def assign_folder(self, document_id: str, folder_id: str) -> dict[str, Any]:
+        folder_id = self._workspace_id(folder_id)
         document = self._active_document(_uuid(document_id, "document"))
         version_row = self._version_row(document["document_id"], document["version_id"])
         material_id = version_row["material_id"]
         if not material_id:
             raise LibraryError("document parsing is not ready")
-        return self.catalog.add_material(str(folder_id), str(material_id)).to_dict()
+        try:
+            return self.catalog.add_material(folder_id, str(material_id)).to_dict()
+        except (ReadingError, ValueError) as exc:
+            raise LibraryError("folder not found or document could not be assigned") from exc
 
     def remove_from_folder(self, document_id: str, folder_id: str) -> dict[str, Any]:
+        folder_id = self._workspace_id(folder_id)
         document = self._active_document(_uuid(document_id, "document"))
         version_row = self._version_row(document["document_id"], document["version_id"])
         if not version_row["material_id"]:
             raise LibraryError("document parsing is not ready")
-        return self.catalog.remove_material(str(folder_id), str(version_row["material_id"])).to_dict()
+        try:
+            return self.catalog.remove_material(folder_id, str(version_row["material_id"])).to_dict()
+        except (ReadingError, ValueError) as exc:
+            raise LibraryError("folder or document assignment was not found") from exc
 
     # -- public provider settings; secret material stays with UNIT-02 ------
 
@@ -1565,12 +1594,13 @@ class LibraryAdapter:
             "quote": str(anchor["quote"]),
             "rects": anchor["rects"],
         }
-        verification_id, expires = str(uuid.uuid4()), time.time() + 600
+        verification_id, now = str(uuid.uuid4()), time.time()
         with self.db.connect(write=True) as conn:
+            conn.execute("DELETE FROM mnemosyne_verifications WHERE expires_at<=?", (now,))
             conn.execute(
                 "INSERT INTO mnemosyne_verifications VALUES (?, ?, ?, ?, ?, ?)",
                 (verification_id, citation_id, page["document_id"], page["version_id"],
-                 json.dumps(verified, ensure_ascii=False, separators=(",", ":")), expires),
+                 json.dumps(verified, ensure_ascii=False, separators=(",", ":")), now + 600),
             )
         return {"citation_id": citation_id, "verification_id": verification_id, "verified": True, "anchor": verified}
 
@@ -1583,7 +1613,7 @@ class LibraryAdapter:
             row = conn.execute(
                 "SELECT * FROM mnemosyne_verifications WHERE verification_id=?", (verification_id,)
             ).fetchone()
-        if row is None or float(row["expires_at"]) < time.time():
+        if row is None or float(row["expires_at"]) <= time.time():
             raise LibraryError("citation verification expired")
         anchor = json.loads(row["anchor_json"])
         if citation.get("citation_id") != row["citation_id"] or citation.get("anchor") != anchor:
@@ -2086,8 +2116,8 @@ class LibraryAdapter:
 
     async def snapshot(self, document_id: str, version_id: str) -> dict[str, Any]:
         document_id, version_id = _uuid(document_id, "document"), _version(version_id)
-        self._active_document(document_id, version_id)
         with self.db.connect(write=True) as conn:
+            self._active_document(document_id, version_id)
             watermark = self._watermark(conn, document_id, version_id)
             rows = conn.execute(
                 "SELECT record_json FROM mnemosyne_annotations WHERE document_id=? AND version_id=? "

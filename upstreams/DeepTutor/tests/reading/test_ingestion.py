@@ -1290,3 +1290,33 @@ def test_library_schema_v2_database_migrates_index_run_timestamp(tmp_path: Path)
         version = conn.execute("SELECT version FROM mnemosyne_schema").fetchone()[0]
     assert "index_started_at" in columns
     assert version == 3
+
+
+def test_library_folder_listing_paginates_and_rejects_empty_names(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from deeptutor.mnemosyne.library import LibraryAdapter, LibraryError
+
+    library = LibraryAdapter(ReadingStore(tmp_path / "folder-list" / "reading"))
+    calls: list[int] = []
+
+    class Folder:
+        def __init__(self, folder_id: int) -> None:
+            self.folder_id = folder_id
+
+        def to_dict(self) -> dict[str, int]:
+            return {"folder_id": self.folder_id}
+
+    def list_workspaces(*, limit: int, offset: int):
+        calls.append(offset)
+        if offset == 0:
+            return [Folder(folder_id) for folder_id in range(limit)]
+        if offset == 500:
+            return [Folder(500)]
+        return []
+
+    monkeypatch.setattr(library.catalog, "list_workspaces", list_workspaces)
+    assert len(library.list_folders()) == 501
+    assert calls == [0, 500]
+    with pytest.raises(LibraryError, match="folder name"):
+        library.create_folder("   ")
