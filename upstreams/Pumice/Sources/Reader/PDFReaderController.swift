@@ -8,6 +8,7 @@ import PumiceCore
 final class PDFReaderController: ObservableObject {
     @Published private(set) var canUndo: Bool = false
     @Published private(set) var canRedo: Bool = false
+    @Published private(set) var localSaveError: String?
 
     /// Currently active drawing tool. Each tool keeps its own color
     /// and width below — switching tools doesn't clobber the
@@ -119,6 +120,8 @@ final class PDFReaderController: ObservableObject {
         }
         if canUndo != newCanUndo { canUndo = newCanUndo }
         if canRedo != newCanRedo { canRedo = newCanRedo }
+        let newLocalSaveError = viewController?.lastLocalSaveError?.localizedDescription
+        if localSaveError != newLocalSaveError { localSaveError = newLocalSaveError }
     }
 
     fileprivate func applyCurrentToolStyleToVC() {

@@ -573,19 +573,36 @@ final class PDFReaderViewController: UIViewController {
             sourceSHA256 = value.source_sha256
             needsSave = false
             positionNeedsSave = false
-            lastLocalSaveError = nil
+            sidecarSaveErrors.removeValue(forKey: destination.standardizedFileURL)
         } catch {
-            lastLocalSaveError = error
+            if let pdfURL {
+                sidecarSaveErrors[pdfURL.standardizedFileURL] = error
+            }
         }
         saveDebounceTimer?.invalidate()
         saveDebounceTimer = nil
+        controller?.refreshState()
     }
 
-    private(set) var lastLocalSaveError: Error?
+    private var sidecarSaveErrors: [URL: Error] = [:]
+    private struct LocalOutboxErrorKey: Hashable {
+        let documentID: UUID
+        let versionID: String
+        let annotationID: UUID
+    }
+    private var localOutboxErrors: [LocalOutboxErrorKey: Error] = [:]
+    var lastLocalSaveError: Error? {
+        if let pdfURL, let error = sidecarSaveErrors[pdfURL.standardizedFileURL] { return error }
+        guard let documentIdentifier, let documentVersionID else { return nil }
+        return localOutboxErrors.first {
+            $0.key.documentID == documentIdentifier && $0.key.versionID == documentVersionID
+        }?.value
+    }
 
     func setMnemosyneIdentity(documentID: UUID, versionID: String) {
         documentIdentifier = documentID
         documentVersionID = versionID
+        controller?.refreshState()
     }
 
     func load(url: URL, restoring context: Data?, annotations: [Data]) throws {
@@ -1237,8 +1254,13 @@ final class PDFReaderViewController: UIViewController {
               let documentVersionID else { return }
         let pageIndex = document.index(for: page)
         guard pageIndex >= 0, pageIndex < document.pageCount else { return }
+        let annotationID = stroke.annotationID ?? stroke.id
+        let errorKey = LocalOutboxErrorKey(
+            documentID: documentIdentifier,
+            versionID: documentVersionID,
+            annotationID: annotationID
+        )
         do {
-            let annotationID = stroke.annotationID ?? stroke.id
             var groupedStrokes = (overlayProvider.strokes(for: page) ?? []).filter {
                 ($0.annotationID ?? $0.id) == annotationID
             }
@@ -1283,10 +1305,11 @@ final class PDFReaderViewController: UIViewController {
                 operation: editOperation,
                 draft: draft
             ))
-            lastLocalSaveError = nil
+            localOutboxErrors.removeValue(forKey: errorKey)
         } catch {
-            lastLocalSaveError = error
+            localOutboxErrors[errorKey] = error
         }
+        controller?.refreshState()
     }
 
     private func emitHighlightEdit(_ record: ErasedHighlightRecord,
@@ -1297,6 +1320,11 @@ final class PDFReaderViewController: UIViewController {
               let documentID = UUID(uuidString: object["document_id"] as? String ?? ""),
               let versionID = object["version_id"] as? String,
               let pageIndex = object["page_index"] as? Int else { return }
+        let errorKey = LocalOutboxErrorKey(
+            documentID: documentID,
+            versionID: versionID,
+            annotationID: annotationID
+        )
         do {
             try onLocalAnnotationEdit(MnemosyneLocalAnnotationEdit(
                 documentID: documentID,
@@ -1307,9 +1335,11 @@ final class PDFReaderViewController: UIViewController {
                 operation: operation,
                 draft: operation == .upsert ? draft : nil
             ))
+            localOutboxErrors.removeValue(forKey: errorKey)
         } catch {
-            lastLocalSaveError = error
+            localOutboxErrors[errorKey] = error
         }
+        controller?.refreshState()
     }
 
     private func canonicalInkStrokes(for stroke: StrokeRecord, on page: PDFPage) throws -> [SidecarStroke] {
