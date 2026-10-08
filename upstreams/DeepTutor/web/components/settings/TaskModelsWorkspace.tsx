@@ -81,6 +81,30 @@ const TASK_TEXT: Record<string, { label: string; detail: string }> = {
     label: "Reading questions",
     detail: "Writes practice questions from what you are reading.",
   },
+  mnemosyne_chat: {
+    label: "Mnemosyne chat",
+    detail: "Answers open-ended study questions in the current conversation.",
+  },
+  mnemosyne_reading: {
+    label: "Mnemosyne reading",
+    detail: "Explains selected passages with document context.",
+  },
+  mnemosyne_quiz: {
+    label: "Mnemosyne quiz",
+    detail: "Creates practice questions from your study material.",
+  },
+  mnemosyne_assessment: {
+    label: "Mnemosyne assessment",
+    detail: "Evaluates submitted answers and explains the result.",
+  },
+  mnemosyne_mastery: {
+    label: "Mnemosyne mastery",
+    detail: "Plans learning goals and reviews concept progress.",
+  },
+  mnemosyne_solve: {
+    label: "Mnemosyne deep solve",
+    detail: "Works through difficult document-based questions step by step.",
+  },
 };
 
 /** Section heading per task group, in the order the backend returns them. */

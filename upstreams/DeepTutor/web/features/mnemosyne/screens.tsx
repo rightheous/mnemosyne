@@ -7,6 +7,8 @@ import { ArrowLeft, BookOpen, Check, ChevronDown, CircleAlert, Download, FileTex
 import { PdfDocumentView, type JumpRequest, type SelectionPayload } from "@/components/reading/PdfDocumentView";
 import type { AnnotationItem } from "@/lib/reading-api";
 import type { InkOverlayStroke } from "@/components/reading/AnnotationLayer";
+import { SettingsProvider, useSettings } from "@/features/settings/store/SettingsStore";
+import { flattenModels, modelProvider, type RegistryEdit } from "@/lib/provider-registry";
 import { browserStorage } from "@/shared/storage/store";
 import type { StreamEvent } from "../../contracts/generated/turn-protocol";
 import {
@@ -1232,7 +1234,121 @@ export function MnemosyneLearning() {
   );
 }
 
-export function MnemosyneSettings() {
+const MNEMOSYNE_MODEL_PURPOSES = [
+  { id: "mnemosyne_chat", label: "일반 대화", detail: "문서에 한정되지 않은 학습 질문에 답합니다." },
+  { id: "mnemosyne_reading", label: "문서 읽기", detail: "선택한 문장과 문서 근거를 설명합니다." },
+  { id: "mnemosyne_quiz", label: "퀴즈 만들기", detail: "현재 학습 자료에서 연습 문제를 만듭니다." },
+  { id: "mnemosyne_assessment", label: "답안 평가", detail: "제출한 답을 평가하고 피드백을 작성합니다." },
+  { id: "mnemosyne_mastery", label: "숙련도 학습", detail: "개념별 학습 목표와 숙련도 점검을 돕습니다." },
+  { id: "mnemosyne_solve", label: "심화 풀이", detail: "여러 단계의 문서 기반 문제를 풀이합니다." },
+] as const;
+
+type MnemosynePurposeID = (typeof MNEMOSYNE_MODEL_PURPOSES)[number]["id"];
+type PurposeSaveNotice = { purpose: string; kind: "success" | "error" } | null;
+
+function MnemosynePurposeModelSettings() {
+  const {
+    catalog,
+    taskKinds,
+    catalogEditable,
+    settingsLoading,
+    settingsError,
+    reloadSettings,
+    saveRegistry,
+    applying,
+  } = useSettings();
+  const [savingPurpose, setSavingPurpose] = useState<MnemosynePurposeID | "">("");
+  const [notice, setNotice] = useState<PurposeSaveNotice>(null);
+
+  const purposes = MNEMOSYNE_MODEL_PURPOSES.filter((purpose) =>
+    taskKinds.some((kind) => kind.id === purpose.id),
+  );
+  const modelRows = flattenModels(catalog, ["llm", "task"]).filter(
+    (row) => Boolean(row.model?.model?.trim()),
+  );
+
+  const valueFor = (purposeID: MnemosynePurposeID): string => {
+    const choice = catalog.services.task.overrides?.[purposeID];
+    if (!choice || choice.mode === "inherit") return "inherit";
+    if (choice.mode === "reference" && choice.selection?.profile_id && choice.selection.model_id) {
+      return `llm:${choice.selection.profile_id}:${choice.selection.model_id}`;
+    }
+    if (choice.mode === "profiles" && choice.active_profile_id && choice.active_model_id) {
+      return `task:${choice.active_profile_id}:${choice.active_model_id}`;
+    }
+    return "inherit";
+  };
+
+  const savePurpose = async (purposeID: MnemosynePurposeID, value: string) => {
+    let task: NonNullable<RegistryEdit["task"]>;
+    if (value === "inherit") {
+      task = { task_kind: purposeID, mode: "inherit" };
+    } else {
+      const row = modelRows.find((item) => item.key === value);
+      if (!row?.model) {
+        setNotice({ purpose: "선택한 모델을 현재 catalog에서 찾지 못했습니다.", kind: "error" });
+        return;
+      }
+      task = row.service === "llm"
+        ? {
+            task_kind: purposeID,
+            mode: "reference",
+            selection: { profile_id: row.profile.id, model_id: row.model.id },
+          }
+        : {
+            task_kind: purposeID,
+            mode: "profiles",
+            active_profile_id: row.profile.id,
+            active_model_id: row.model.id,
+          };
+    }
+
+    setSavingPurpose(purposeID);
+    setNotice(null);
+    try {
+      const saved = await saveRegistry({ kind: "task_choice", task });
+      setNotice(saved
+        ? { purpose: `${MNEMOSYNE_MODEL_PURPOSES.find((item) => item.id === purposeID)?.label ?? "목적별 모델"} 설정을 서버가 저장했습니다.`, kind: "success" }
+        : { purpose: "서버가 저장을 확인하지 않았습니다. 설정은 변경되지 않았습니다.", kind: "error" });
+    } catch {
+      setNotice({ purpose: "서버가 저장을 확인하지 않았습니다. 설정은 변경되지 않았습니다.", kind: "error" });
+    } finally {
+      setSavingPurpose("");
+    }
+  };
+
+  return (
+    <section className="mt-4 rounded-2xl border border-[#EAECF0] bg-white p-5">
+      <div>
+        <h2 className="text-sm font-semibold">학습 목적별 모델</h2>
+        <p className="mt-1 text-xs leading-5 text-[#667085]">목적마다 모델을 지정할 수 있습니다. 기본값인 현재 대화 모델을 사용하면 해당 대화의 모델 설정을 따릅니다.</p>
+      </div>
+      {settingsError && <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg bg-[#FEF3F2] p-3 text-xs text-[#B42318]"><span role="alert">모델 catalog를 불러오지 못했습니다. {settingsError}</span><button type="button" onClick={() => void reloadSettings()} className="underline">다시 불러오기</button></div>}
+      {settingsLoading && <p role="status" className="mt-4 text-xs text-[#667085]">모델 설정을 불러오는 중…</p>}
+      {!settingsLoading && catalogEditable === false && <p className="mt-4 rounded-lg bg-[#FFFAEB] p-3 text-xs leading-5 text-[#7A2E0E]">현재 계정에는 목적별 모델을 관리할 권한이 없습니다.</p>}
+      {!settingsLoading && catalogEditable === true && purposes.length === 0 && <p role="status" className="mt-4 rounded-lg bg-[#FFFAEB] p-3 text-xs leading-5 text-[#7A2E0E]">서버 설정에서 Mnemosyne 학습 목적 목록을 확인할 수 없습니다.</p>}
+      {!settingsLoading && catalogEditable === true && purposes.length > 0 && <div className="mt-4 divide-y divide-[#F2F4F7]">
+        {purposes.map((purpose) => {
+          const selected = valueFor(purpose.id);
+          const selectedAvailable = selected === "inherit" || modelRows.some((row) => row.key === selected);
+          return <label key={purpose.id} className="grid gap-2 py-3 first:pt-0 last:pb-0 sm:grid-cols-[minmax(0,1fr)_minmax(16rem,0.9fr)] sm:items-center">
+            <span><span className="block text-xs font-semibold text-[#344054]">{purpose.label}</span><span className="mt-1 block text-[11px] leading-5 text-[#667085]">{purpose.detail}</span></span>
+            <select aria-label={`${purpose.label} 모델`} value={selected} disabled={applying || savingPurpose !== ""} onChange={(event) => void savePurpose(purpose.id, event.target.value)} className="w-full rounded-lg border border-[#D0D5DD] bg-white px-3 py-2 text-xs outline-none focus:border-[#315DA8] disabled:opacity-60">
+              <option value="inherit">현재 대화 모델 사용</option>
+              {!selectedAvailable && <option value={selected} disabled>저장된 모델을 사용할 수 없음 · 다시 선택</option>}
+              {modelRows.map((row) => <option key={row.key} value={row.key}>{row.model!.name || row.model!.model} · {modelProvider(catalog, row.service, row.profile, row.model)?.name || "제공자 정보 없음"}</option>)}
+            </select>
+          </label>;
+        })}
+      </div>}
+      {!settingsLoading && catalogEditable === true && modelRows.length === 0 && <p className="mt-3 text-[11px] leading-5 text-[#667085]">사용 가능한 catalog 모델이 없습니다. 현재 대화 모델 사용은 계속 선택할 수 있습니다.</p>}
+      {savingPurpose && <p role="status" className="mt-3 text-xs text-[#667085]">선택한 모델을 서버에 저장 중…</p>}
+      {notice && <p role={notice.kind === "error" ? "alert" : "status"} className={`mt-3 rounded-lg px-3 py-2 text-xs ${notice.kind === "error" ? "bg-[#FEF3F2] text-[#B42318]" : "bg-[#ECFDF3] text-[#027A48]"}`}>{notice.purpose}</p>}
+    </section>
+  );
+}
+
+function MnemosyneSettingsContent() {
   const api = useMnemosyneApi();
   const [settings, setSettings] = useState<PublicSettings | null>(null);
   const [readiness, setReadiness] = useState<Readiness | null>(null);
@@ -1319,10 +1435,15 @@ export function MnemosyneSettings() {
             <div className="mt-5 grid gap-4 md:grid-cols-2"><label className="text-xs font-medium text-[#475467]">Provider base URL<input type="url" required value={baseURL} onChange={(event) => setBaseURL(event.target.value)} className="mt-1.5 block w-full rounded-lg border border-[#D0D5DD] px-3 py-2.5 text-sm font-normal outline-none focus:border-[#315DA8]" placeholder="https://api.example.com/v1" /></label><label className="text-xs font-medium text-[#475467]">모델 ID<input required value={model} onChange={(event) => setModel(event.target.value)} className="mt-1.5 block w-full rounded-lg border border-[#D0D5DD] px-3 py-2.5 text-sm font-normal outline-none focus:border-[#315DA8]" placeholder="모델 이름" /></label><label className="text-xs font-medium text-[#475467]">기본 응답 언어<input required value={responseLanguage} onChange={(event) => setResponseLanguage(event.target.value)} pattern="^(und|[A-Za-z]{2,8}(-[A-Za-z0-9]{1,8})*)$" className="mt-1.5 block w-full rounded-lg border border-[#D0D5DD] px-3 py-2.5 text-sm font-normal outline-none focus:border-[#315DA8]" /></label><label className="text-xs font-medium text-[#475467]">API 키<input type="password" autoComplete="new-password" spellCheck={false} value={apiKey} onChange={(event) => setApiKey(event.target.value)} className="mt-1.5 block w-full rounded-lg border border-[#D0D5DD] px-3 py-2.5 text-sm font-normal outline-none focus:border-[#315DA8]" placeholder={settings.provider.credential_configured ? "변경할 때만 입력" : "서버에 저장할 키"} /><span className="mt-1 block text-[10px] font-normal text-[#667085]">입력값은 브라우저 저장소에 쓰지 않으며, 저장 후 화면에서 지웁니다. 조회 결과는 설정 여부만 사용합니다.</span></label></div>
             <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-[#F2F4F7] pt-4"><span className="text-[11px] text-[#667085]">설정 revision {settings.server_revision} · 충돌 시 최신 설정을 다시 불러와야 합니다.</span><button disabled={saving} className="rounded-lg bg-[#315DA8] px-4 py-2.5 text-xs font-semibold text-white disabled:opacity-50">{saving ? "서버에 저장 중…" : "설정 저장"}</button></div>
           </form>
+          <MnemosynePurposeModelSettings />
           <section className="mt-4 rounded-2xl border border-[#EAECF0] bg-white p-5"><h2 className="text-sm font-semibold">문서 언어와 응답 언어</h2><p className="mt-2 text-xs leading-5 text-[#667085]">문서 언어는 PDF마다 서버 분석 결과로 보관합니다. 위 응답 언어는 새 Tutor 요청 기본값입니다. 인용문·수식·코드는 원문을 유지합니다.</p></section>
         </>}
         {!loading && !settings && !error && <div className="mt-5 rounded-2xl border border-[#EAECF0] bg-white p-5"><h2 className="text-sm font-semibold">개인 서버 페어링</h2><p className="mt-1 text-xs text-[#667085]">서버의 일회용 코드를 사용해 이 브라우저를 연결하세요.</p><PairingPanel api={api} onPaired={load} /></div>}
       </main>
     </div>
   );
+}
+
+export function MnemosyneSettings() {
+  return <SettingsProvider><MnemosyneSettingsContent /></SettingsProvider>;
 }

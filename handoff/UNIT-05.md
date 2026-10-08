@@ -51,3 +51,11 @@
 - PASS: `npm --prefix upstreams/DeepTutor/web run contracts:check`; `typecheck`; `test:node` (1304 tests); `test:unit` (146 files, 653 tests); `build` (Next.js compile, TypeScript, 44 static pages). 처음 동시 실행에서 4개가 실패했다(2개 timeout, Task Board 1개, 이전 Practice 제목 assertion 1개). build 종료 후 timeout/Task Board 포함 영향 경로 4개 파일이 15/15 통과했고, Practice assertion을 새 Mnemosyne 학습 화면에 맞춘 뒤 전체 653개도 재실행해 통과했다.
 - 차단: `python3 checks/validate_contracts.py --require-ready`는 현재 Python runtime에 `jsonschema`가 없어 검사하지 못했고 requirements를 설치하라는 메시지를 반환했다. 최초 sandbox build는 Google Fonts 네트워크 제한으로 진행되지 않았으나 승인된 network-enabled retry는 통과했다.
 - 제품/기기 미검증: `deeptutor/api/main.py`에서 library router를 mount하지 않은 상태라 실제 `/v1` API, pairing cookie, readiness, learning/review, quiz/turn 조회, parse retry, cross-device reading position 및 실제 stream/annotation flow를 통합 서버에서 검증하지 못했다. iPad/browser device verification도 미실행이다. 이 결과로 `product_ready` 또는 cloud publication 상태를 올리지 않는다.
+
+## UNIT-02 목적별 모델 UI 후속 (2026-10-09)
+
+- `/settings`의 Mnemosyne 화면에 UNIT-02가 추가한 `mnemosyne_chat`, `mnemosyne_reading`, `mnemosyne_quiz`, `mnemosyne_assessment`, `mnemosyne_mastery`, `mnemosyne_solve` 각각의 모델 선택기를 연결했다. 현재 대화 모델을 쓰는 `inherit` 선택을 기본으로 보여주며, catalog에 저장된 LLM/task 모델을 고르면 기존 `/api/settings/apply/registry`에 저장하고 서버 확인·실패 상태를 화면에 표시한다. 일반 Task Models 화면에도 여섯 목적의 이름·설명을 넣었다.
+- 기존 `Ink annotations` 번역 키 누락을 en/zh/de/pl에 추가해 strict locale audit를 통과시켰다.
+- PASS: `typecheck`; `contracts:check`; `test:node` 1,304/1,304; `i18n:check`; `build` (Next.js compile 5.3분, TypeScript 완료, 44 static pages); 최신 UNIT-01 library/citation fixture 5개 (5 passed, 6 warnings).
+- 주의: `test:unit`은 146개 파일 중 142개 통과, 653개 중 649개 통과, 4개 실패했다. `tests/i18n-audit.spec.ts`, `tests/question-bank-picker.spec.tsx`, `tests/usage-statistics.spec.tsx`는 5초 timeout, `tests/task-board.spec.tsx`는 `Task note` textbox 조회 실패였다. 이는 전체 UNIT-05 UI 회귀 통과로 보고하지 않는다.
+- 실제 브라우저 설정 round-trip은 확인하지 못했다. 현재 `deeptutor/api/main.py`는 bootstrap service만 lifespan에 등록하고 Library REST router를 mount하지 않는다. `integration/registry.json`은 `product_ready: false`, cloud access는 `local_only_no_origin` 상태다.
