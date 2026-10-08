@@ -1,5 +1,5 @@
 {
-  "contract_version": "0.1.0-draft.1",
+  "contract_version": "0.1.0",
   "subject": {
     "subject_id": "00000000-0000-0000-0000-000000000002",
     "name": "회로이론",
@@ -27,38 +27,38 @@
       "page_index": 0,
       "display_page_number": 1,
       "display_label": "1",
-      "parse_revision": "fixture-parser-1",
-      "text_basis": "parser:nfc-lf-v1",
+      "parse_revision": "pymupdf-1.28.2-nfc-1",
       "text": "A capacitor stores energy: E = 1/2 C V^2.\n",
       "text_sha256": "b8fe2c0d26b8f40de2184dd8d06388e6ca74bcf154cee0228c591c8f5a1b6553",
       "geometry": {
         "media_box": [
-          0,
-          0,
-          600,
-          800
+          0.0,
+          0.0,
+          600.0,
+          800.0
         ],
         "crop_box": [
-          20,
-          30,
-          580,
-          760
+          20.0,
+          30.0,
+          580.0,
+          760.0
         ],
         "rotation_degrees": 0,
-        "user_unit": 1
+        "user_unit": 1.0
       },
       "segments": [
         {
           "start_scalar": 0,
           "end_scalar": 41,
           "rect": [
-            60,
-            697,
-            256.746,
-            18
+            60.0,
+            695.814003,
+            256.746002,
+            19.236
           ]
         }
-      ]
+      ],
+      "text_basis": "parser:nfc-lf-v1"
     },
     {
       "document_id": "00000000-0000-0000-0000-000000000001",
@@ -66,38 +66,38 @@
       "page_index": 1,
       "display_page_number": 2,
       "display_label": "ii",
-      "parse_revision": "fixture-parser-1",
-      "text_basis": "parser:nfc-lf-v1",
+      "parse_revision": "pymupdf-1.28.2-nfc-1",
       "text": "커패시터는 에너지를 저장한다. E = 1/2 C V^2.\n",
       "text_sha256": "47dc1aed27fbabb5785b499cdc0f86c8a9e5385d6f9907739bd8a74694d2be89",
       "geometry": {
         "media_box": [
-          0,
-          0,
-          600,
-          800
+          0.0,
+          0.0,
+          600.0,
+          800.0
         ],
         "crop_box": [
-          10,
-          20,
-          590,
-          770
+          10.0,
+          20.0,
+          590.0,
+          770.0
         ],
         "rotation_degrees": 90,
-        "user_unit": 1
+        "user_unit": 1.0
       },
       "segments": [
         {
           "start_scalar": 0,
           "end_scalar": 31,
           "rect": [
-            47,
-            100,
-            18,
-            303.982
+            40.595999,
+            100.0,
+            25.326002,
+            303.981995
           ]
         }
-      ]
+      ],
+      "text_basis": "parser:nfc-lf-v1"
     }
   ],
   "reader_context": {
@@ -114,17 +114,17 @@
       "document_id": "00000000-0000-0000-0000-000000000001",
       "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
       "page_index": 1,
-      "parse_revision": "fixture-parser-1",
+      "parse_revision": "pymupdf-1.28.2-nfc-1",
       "text_sha256": "47dc1aed27fbabb5785b499cdc0f86c8a9e5385d6f9907739bd8a74694d2be89",
       "start_scalar": 0,
       "end_scalar": 31,
       "quote": "커패시터는 에너지를 저장한다. E = 1/2 C V^2.",
       "rects": [
         [
-          47,
-          100,
-          18,
-          303.982
+          40.595999,
+          100.0,
+          25.326002,
+          303.981995
         ]
       ]
     },
@@ -140,24 +140,24 @@
         "document_id": "00000000-0000-0000-0000-000000000001",
         "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
         "page_index": 1,
-        "parse_revision": "fixture-parser-1",
+        "parse_revision": "pymupdf-1.28.2-nfc-1",
         "text_sha256": "47dc1aed27fbabb5785b499cdc0f86c8a9e5385d6f9907739bd8a74694d2be89",
         "start_scalar": 0,
         "end_scalar": 31,
         "quote": "커패시터는 에너지를 저장한다. E = 1/2 C V^2.",
         "rects": [
           [
-            47,
-            100,
-            18,
-            303.982
+            40.595999,
+            100.0,
+            25.326002,
+            303.981995
           ]
         ]
       }
     }
   ],
   "annotation_snapshot": {
-    "contract_version": "0.1.0-draft.1",
+    "contract_version": "0.1.0",
     "document_id": "00000000-0000-0000-0000-000000000001",
     "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
     "snapshot_revision": 4,
@@ -173,17 +173,17 @@
             "document_id": "00000000-0000-0000-0000-000000000001",
             "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
             "page_index": 1,
-            "parse_revision": "fixture-parser-1",
+            "parse_revision": "pymupdf-1.28.2-nfc-1",
             "text_sha256": "47dc1aed27fbabb5785b499cdc0f86c8a9e5385d6f9907739bd8a74694d2be89",
             "start_scalar": 0,
             "end_scalar": 31,
             "quote": "커패시터는 에너지를 저장한다. E = 1/2 C V^2.",
             "rects": [
               [
-                47,
-                100,
-                18,
-                303.982
+                40.595999,
+                100.0,
+                25.326002,
+                303.981995
               ]
             ]
           },
@@ -265,17 +265,17 @@
             "document_id": "00000000-0000-0000-0000-000000000001",
             "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
             "page_index": 1,
-            "parse_revision": "fixture-parser-1",
+            "parse_revision": "pymupdf-1.28.2-nfc-1",
             "text_sha256": "47dc1aed27fbabb5785b499cdc0f86c8a9e5385d6f9907739bd8a74694d2be89",
             "start_scalar": 0,
             "end_scalar": 31,
             "quote": "커패시터는 에너지를 저장한다. E = 1/2 C V^2.",
             "rects": [
               [
-                47,
-                100,
-                18,
-                303.982
+                40.595999,
+                100.0,
+                25.326002,
+                303.981995
               ]
             ]
           }
@@ -316,17 +316,17 @@
               "document_id": "00000000-0000-0000-0000-000000000001",
               "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
               "page_index": 1,
-              "parse_revision": "fixture-parser-1",
+              "parse_revision": "pymupdf-1.28.2-nfc-1",
               "text_sha256": "47dc1aed27fbabb5785b499cdc0f86c8a9e5385d6f9907739bd8a74694d2be89",
               "start_scalar": 0,
               "end_scalar": 31,
               "quote": "커패시터는 에너지를 저장한다. E = 1/2 C V^2.",
               "rects": [
                 [
-                  47,
-                  100,
-                  18,
-                  303.982
+                  40.595999,
+                  100.0,
+                  25.326002,
+                  303.981995
                 ]
               ]
             }
@@ -354,17 +354,17 @@
               "document_id": "00000000-0000-0000-0000-000000000001",
               "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
               "page_index": 1,
-              "parse_revision": "fixture-parser-1",
+              "parse_revision": "pymupdf-1.28.2-nfc-1",
               "text_sha256": "47dc1aed27fbabb5785b499cdc0f86c8a9e5385d6f9907739bd8a74694d2be89",
               "start_scalar": 0,
               "end_scalar": 31,
               "quote": "커패시터는 에너지를 저장한다. E = 1/2 C V^2.",
               "rects": [
                 [
-                  47,
-                  100,
-                  18,
-                  303.982
+                  40.595999,
+                  100.0,
+                  25.326002,
+                  303.981995
                 ]
               ]
             }
@@ -403,17 +403,17 @@
               "document_id": "00000000-0000-0000-0000-000000000001",
               "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
               "page_index": 1,
-              "parse_revision": "fixture-parser-1",
+              "parse_revision": "pymupdf-1.28.2-nfc-1",
               "text_sha256": "47dc1aed27fbabb5785b499cdc0f86c8a9e5385d6f9907739bd8a74694d2be89",
               "start_scalar": 0,
               "end_scalar": 31,
               "quote": "커패시터는 에너지를 저장한다. E = 1/2 C V^2.",
               "rects": [
                 [
-                  47,
-                  100,
-                  18,
-                  303.982
+                  40.595999,
+                  100.0,
+                  25.326002,
+                  303.981995
                 ]
               ]
             }
@@ -441,17 +441,17 @@
               "document_id": "00000000-0000-0000-0000-000000000001",
               "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
               "page_index": 1,
-              "parse_revision": "fixture-parser-1",
+              "parse_revision": "pymupdf-1.28.2-nfc-1",
               "text_sha256": "47dc1aed27fbabb5785b499cdc0f86c8a9e5385d6f9907739bd8a74694d2be89",
               "start_scalar": 0,
               "end_scalar": 31,
               "quote": "커패시터는 에너지를 저장한다. E = 1/2 C V^2.",
               "rects": [
                 [
-                  47,
-                  100,
-                  18,
-                  303.982
+                  40.595999,
+                  100.0,
+                  25.326002,
+                  303.981995
                 ]
               ]
             }
@@ -490,17 +490,17 @@
               "document_id": "00000000-0000-0000-0000-000000000001",
               "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
               "page_index": 1,
-              "parse_revision": "fixture-parser-1",
+              "parse_revision": "pymupdf-1.28.2-nfc-1",
               "text_sha256": "47dc1aed27fbabb5785b499cdc0f86c8a9e5385d6f9907739bd8a74694d2be89",
               "start_scalar": 0,
               "end_scalar": 31,
               "quote": "커패시터는 에너지를 저장한다. E = 1/2 C V^2.",
               "rects": [
                 [
-                  47,
-                  100,
-                  18,
-                  303.982
+                  40.595999,
+                  100.0,
+                  25.326002,
+                  303.981995
                 ]
               ]
             }
@@ -528,17 +528,17 @@
               "document_id": "00000000-0000-0000-0000-000000000001",
               "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
               "page_index": 1,
-              "parse_revision": "fixture-parser-1",
+              "parse_revision": "pymupdf-1.28.2-nfc-1",
               "text_sha256": "47dc1aed27fbabb5785b499cdc0f86c8a9e5385d6f9907739bd8a74694d2be89",
               "start_scalar": 0,
               "end_scalar": 31,
               "quote": "커패시터는 에너지를 저장한다. E = 1/2 C V^2.",
               "rects": [
                 [
-                  47,
-                  100,
-                  18,
-                  303.982
+                  40.595999,
+                  100.0,
+                  25.326002,
+                  303.981995
                 ]
               ]
             }
@@ -583,17 +583,17 @@
               "document_id": "00000000-0000-0000-0000-000000000001",
               "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
               "page_index": 1,
-              "parse_revision": "fixture-parser-1",
+              "parse_revision": "pymupdf-1.28.2-nfc-1",
               "text_sha256": "47dc1aed27fbabb5785b499cdc0f86c8a9e5385d6f9907739bd8a74694d2be89",
               "start_scalar": 0,
               "end_scalar": 31,
               "quote": "커패시터는 에너지를 저장한다. E = 1/2 C V^2.",
               "rects": [
                 [
-                  47,
-                  100,
-                  18,
-                  303.982
+                  40.595999,
+                  100.0,
+                  25.326002,
+                  303.981995
                 ]
               ]
             }
@@ -663,17 +663,17 @@
               "document_id": "00000000-0000-0000-0000-000000000001",
               "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
               "page_index": 1,
-              "parse_revision": "fixture-parser-1",
+              "parse_revision": "pymupdf-1.28.2-nfc-1",
               "text_sha256": "47dc1aed27fbabb5785b499cdc0f86c8a9e5385d6f9907739bd8a74694d2be89",
               "start_scalar": 0,
               "end_scalar": 31,
               "quote": "커패시터는 에너지를 저장한다. E = 1/2 C V^2.",
               "rects": [
                 [
-                  47,
-                  100,
-                  18,
-                  303.982
+                  40.595999,
+                  100.0,
+                  25.326002,
+                  303.981995
                 ]
               ]
             }
@@ -726,17 +726,17 @@
               "document_id": "00000000-0000-0000-0000-000000000001",
               "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
               "page_index": 1,
-              "parse_revision": "fixture-parser-1",
+              "parse_revision": "pymupdf-1.28.2-nfc-1",
               "text_sha256": "47dc1aed27fbabb5785b499cdc0f86c8a9e5385d6f9907739bd8a74694d2be89",
               "start_scalar": 0,
               "end_scalar": 31,
               "quote": "커패시터는 에너지를 저장한다. E = 1/2 C V^2.",
               "rects": [
                 [
-                  47,
-                  100,
-                  18,
-                  303.982
+                  40.595999,
+                  100.0,
+                  25.326002,
+                  303.981995
                 ]
               ]
             }
@@ -789,17 +789,17 @@
               "document_id": "00000000-0000-0000-0000-000000000001",
               "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
               "page_index": 1,
-              "parse_revision": "fixture-parser-1",
+              "parse_revision": "pymupdf-1.28.2-nfc-1",
               "text_sha256": "47dc1aed27fbabb5785b499cdc0f86c8a9e5385d6f9907739bd8a74694d2be89",
               "start_scalar": 0,
               "end_scalar": 31,
               "quote": "커패시터는 에너지를 저장한다. E = 1/2 C V^2.",
               "rects": [
                 [
-                  47,
-                  100,
-                  18,
-                  303.982
+                  40.595999,
+                  100.0,
+                  25.326002,
+                  303.981995
                 ]
               ]
             }
@@ -827,17 +827,17 @@
               "document_id": "00000000-0000-0000-0000-000000000001",
               "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
               "page_index": 1,
-              "parse_revision": "fixture-parser-1",
+              "parse_revision": "pymupdf-1.28.2-nfc-1",
               "text_sha256": "47dc1aed27fbabb5785b499cdc0f86c8a9e5385d6f9907739bd8a74694d2be89",
               "start_scalar": 0,
               "end_scalar": 31,
               "quote": "커패시터는 에너지를 저장한다. E = 1/2 C V^2.",
               "rects": [
                 [
-                  47,
-                  100,
-                  18,
-                  303.982
+                  40.595999,
+                  100.0,
+                  25.326002,
+                  303.981995
                 ]
               ]
             }
@@ -876,17 +876,17 @@
               "document_id": "00000000-0000-0000-0000-000000000001",
               "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
               "page_index": 1,
-              "parse_revision": "fixture-parser-1",
+              "parse_revision": "pymupdf-1.28.2-nfc-1",
               "text_sha256": "47dc1aed27fbabb5785b499cdc0f86c8a9e5385d6f9907739bd8a74694d2be89",
               "start_scalar": 0,
               "end_scalar": 31,
               "quote": "커패시터는 에너지를 저장한다. E = 1/2 C V^2.",
               "rects": [
                 [
-                  47,
-                  100,
-                  18,
-                  303.982
+                  40.595999,
+                  100.0,
+                  25.326002,
+                  303.981995
                 ]
               ]
             }
@@ -914,17 +914,17 @@
               "document_id": "00000000-0000-0000-0000-000000000001",
               "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
               "page_index": 1,
-              "parse_revision": "fixture-parser-1",
+              "parse_revision": "pymupdf-1.28.2-nfc-1",
               "text_sha256": "47dc1aed27fbabb5785b499cdc0f86c8a9e5385d6f9907739bd8a74694d2be89",
               "start_scalar": 0,
               "end_scalar": 31,
               "quote": "커패시터는 에너지를 저장한다. E = 1/2 C V^2.",
               "rects": [
                 [
-                  47,
-                  100,
-                  18,
-                  303.982
+                  40.595999,
+                  100.0,
+                  25.326002,
+                  303.981995
                 ]
               ]
             }
@@ -963,17 +963,17 @@
               "document_id": "00000000-0000-0000-0000-000000000001",
               "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
               "page_index": 1,
-              "parse_revision": "fixture-parser-1",
+              "parse_revision": "pymupdf-1.28.2-nfc-1",
               "text_sha256": "47dc1aed27fbabb5785b499cdc0f86c8a9e5385d6f9907739bd8a74694d2be89",
               "start_scalar": 0,
               "end_scalar": 31,
               "quote": "커패시터는 에너지를 저장한다. E = 1/2 C V^2.",
               "rects": [
                 [
-                  47,
-                  100,
-                  18,
-                  303.982
+                  40.595999,
+                  100.0,
+                  25.326002,
+                  303.981995
                 ]
               ]
             }
@@ -990,7 +990,7 @@
     }
   ],
   "change_page": {
-    "contract_version": "0.1.0-draft.1",
+    "contract_version": "0.1.0",
     "document_id": "00000000-0000-0000-0000-000000000001",
     "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
     "changes": [
@@ -1010,17 +1010,17 @@
             "document_id": "00000000-0000-0000-0000-000000000001",
             "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
             "page_index": 1,
-            "parse_revision": "fixture-parser-1",
+            "parse_revision": "pymupdf-1.28.2-nfc-1",
             "text_sha256": "47dc1aed27fbabb5785b499cdc0f86c8a9e5385d6f9907739bd8a74694d2be89",
             "start_scalar": 0,
             "end_scalar": 31,
             "quote": "커패시터는 에너지를 저장한다. E = 1/2 C V^2.",
             "rects": [
               [
-                47,
-                100,
-                18,
-                303.982
+                40.595999,
+                100.0,
+                25.326002,
+                303.981995
               ]
             ]
           }
@@ -1058,17 +1058,17 @@
             "document_id": "00000000-0000-0000-0000-000000000001",
             "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
             "page_index": 1,
-            "parse_revision": "fixture-parser-1",
+            "parse_revision": "pymupdf-1.28.2-nfc-1",
             "text_sha256": "47dc1aed27fbabb5785b499cdc0f86c8a9e5385d6f9907739bd8a74694d2be89",
             "start_scalar": 0,
             "end_scalar": 31,
             "quote": "커패시터는 에너지를 저장한다. E = 1/2 C V^2.",
             "rects": [
               [
-                47,
-                100,
-                18,
-                303.982
+                40.595999,
+                100.0,
+                25.326002,
+                303.981995
               ]
             ]
           }
@@ -1084,9 +1084,9 @@
   },
   "events": [
     {
-      "contract_version": "0.1.0-draft.1",
-      "event_id": "00000000-0000-0000-0000-00000000001e:1",
-      "turn_id": "00000000-0000-0000-0000-00000000001e",
+      "contract_version": "0.1.0",
+      "event_id": "turn_1791442800000_0000000001:1",
+      "turn_id": "turn_1791442800000_0000000001",
       "seq": 1,
       "created_at": "2026-10-08T07:00:00Z",
       "type": "turn.started",
@@ -1096,10 +1096,10 @@
       }
     },
     {
-      "contract_version": "0.1.0-draft.1",
-      "event_id": "00000000-0000-0000-0000-00000000001e:2",
-      "turn_id": "00000000-0000-0000-0000-00000000001e",
-      "seq": 2,
+      "contract_version": "0.1.0",
+      "event_id": "turn_1791442800000_0000000001:3",
+      "turn_id": "turn_1791442800000_0000000001",
+      "seq": 3,
       "created_at": "2026-10-08T07:00:00Z",
       "type": "assistant.delta",
       "payload": {
@@ -1107,10 +1107,10 @@
       }
     },
     {
-      "contract_version": "0.1.0-draft.1",
-      "event_id": "00000000-0000-0000-0000-00000000001e:3",
-      "turn_id": "00000000-0000-0000-0000-00000000001e",
-      "seq": 3,
+      "contract_version": "0.1.0",
+      "event_id": "turn_1791442800000_0000000001:4",
+      "turn_id": "turn_1791442800000_0000000001",
+      "seq": 4,
       "created_at": "2026-10-08T07:00:00Z",
       "type": "citation.verified",
       "payload": {
@@ -1122,17 +1122,17 @@
             "document_id": "00000000-0000-0000-0000-000000000001",
             "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
             "page_index": 1,
-            "parse_revision": "fixture-parser-1",
+            "parse_revision": "pymupdf-1.28.2-nfc-1",
             "text_sha256": "47dc1aed27fbabb5785b499cdc0f86c8a9e5385d6f9907739bd8a74694d2be89",
             "start_scalar": 0,
             "end_scalar": 31,
             "quote": "커패시터는 에너지를 저장한다. E = 1/2 C V^2.",
             "rects": [
               [
-                47,
-                100,
-                18,
-                303.982
+                40.595999,
+                100.0,
+                25.326002,
+                303.981995
               ]
             ]
           }
@@ -1140,10 +1140,10 @@
       }
     },
     {
-      "contract_version": "0.1.0-draft.1",
-      "event_id": "00000000-0000-0000-0000-00000000001e:4",
-      "turn_id": "00000000-0000-0000-0000-00000000001e",
-      "seq": 4,
+      "contract_version": "0.1.0",
+      "event_id": "turn_1791442800000_0000000001:5",
+      "turn_id": "turn_1791442800000_0000000001",
+      "seq": 5,
       "created_at": "2026-10-08T07:00:00Z",
       "type": "reader.goto",
       "payload": {
@@ -1160,10 +1160,10 @@
       }
     },
     {
-      "contract_version": "0.1.0-draft.1",
-      "event_id": "00000000-0000-0000-0000-00000000001e:5",
-      "turn_id": "00000000-0000-0000-0000-00000000001e",
-      "seq": 5,
+      "contract_version": "0.1.0",
+      "event_id": "turn_1791442800000_0000000001:6",
+      "turn_id": "turn_1791442800000_0000000001",
+      "seq": 6,
       "created_at": "2026-10-08T07:00:00Z",
       "type": "reader.highlight",
       "payload": {
@@ -1174,10 +1174,10 @@
         },
         "rects": [
           [
-            47,
-            100,
-            18,
-            303.982
+            40.595999,
+            100.0,
+            25.326002,
+            303.981995
           ]
         ],
         "citation_id": "00000000-0000-0000-0000-000000000032",
@@ -1186,10 +1186,10 @@
       }
     },
     {
-      "contract_version": "0.1.0-draft.1",
-      "event_id": "00000000-0000-0000-0000-00000000001e:6",
-      "turn_id": "00000000-0000-0000-0000-00000000001e",
-      "seq": 6,
+      "contract_version": "0.1.0",
+      "event_id": "turn_1791442800000_0000000001:7",
+      "turn_id": "turn_1791442800000_0000000001",
+      "seq": 7,
       "created_at": "2026-10-08T07:00:00Z",
       "type": "reader.flash",
       "payload": {
@@ -1200,10 +1200,10 @@
         },
         "rects": [
           [
-            47,
-            100,
-            18,
-            303.982
+            40.595999,
+            100.0,
+            25.326002,
+            303.981995
           ]
         ],
         "citation_id": "00000000-0000-0000-0000-000000000032",
@@ -1212,10 +1212,10 @@
       }
     },
     {
-      "contract_version": "0.1.0-draft.1",
-      "event_id": "00000000-0000-0000-0000-00000000001e:7",
-      "turn_id": "00000000-0000-0000-0000-00000000001e",
-      "seq": 7,
+      "contract_version": "0.1.0",
+      "event_id": "turn_1791442800000_0000000001:8",
+      "turn_id": "turn_1791442800000_0000000001",
+      "seq": 8,
       "created_at": "2026-10-08T07:00:00Z",
       "type": "reader.annotate",
       "payload": {
@@ -1230,17 +1230,17 @@
               "document_id": "00000000-0000-0000-0000-000000000001",
               "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
               "page_index": 1,
-              "parse_revision": "fixture-parser-1",
+              "parse_revision": "pymupdf-1.28.2-nfc-1",
               "text_sha256": "47dc1aed27fbabb5785b499cdc0f86c8a9e5385d6f9907739bd8a74694d2be89",
               "start_scalar": 0,
               "end_scalar": 31,
               "quote": "커패시터는 에너지를 저장한다. E = 1/2 C V^2.",
               "rects": [
                 [
-                  47,
-                  100,
-                  18,
-                  303.982
+                  40.595999,
+                  100.0,
+                  25.326002,
+                  303.981995
                 ]
               ]
             },
@@ -1253,10 +1253,10 @@
       }
     },
     {
-      "contract_version": "0.1.0-draft.1",
-      "event_id": "00000000-0000-0000-0000-00000000001e:8",
-      "turn_id": "00000000-0000-0000-0000-00000000001e",
-      "seq": 8,
+      "contract_version": "0.1.0",
+      "event_id": "turn_1791442800000_0000000001:9",
+      "turn_id": "turn_1791442800000_0000000001",
+      "seq": 9,
       "created_at": "2026-10-08T07:00:00Z",
       "type": "quiz.show",
       "payload": {
@@ -1264,10 +1264,10 @@
       }
     },
     {
-      "contract_version": "0.1.0-draft.1",
-      "event_id": "00000000-0000-0000-0000-00000000001e:9",
-      "turn_id": "00000000-0000-0000-0000-00000000001e",
-      "seq": 9,
+      "contract_version": "0.1.0",
+      "event_id": "turn_1791442800000_0000000001:10",
+      "turn_id": "turn_1791442800000_0000000001",
+      "seq": 10,
       "created_at": "2026-10-08T07:00:00Z",
       "type": "question.show",
       "payload": {
@@ -1276,10 +1276,10 @@
       }
     },
     {
-      "contract_version": "0.1.0-draft.1",
-      "event_id": "00000000-0000-0000-0000-00000000001e:10",
-      "turn_id": "00000000-0000-0000-0000-00000000001e",
-      "seq": 10,
+      "contract_version": "0.1.0",
+      "event_id": "turn_1791442800000_0000000001:11",
+      "turn_id": "turn_1791442800000_0000000001",
+      "seq": 11,
       "created_at": "2026-10-08T07:00:00Z",
       "type": "learning.updated",
       "payload": {
@@ -1288,10 +1288,10 @@
       }
     },
     {
-      "contract_version": "0.1.0-draft.1",
-      "event_id": "00000000-0000-0000-0000-00000000001e:11",
-      "turn_id": "00000000-0000-0000-0000-00000000001e",
-      "seq": 11,
+      "contract_version": "0.1.0",
+      "event_id": "turn_1791442800000_0000000001:12",
+      "turn_id": "turn_1791442800000_0000000001",
+      "seq": 12,
       "created_at": "2026-10-08T07:00:00Z",
       "type": "turn.done",
       "payload": {
@@ -1301,13 +1301,39 @@
     }
   ],
   "reconnect": {
-    "last_event_id": "00000000-0000-0000-0000-00000000001e:5",
+    "last_event_id": "turn_1791442800000_0000000001:6",
+    "duplicate_delivery": {
+      "contract_version": "0.1.0",
+      "event_id": "turn_1791442800000_0000000001:6",
+      "turn_id": "turn_1791442800000_0000000001",
+      "seq": 6,
+      "created_at": "2026-10-08T07:00:00Z",
+      "type": "reader.highlight",
+      "payload": {
+        "target": {
+          "document_id": "00000000-0000-0000-0000-000000000001",
+          "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
+          "page_index": 1
+        },
+        "rects": [
+          [
+            40.595999,
+            100.0,
+            25.326002,
+            303.981995
+          ]
+        ],
+        "citation_id": "00000000-0000-0000-0000-000000000032",
+        "ttl_ms": 1800,
+        "persistent": false
+      }
+    },
     "replayed_events": [
       {
-        "contract_version": "0.1.0-draft.1",
-        "event_id": "00000000-0000-0000-0000-00000000001e:6",
-        "turn_id": "00000000-0000-0000-0000-00000000001e",
-        "seq": 6,
+        "contract_version": "0.1.0",
+        "event_id": "turn_1791442800000_0000000001:7",
+        "turn_id": "turn_1791442800000_0000000001",
+        "seq": 7,
         "created_at": "2026-10-08T07:00:00Z",
         "type": "reader.flash",
         "payload": {
@@ -1318,10 +1344,10 @@
           },
           "rects": [
             [
-              47,
-              100,
-              18,
-              303.982
+              40.595999,
+              100.0,
+              25.326002,
+              303.981995
             ]
           ],
           "citation_id": "00000000-0000-0000-0000-000000000032",
@@ -1330,10 +1356,10 @@
         }
       },
       {
-        "contract_version": "0.1.0-draft.1",
-        "event_id": "00000000-0000-0000-0000-00000000001e:7",
-        "turn_id": "00000000-0000-0000-0000-00000000001e",
-        "seq": 7,
+        "contract_version": "0.1.0",
+        "event_id": "turn_1791442800000_0000000001:8",
+        "turn_id": "turn_1791442800000_0000000001",
+        "seq": 8,
         "created_at": "2026-10-08T07:00:00Z",
         "type": "reader.annotate",
         "payload": {
@@ -1348,17 +1374,17 @@
                 "document_id": "00000000-0000-0000-0000-000000000001",
                 "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
                 "page_index": 1,
-                "parse_revision": "fixture-parser-1",
+                "parse_revision": "pymupdf-1.28.2-nfc-1",
                 "text_sha256": "47dc1aed27fbabb5785b499cdc0f86c8a9e5385d6f9907739bd8a74694d2be89",
                 "start_scalar": 0,
                 "end_scalar": 31,
                 "quote": "커패시터는 에너지를 저장한다. E = 1/2 C V^2.",
                 "rects": [
                   [
-                    47,
-                    100,
-                    18,
-                    303.982
+                    40.595999,
+                    100.0,
+                    25.326002,
+                    303.981995
                   ]
                 ]
               },
@@ -1371,10 +1397,10 @@
         }
       },
       {
-        "contract_version": "0.1.0-draft.1",
-        "event_id": "00000000-0000-0000-0000-00000000001e:8",
-        "turn_id": "00000000-0000-0000-0000-00000000001e",
-        "seq": 8,
+        "contract_version": "0.1.0",
+        "event_id": "turn_1791442800000_0000000001:9",
+        "turn_id": "turn_1791442800000_0000000001",
+        "seq": 9,
         "created_at": "2026-10-08T07:00:00Z",
         "type": "quiz.show",
         "payload": {
@@ -1382,10 +1408,10 @@
         }
       },
       {
-        "contract_version": "0.1.0-draft.1",
-        "event_id": "00000000-0000-0000-0000-00000000001e:9",
-        "turn_id": "00000000-0000-0000-0000-00000000001e",
-        "seq": 9,
+        "contract_version": "0.1.0",
+        "event_id": "turn_1791442800000_0000000001:10",
+        "turn_id": "turn_1791442800000_0000000001",
+        "seq": 10,
         "created_at": "2026-10-08T07:00:00Z",
         "type": "question.show",
         "payload": {
@@ -1394,10 +1420,10 @@
         }
       },
       {
-        "contract_version": "0.1.0-draft.1",
-        "event_id": "00000000-0000-0000-0000-00000000001e:10",
-        "turn_id": "00000000-0000-0000-0000-00000000001e",
-        "seq": 10,
+        "contract_version": "0.1.0",
+        "event_id": "turn_1791442800000_0000000001:11",
+        "turn_id": "turn_1791442800000_0000000001",
+        "seq": 11,
         "created_at": "2026-10-08T07:00:00Z",
         "type": "learning.updated",
         "payload": {
@@ -1406,10 +1432,10 @@
         }
       },
       {
-        "contract_version": "0.1.0-draft.1",
-        "event_id": "00000000-0000-0000-0000-00000000001e:11",
-        "turn_id": "00000000-0000-0000-0000-00000000001e",
-        "seq": 11,
+        "contract_version": "0.1.0",
+        "event_id": "turn_1791442800000_0000000001:12",
+        "turn_id": "turn_1791442800000_0000000001",
+        "seq": 12,
         "created_at": "2026-10-08T07:00:00Z",
         "type": "turn.done",
         "payload": {
@@ -1417,39 +1443,13 @@
           "learning_revision": 2
         }
       }
-    ],
-    "duplicate_delivery": {
-      "contract_version": "0.1.0-draft.1",
-      "event_id": "00000000-0000-0000-0000-00000000001e:5",
-      "turn_id": "00000000-0000-0000-0000-00000000001e",
-      "seq": 5,
-      "created_at": "2026-10-08T07:00:00Z",
-      "type": "reader.highlight",
-      "payload": {
-        "target": {
-          "document_id": "00000000-0000-0000-0000-000000000001",
-          "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
-          "page_index": 1
-        },
-        "rects": [
-          [
-            47,
-            100,
-            18,
-            303.982
-          ]
-        ],
-        "citation_id": "00000000-0000-0000-0000-000000000032",
-        "ttl_ms": 1800,
-        "persistent": false
-      }
-    }
+    ]
   },
   "cancelled_events": [
     {
-      "contract_version": "0.1.0-draft.1",
-      "event_id": "00000000-0000-0000-0000-00000000001f:1",
-      "turn_id": "00000000-0000-0000-0000-00000000001f",
+      "contract_version": "0.1.0",
+      "event_id": "turn_1791442800000_0000000002:1",
+      "turn_id": "turn_1791442800000_0000000002",
       "seq": 1,
       "created_at": "2026-10-08T07:00:00Z",
       "type": "turn.started",
@@ -1459,10 +1459,10 @@
       }
     },
     {
-      "contract_version": "0.1.0-draft.1",
-      "event_id": "00000000-0000-0000-0000-00000000001f:2",
-      "turn_id": "00000000-0000-0000-0000-00000000001f",
-      "seq": 2,
+      "contract_version": "0.1.0",
+      "event_id": "turn_1791442800000_0000000002:3",
+      "turn_id": "turn_1791442800000_0000000002",
+      "seq": 3,
       "created_at": "2026-10-08T07:00:00Z",
       "type": "turn.cancelled",
       "payload": {
@@ -1472,9 +1472,9 @@
   ],
   "error_events": [
     {
-      "contract_version": "0.1.0-draft.1",
-      "event_id": "00000000-0000-0000-0000-000000000020:1",
-      "turn_id": "00000000-0000-0000-0000-000000000020",
+      "contract_version": "0.1.0",
+      "event_id": "turn_1791442800000_0000000003:1",
+      "turn_id": "turn_1791442800000_0000000003",
       "seq": 1,
       "created_at": "2026-10-08T07:00:00Z",
       "type": "turn.started",
@@ -1484,15 +1484,15 @@
       }
     },
     {
-      "contract_version": "0.1.0-draft.1",
-      "event_id": "00000000-0000-0000-0000-000000000020:2",
-      "turn_id": "00000000-0000-0000-0000-000000000020",
-      "seq": 2,
+      "contract_version": "0.1.0",
+      "event_id": "turn_1791442800000_0000000003:3",
+      "turn_id": "turn_1791442800000_0000000003",
+      "seq": 3,
       "created_at": "2026-10-08T07:00:00Z",
       "type": "turn.error",
       "payload": {
         "error": {
-          "contract_version": "0.1.0-draft.1",
+          "contract_version": "0.1.0",
           "code": "provider_error",
           "message_ko": "모델 응답을 완료하지 못했습니다.",
           "request_id": "00000000-0000-0000-0000-00000000005a",
@@ -1531,17 +1531,17 @@
               "document_id": "00000000-0000-0000-0000-000000000001",
               "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
               "page_index": 1,
-              "parse_revision": "fixture-parser-1",
+              "parse_revision": "pymupdf-1.28.2-nfc-1",
               "text_sha256": "47dc1aed27fbabb5785b499cdc0f86c8a9e5385d6f9907739bd8a74694d2be89",
               "start_scalar": 0,
               "end_scalar": 31,
               "quote": "커패시터는 에너지를 저장한다. E = 1/2 C V^2.",
               "rects": [
                 [
-                  47,
-                  100,
-                  18,
-                  303.982
+                  40.595999,
+                  100.0,
+                  25.326002,
+                  303.981995
                 ]
               ]
             }
@@ -1580,17 +1580,17 @@
           "document_id": "00000000-0000-0000-0000-000000000001",
           "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
           "page_index": 1,
-          "parse_revision": "fixture-parser-1",
+          "parse_revision": "pymupdf-1.28.2-nfc-1",
           "text_sha256": "47dc1aed27fbabb5785b499cdc0f86c8a9e5385d6f9907739bd8a74694d2be89",
           "start_scalar": 0,
           "end_scalar": 31,
           "quote": "커패시터는 에너지를 저장한다. E = 1/2 C V^2.",
           "rects": [
             [
-              47,
-              100,
-              18,
-              303.982
+              40.595999,
+              100.0,
+              25.326002,
+              303.981995
             ]
           ]
         }
@@ -1634,17 +1634,17 @@
               "document_id": "00000000-0000-0000-0000-000000000001",
               "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
               "page_index": 1,
-              "parse_revision": "fixture-parser-1",
+              "parse_revision": "pymupdf-1.28.2-nfc-1",
               "text_sha256": "47dc1aed27fbabb5785b499cdc0f86c8a9e5385d6f9907739bd8a74694d2be89",
               "start_scalar": 0,
               "end_scalar": 31,
               "quote": "커패시터는 에너지를 저장한다. E = 1/2 C V^2.",
               "rects": [
                 [
-                  47,
-                  100,
-                  18,
-                  303.982
+                  40.595999,
+                  100.0,
+                  25.326002,
+                  303.981995
                 ]
               ]
             }
@@ -1665,7 +1665,7 @@
       {
         "activity_id": "00000000-0000-0000-0000-000000000046",
         "kind": "reading",
-        "turn_id": "00000000-0000-0000-0000-00000000001e",
+        "turn_id": "turn_1791442800000_0000000001",
         "summary_ko": "문서의 에너지 식 확인",
         "created_at": "2026-10-08T07:00:00Z"
       },
@@ -1813,5 +1813,507 @@
     "start_scalar": 3,
     "end_scalar": 4,
     "quote": "🧠"
+  },
+  "wire": {
+    "events": [
+      {
+        "type": "tool_result",
+        "protocol_version": "2.0",
+        "turn_id": "turn_1791442800000_0000000001",
+        "seq": 1,
+        "timestamp": 1791442800.0,
+        "metadata": {
+          "mnemosyne": {
+            "contract_version": "0.1.0",
+            "event_id": "turn_1791442800000_0000000001:1",
+            "turn_id": "turn_1791442800000_0000000001",
+            "seq": 1,
+            "created_at": "2026-10-08T07:00:00Z",
+            "type": "turn.started",
+            "payload": {
+              "capability": "reading",
+              "response_language": "ko"
+            }
+          }
+        },
+        "content": ""
+      },
+      {
+        "type": "progress",
+        "protocol_version": "2.0",
+        "turn_id": "turn_1791442800000_0000000001",
+        "seq": 2,
+        "timestamp": 1791442800.0,
+        "metadata": {
+          "progress": 0.1
+        }
+      },
+      {
+        "type": "content",
+        "protocol_version": "2.0",
+        "turn_id": "turn_1791442800000_0000000001",
+        "seq": 3,
+        "timestamp": 1791442800.0,
+        "metadata": {
+          "mnemosyne": {
+            "contract_version": "0.1.0",
+            "event_id": "turn_1791442800000_0000000001:3",
+            "turn_id": "turn_1791442800000_0000000001",
+            "seq": 3,
+            "created_at": "2026-10-08T07:00:00Z",
+            "type": "assistant.delta",
+            "payload": {
+              "text": "전압이 두 배가 되면 저장 에너지는 네 배입니다. "
+            }
+          }
+        },
+        "content": "전압이 두 배가 되면 저장 에너지는 네 배입니다. "
+      },
+      {
+        "type": "tool_result",
+        "protocol_version": "2.0",
+        "turn_id": "turn_1791442800000_0000000001",
+        "seq": 4,
+        "timestamp": 1791442800.0,
+        "metadata": {
+          "mnemosyne": {
+            "contract_version": "0.1.0",
+            "event_id": "turn_1791442800000_0000000001:4",
+            "turn_id": "turn_1791442800000_0000000001",
+            "seq": 4,
+            "created_at": "2026-10-08T07:00:00Z",
+            "type": "citation.verified",
+            "payload": {
+              "citation": {
+                "citation_id": "00000000-0000-0000-0000-000000000032",
+                "verification_id": "00000000-0000-0000-0000-000000000033",
+                "verified": true,
+                "anchor": {
+                  "document_id": "00000000-0000-0000-0000-000000000001",
+                  "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
+                  "page_index": 1,
+                  "parse_revision": "pymupdf-1.28.2-nfc-1",
+                  "text_sha256": "47dc1aed27fbabb5785b499cdc0f86c8a9e5385d6f9907739bd8a74694d2be89",
+                  "start_scalar": 0,
+                  "end_scalar": 31,
+                  "quote": "커패시터는 에너지를 저장한다. E = 1/2 C V^2.",
+                  "rects": [
+                    [
+                      40.595999,
+                      100.0,
+                      25.326002,
+                      303.981995
+                    ]
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "content": ""
+      },
+      {
+        "type": "tool_result",
+        "protocol_version": "2.0",
+        "turn_id": "turn_1791442800000_0000000001",
+        "seq": 5,
+        "timestamp": 1791442800.0,
+        "metadata": {
+          "mnemosyne": {
+            "contract_version": "0.1.0",
+            "event_id": "turn_1791442800000_0000000001:5",
+            "turn_id": "turn_1791442800000_0000000001",
+            "seq": 5,
+            "created_at": "2026-10-08T07:00:00Z",
+            "type": "reader.goto",
+            "payload": {
+              "target": {
+                "document_id": "00000000-0000-0000-0000-000000000001",
+                "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
+                "page_index": 1
+              },
+              "position": [
+                60,
+                100
+              ],
+              "citation_id": "00000000-0000-0000-0000-000000000032"
+            }
+          }
+        },
+        "content": ""
+      },
+      {
+        "type": "tool_result",
+        "protocol_version": "2.0",
+        "turn_id": "turn_1791442800000_0000000001",
+        "seq": 6,
+        "timestamp": 1791442800.0,
+        "metadata": {
+          "mnemosyne": {
+            "contract_version": "0.1.0",
+            "event_id": "turn_1791442800000_0000000001:6",
+            "turn_id": "turn_1791442800000_0000000001",
+            "seq": 6,
+            "created_at": "2026-10-08T07:00:00Z",
+            "type": "reader.highlight",
+            "payload": {
+              "target": {
+                "document_id": "00000000-0000-0000-0000-000000000001",
+                "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
+                "page_index": 1
+              },
+              "rects": [
+                [
+                  40.595999,
+                  100.0,
+                  25.326002,
+                  303.981995
+                ]
+              ],
+              "citation_id": "00000000-0000-0000-0000-000000000032",
+              "ttl_ms": 1800,
+              "persistent": false
+            }
+          }
+        },
+        "content": ""
+      },
+      {
+        "type": "tool_result",
+        "protocol_version": "2.0",
+        "turn_id": "turn_1791442800000_0000000001",
+        "seq": 7,
+        "timestamp": 1791442800.0,
+        "metadata": {
+          "mnemosyne": {
+            "contract_version": "0.1.0",
+            "event_id": "turn_1791442800000_0000000001:7",
+            "turn_id": "turn_1791442800000_0000000001",
+            "seq": 7,
+            "created_at": "2026-10-08T07:00:00Z",
+            "type": "reader.flash",
+            "payload": {
+              "target": {
+                "document_id": "00000000-0000-0000-0000-000000000001",
+                "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
+                "page_index": 1
+              },
+              "rects": [
+                [
+                  40.595999,
+                  100.0,
+                  25.326002,
+                  303.981995
+                ]
+              ],
+              "citation_id": "00000000-0000-0000-0000-000000000032",
+              "ttl_ms": 800,
+              "persistent": false
+            }
+          }
+        },
+        "content": ""
+      },
+      {
+        "type": "tool_result",
+        "protocol_version": "2.0",
+        "turn_id": "turn_1791442800000_0000000001",
+        "seq": 8,
+        "timestamp": 1791442800.0,
+        "metadata": {
+          "mnemosyne": {
+            "contract_version": "0.1.0",
+            "event_id": "turn_1791442800000_0000000001:8",
+            "turn_id": "turn_1791442800000_0000000001",
+            "seq": 8,
+            "created_at": "2026-10-08T07:00:00Z",
+            "type": "reader.annotate",
+            "payload": {
+              "annotation": {
+                "annotation_id": "00000000-0000-0000-0000-00000000000a",
+                "document_id": "00000000-0000-0000-0000-000000000001",
+                "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
+                "page_index": 1,
+                "kind": "highlight",
+                "payload": {
+                  "anchor": {
+                    "document_id": "00000000-0000-0000-0000-000000000001",
+                    "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
+                    "page_index": 1,
+                    "parse_revision": "pymupdf-1.28.2-nfc-1",
+                    "text_sha256": "47dc1aed27fbabb5785b499cdc0f86c8a9e5385d6f9907739bd8a74694d2be89",
+                    "start_scalar": 0,
+                    "end_scalar": 31,
+                    "quote": "커패시터는 에너지를 저장한다. E = 1/2 C V^2.",
+                    "rects": [
+                      [
+                        40.595999,
+                        100.0,
+                        25.326002,
+                        303.981995
+                      ]
+                    ]
+                  },
+                  "color": "#FFE08280"
+                }
+              },
+              "citation_id": "00000000-0000-0000-0000-000000000032",
+              "requires_confirmation": true,
+              "suggested_mutation_id": "00000000-0000-0000-0000-00000000006b"
+            }
+          }
+        },
+        "content": ""
+      },
+      {
+        "type": "tool_result",
+        "protocol_version": "2.0",
+        "turn_id": "turn_1791442800000_0000000001",
+        "seq": 9,
+        "timestamp": 1791442800.0,
+        "metadata": {
+          "mnemosyne": {
+            "contract_version": "0.1.0",
+            "event_id": "turn_1791442800000_0000000001:9",
+            "turn_id": "turn_1791442800000_0000000001",
+            "seq": 9,
+            "created_at": "2026-10-08T07:00:00Z",
+            "type": "quiz.show",
+            "payload": {
+              "quiz_id": "00000000-0000-0000-0000-000000000028"
+            }
+          }
+        },
+        "content": ""
+      },
+      {
+        "type": "tool_result",
+        "protocol_version": "2.0",
+        "turn_id": "turn_1791442800000_0000000001",
+        "seq": 10,
+        "timestamp": 1791442800.0,
+        "metadata": {
+          "mnemosyne": {
+            "contract_version": "0.1.0",
+            "event_id": "turn_1791442800000_0000000001:10",
+            "turn_id": "turn_1791442800000_0000000001",
+            "seq": 10,
+            "created_at": "2026-10-08T07:00:00Z",
+            "type": "question.show",
+            "payload": {
+              "quiz_id": "00000000-0000-0000-0000-000000000028",
+              "question_id": "00000000-0000-0000-0000-000000000029"
+            }
+          }
+        },
+        "content": ""
+      },
+      {
+        "type": "tool_result",
+        "protocol_version": "2.0",
+        "turn_id": "turn_1791442800000_0000000001",
+        "seq": 11,
+        "timestamp": 1791442800.0,
+        "metadata": {
+          "mnemosyne": {
+            "contract_version": "0.1.0",
+            "event_id": "turn_1791442800000_0000000001:11",
+            "turn_id": "turn_1791442800000_0000000001",
+            "seq": 11,
+            "created_at": "2026-10-08T07:00:00Z",
+            "type": "learning.updated",
+            "payload": {
+              "document_id": "00000000-0000-0000-0000-000000000001",
+              "learning_revision": 2
+            }
+          }
+        },
+        "content": ""
+      },
+      {
+        "type": "done",
+        "protocol_version": "2.0",
+        "turn_id": "turn_1791442800000_0000000001",
+        "seq": 12,
+        "timestamp": 1791442800.0,
+        "metadata": {
+          "mnemosyne": {
+            "contract_version": "0.1.0",
+            "event_id": "turn_1791442800000_0000000001:12",
+            "turn_id": "turn_1791442800000_0000000001",
+            "seq": 12,
+            "created_at": "2026-10-08T07:00:00Z",
+            "type": "turn.done",
+            "payload": {
+              "summary_ko": "문서 근거와 퀴즈를 저장했습니다.",
+              "learning_revision": 2
+            }
+          },
+          "status": "completed"
+        },
+        "content": ""
+      }
+    ],
+    "cancelled_events": [
+      {
+        "type": "tool_result",
+        "protocol_version": "2.0",
+        "turn_id": "turn_1791442800000_0000000002",
+        "seq": 1,
+        "timestamp": 1791442800.0,
+        "metadata": {
+          "mnemosyne": {
+            "contract_version": "0.1.0",
+            "event_id": "turn_1791442800000_0000000002:1",
+            "turn_id": "turn_1791442800000_0000000002",
+            "seq": 1,
+            "created_at": "2026-10-08T07:00:00Z",
+            "type": "turn.started",
+            "payload": {
+              "capability": "reading",
+              "response_language": "ko"
+            }
+          }
+        },
+        "content": ""
+      },
+      {
+        "type": "progress",
+        "protocol_version": "2.0",
+        "turn_id": "turn_1791442800000_0000000002",
+        "seq": 2,
+        "timestamp": 1791442800.0,
+        "metadata": {
+          "progress": 0.1
+        }
+      },
+      {
+        "type": "done",
+        "protocol_version": "2.0",
+        "turn_id": "turn_1791442800000_0000000002",
+        "seq": 3,
+        "timestamp": 1791442800.0,
+        "metadata": {
+          "mnemosyne": {
+            "contract_version": "0.1.0",
+            "event_id": "turn_1791442800000_0000000002:3",
+            "turn_id": "turn_1791442800000_0000000002",
+            "seq": 3,
+            "created_at": "2026-10-08T07:00:00Z",
+            "type": "turn.cancelled",
+            "payload": {
+              "reason": "user_cancelled"
+            }
+          },
+          "status": "cancelled"
+        },
+        "content": ""
+      }
+    ],
+    "error_events": [
+      {
+        "type": "tool_result",
+        "protocol_version": "2.0",
+        "turn_id": "turn_1791442800000_0000000003",
+        "seq": 1,
+        "timestamp": 1791442800.0,
+        "metadata": {
+          "mnemosyne": {
+            "contract_version": "0.1.0",
+            "event_id": "turn_1791442800000_0000000003:1",
+            "turn_id": "turn_1791442800000_0000000003",
+            "seq": 1,
+            "created_at": "2026-10-08T07:00:00Z",
+            "type": "turn.started",
+            "payload": {
+              "capability": "reading",
+              "response_language": "ko"
+            }
+          }
+        },
+        "content": ""
+      },
+      {
+        "type": "progress",
+        "protocol_version": "2.0",
+        "turn_id": "turn_1791442800000_0000000003",
+        "seq": 2,
+        "timestamp": 1791442800.0,
+        "metadata": {
+          "progress": 0.1
+        }
+      },
+      {
+        "type": "done",
+        "protocol_version": "2.0",
+        "turn_id": "turn_1791442800000_0000000003",
+        "seq": 3,
+        "timestamp": 1791442800.0,
+        "metadata": {
+          "mnemosyne": {
+            "contract_version": "0.1.0",
+            "event_id": "turn_1791442800000_0000000003:3",
+            "turn_id": "turn_1791442800000_0000000003",
+            "seq": 3,
+            "created_at": "2026-10-08T07:00:00Z",
+            "type": "turn.error",
+            "payload": {
+              "error": {
+                "contract_version": "0.1.0",
+                "code": "provider_error",
+                "message_ko": "모델 응답을 완료하지 못했습니다.",
+                "request_id": "00000000-0000-0000-0000-00000000005a",
+                "retryable": true,
+                "details": {}
+              }
+            }
+          },
+          "status": "failed"
+        },
+        "content": ""
+      }
+    ],
+    "commands": [
+      {
+        "type": "start_turn",
+        "protocol_version": "2.0",
+        "content": "이 문서의 커패시터 식을 설명해 주세요.",
+        "capability": "immersive_reading",
+        "reply_language_override": "ko",
+        "language": "ko",
+        "reading_material_id": "fixture-material",
+        "reading_material_revision": 1,
+        "reading_viewport": {
+          "locator": 2
+        }
+      },
+      {
+        "type": "subscribe_turn",
+        "protocol_version": "2.0",
+        "turn_id": "turn_1791442800000_0000000001",
+        "after_seq": 6
+      },
+      {
+        "type": "resume_from",
+        "protocol_version": "2.0",
+        "turn_id": "turn_1791442800000_0000000001",
+        "seq": 6
+      },
+      {
+        "type": "cancel_turn",
+        "protocol_version": "2.0",
+        "turn_id": "turn_1791442800000_0000000001",
+        "command_id": "00000000-0000-0000-0000-000000000099"
+      },
+      {
+        "type": "ping",
+        "protocol_version": "2.0"
+      }
+    ]
+  },
+  "parser_provenance": {
+    "source": "deeptutor.reading.extract.extract_material + deeptutor.mnemosyne.library.extract_pdf_pages",
+    "pymupdf_version": "pymupdf-1.28.2-nfc-1",
+    "geometry_scope": "whole extracted blocks; partial spans require UNIT-01 extension"
   }
 }

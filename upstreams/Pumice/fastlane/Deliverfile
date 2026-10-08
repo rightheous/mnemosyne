@@ -1,0 +1,18 @@
+app_identifier ENV["PUMICE_BUNDLE_ID"] || "ca.polivoxia.Pumice"
+
+# Submission metadata sourced from fastlane/metadata/en-CA/*.txt
+# (App Store Connect record's primary locale is en-CA, not en-US).
+# Screenshots sourced from fastlane/screenshots/en-CA/*.png
+metadata_path "./fastlane/metadata"
+screenshots_path "./fastlane/screenshots"
+
+submit_for_review false
+automatic_release false
+force true
+overwrite_screenshots true
+
+# App review contact info is set once in the App Store Connect web UI
+# under App Information -> App Review Information. Fastlane 2.230 crashes
+# trying to create that record from scratch via the API, so the Fastfile
+# upload lane skips it. We keep this configuration block here for future
+# use if/when fastlane fixes the bug.

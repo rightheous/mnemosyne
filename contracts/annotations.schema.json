@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "annotations.schema.json",
-  "title": "Mnemosyne annotation and sync candidates",
-  "x-contract-version": "0.1.0-draft.1",
+  "title": "Mnemosyne annotation and sync",
+  "x-contract-version": "0.1.0",
   "$defs": {
     "HighlightPayload": {
       "type": "object",
@@ -584,7 +584,7 @@
       "type": "object",
       "properties": {
         "contract_version": {
-          "const": "0.1.0-draft.1"
+          "const": "0.1.0"
         },
         "document_id": {
           "type": "string",
@@ -665,7 +665,7 @@
       "type": "object",
       "properties": {
         "contract_version": {
-          "const": "0.1.0-draft.1"
+          "const": "0.1.0"
         },
         "document_id": {
           "type": "string",
@@ -696,7 +696,7 @@
       "type": "object",
       "properties": {
         "contract_version": {
-          "const": "0.1.0-draft.1"
+          "const": "0.1.0"
         },
         "document_id": {
           "type": "string",
@@ -736,7 +736,7 @@
       "type": "object",
       "properties": {
         "contract_version": {
-          "const": "0.1.0-draft.1"
+          "const": "0.1.0"
         },
         "document_id": {
           "type": "string",

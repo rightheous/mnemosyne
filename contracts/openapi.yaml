@@ -1,11 +1,11 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "Mnemosyne external API — unverified candidate",
-    "version": "0.1.0-draft.1",
-    "description": "Source audit pending. These routes are not observed upstream APIs. SSE is a candidate only."
+    "title": "Mnemosyne integration API",
+    "version": "0.1.0",
+    "description": "Source-backed extension specification. x-implementation distinguishes required planned APIs from observed DeepTutor routes. Native /ws protocol 2.0 is the only external Tutor stream."
   },
-  "x-contract-status": "draft-awaiting-upstream",
+  "x-contract-status": "source-backed-bootstrap",
   "servers": [
     {
       "url": "https://mnemosyne.invalid",
@@ -129,40 +129,29 @@
   "paths": {
     "/health": {
       "get": {
-        "operationId": "health",
-        "parameters": [],
+        "operationId": "nativeHealth",
+        "x-implementation": "observed-upstream",
+        "security": [],
         "responses": {
           "200": {
-            "description": "Success",
+            "description": "Native process liveness",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
                   "properties": {
                     "status": {
-                      "const": "ok"
+                      "const": "alive"
                     }
                   },
                   "required": [
                     "status"
-                  ],
-                  "additionalProperties": false
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "Typed error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "models.schema.json#/$defs/ErrorEnvelope"
+                  ]
                 }
               }
             }
           }
-        },
-        "security": []
+        }
       }
     },
     "/v1/readiness": {
@@ -174,7 +163,7 @@
             "in": "header",
             "required": true,
             "schema": {
-              "const": "0.1.0-draft.1"
+              "const": "0.1.0"
             }
           }
         ],
@@ -279,7 +268,8 @@
               }
             }
           }
-        }
+        },
+        "x-implementation": "planned-unit-extension"
       }
     },
     "/v1/session/pair": {
@@ -338,7 +328,8 @@
               }
             }
           }
-        }
+        },
+        "x-implementation": "planned-unit-extension"
       }
     },
     "/v1/session": {
@@ -350,7 +341,7 @@
             "in": "header",
             "required": true,
             "schema": {
-              "const": "0.1.0-draft.1"
+              "const": "0.1.0"
             }
           }
         ],
@@ -464,7 +455,8 @@
               }
             }
           }
-        }
+        },
+        "x-implementation": "planned-unit-extension"
       }
     },
     "/v1/subjects": {
@@ -476,7 +468,7 @@
             "in": "header",
             "required": true,
             "schema": {
-              "const": "0.1.0-draft.1"
+              "const": "0.1.0"
             }
           }
         ],
@@ -584,7 +576,8 @@
               }
             }
           }
-        }
+        },
+        "x-implementation": "planned-unit-extension"
       },
       "post": {
         "operationId": "createSubject",
@@ -594,7 +587,7 @@
             "in": "header",
             "required": true,
             "schema": {
-              "const": "0.1.0-draft.1"
+              "const": "0.1.0"
             }
           }
         ],
@@ -709,7 +702,8 @@
               }
             }
           }
-        }
+        },
+        "x-implementation": "planned-unit-extension"
       }
     },
     "/v1/subjects/{subject_id}": {
@@ -721,7 +715,7 @@
             "in": "header",
             "required": true,
             "schema": {
-              "const": "0.1.0-draft.1"
+              "const": "0.1.0"
             }
           },
           {
@@ -854,7 +848,8 @@
               }
             }
           }
-        }
+        },
+        "x-implementation": "planned-unit-extension"
       },
       "delete": {
         "operationId": "deleteSubject",
@@ -864,7 +859,7 @@
             "in": "header",
             "required": true,
             "schema": {
-              "const": "0.1.0-draft.1"
+              "const": "0.1.0"
             }
           },
           {
@@ -997,7 +992,8 @@
             }
           }
         },
-        "description": "Detach documents from subject; do not delete PDF originals."
+        "description": "Detach documents from subject; do not delete PDF originals.",
+        "x-implementation": "planned-unit-extension"
       }
     },
     "/v1/documents": {
@@ -1009,7 +1005,7 @@
             "in": "header",
             "required": true,
             "schema": {
-              "const": "0.1.0-draft.1"
+              "const": "0.1.0"
             }
           },
           {
@@ -1126,7 +1122,8 @@
               }
             }
           }
-        }
+        },
+        "x-implementation": "planned-unit-extension"
       },
       "post": {
         "operationId": "uploadDocument",
@@ -1136,7 +1133,7 @@
             "in": "header",
             "required": true,
             "schema": {
-              "const": "0.1.0-draft.1"
+              "const": "0.1.0"
             }
           }
         ],
@@ -1271,7 +1268,8 @@
               }
             }
           }
-        }
+        },
+        "x-implementation": "planned-unit-extension"
       }
     },
     "/v1/documents/{document_id}": {
@@ -1283,7 +1281,7 @@
             "in": "header",
             "required": true,
             "schema": {
-              "const": "0.1.0-draft.1"
+              "const": "0.1.0"
             }
           },
           {
@@ -1397,7 +1395,8 @@
               }
             }
           }
-        }
+        },
+        "x-implementation": "planned-unit-extension"
       },
       "patch": {
         "operationId": "updateDocumentMetadata",
@@ -1407,7 +1406,7 @@
             "in": "header",
             "required": true,
             "schema": {
-              "const": "0.1.0-draft.1"
+              "const": "0.1.0"
             }
           },
           {
@@ -1540,7 +1539,8 @@
               }
             }
           }
-        }
+        },
+        "x-implementation": "planned-unit-extension"
       },
       "delete": {
         "operationId": "deleteDocument",
@@ -1550,7 +1550,7 @@
             "in": "header",
             "required": true,
             "schema": {
-              "const": "0.1.0-draft.1"
+              "const": "0.1.0"
             }
           },
           {
@@ -1691,7 +1691,8 @@
               }
             }
           }
-        }
+        },
+        "x-implementation": "planned-unit-extension"
       }
     },
     "/v1/documents/{document_id}/file": {
@@ -1703,7 +1704,7 @@
             "in": "header",
             "required": true,
             "schema": {
-              "const": "0.1.0-draft.1"
+              "const": "0.1.0"
             }
           },
           {
@@ -1827,7 +1828,8 @@
               }
             }
           }
-        }
+        },
+        "x-implementation": "planned-unit-extension"
       }
     },
     "/v1/documents/{document_id}/pages/{page_index}": {
@@ -1839,7 +1841,7 @@
             "in": "header",
             "required": true,
             "schema": {
-              "const": "0.1.0-draft.1"
+              "const": "0.1.0"
             }
           },
           {
@@ -1981,7 +1983,8 @@
               }
             }
           }
-        }
+        },
+        "x-implementation": "planned-unit-extension"
       }
     },
     "/v1/documents/{document_id}/search": {
@@ -1993,7 +1996,7 @@
             "in": "header",
             "required": true,
             "schema": {
-              "const": "0.1.0-draft.1"
+              "const": "0.1.0"
             }
           },
           {
@@ -2141,7 +2144,8 @@
               }
             }
           }
-        }
+        },
+        "x-implementation": "planned-unit-extension"
       }
     },
     "/v1/citations/verify": {
@@ -2153,7 +2157,7 @@
             "in": "header",
             "required": true,
             "schema": {
-              "const": "0.1.0-draft.1"
+              "const": "0.1.0"
             }
           }
         ],
@@ -2268,7 +2272,8 @@
               }
             }
           }
-        }
+        },
+        "x-implementation": "planned-unit-extension"
       }
     },
     "/v1/documents/{document_id}/annotations/snapshot": {
@@ -2280,7 +2285,7 @@
             "in": "header",
             "required": true,
             "schema": {
-              "const": "0.1.0-draft.1"
+              "const": "0.1.0"
             }
           },
           {
@@ -2403,7 +2408,8 @@
               }
             }
           }
-        }
+        },
+        "x-implementation": "planned-unit-extension"
       }
     },
     "/v1/documents/{document_id}/annotations/changes": {
@@ -2415,7 +2421,7 @@
             "in": "header",
             "required": true,
             "schema": {
-              "const": "0.1.0-draft.1"
+              "const": "0.1.0"
             }
           },
           {
@@ -2557,7 +2563,8 @@
               }
             }
           }
-        }
+        },
+        "x-implementation": "planned-unit-extension"
       }
     },
     "/v1/documents/{document_id}/annotations/mutations": {
@@ -2569,7 +2576,7 @@
             "in": "header",
             "required": true,
             "schema": {
-              "const": "0.1.0-draft.1"
+              "const": "0.1.0"
             }
           },
           {
@@ -2694,134 +2701,8 @@
             }
           }
         },
-        "description": "Sequential independent mutations; per-item conflicts are returned in HTTP 200 receipt. Invalid envelope is HTTP 400."
-      }
-    },
-    "/v1/tutor/turns": {
-      "post": {
-        "operationId": "createTurn",
-        "parameters": [
-          {
-            "name": "X-Mnemosyne-Contract-Version",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "const": "0.1.0-draft.1"
-            }
-          }
-        ],
-        "responses": {
-          "201": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "models.schema.json#/$defs/TurnReceipt"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Typed error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "models.schema.json#/$defs/ErrorEnvelope"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Typed error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "models.schema.json#/$defs/ErrorEnvelope"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Typed error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "models.schema.json#/$defs/ErrorEnvelope"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Typed error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "models.schema.json#/$defs/ErrorEnvelope"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Typed error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "models.schema.json#/$defs/ErrorEnvelope"
-                }
-              }
-            }
-          },
-          "410": {
-            "description": "Typed error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "models.schema.json#/$defs/ErrorEnvelope"
-                }
-              }
-            }
-          },
-          "413": {
-            "description": "Typed error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "models.schema.json#/$defs/ErrorEnvelope"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Typed error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "models.schema.json#/$defs/ErrorEnvelope"
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "Typed error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "models.schema.json#/$defs/ErrorEnvelope"
-                }
-              }
-            }
-          }
-        },
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "models.schema.json#/$defs/TurnRequest"
-              }
-            }
-          }
-        }
+        "description": "Sequential independent mutations; per-item conflicts are returned in HTTP 200 receipt. Invalid envelope is HTTP 400.",
+        "x-implementation": "planned-unit-extension"
       }
     },
     "/v1/tutor/turns/{turn_id}": {
@@ -2833,7 +2714,7 @@
             "in": "header",
             "required": true,
             "schema": {
-              "const": "0.1.0-draft.1"
+              "const": "0.1.0"
             }
           },
           {
@@ -2842,272 +2723,10 @@
             "required": true,
             "schema": {
               "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "models.schema.json#/$defs/TurnReceipt"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Typed error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "models.schema.json#/$defs/ErrorEnvelope"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Typed error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "models.schema.json#/$defs/ErrorEnvelope"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Typed error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "models.schema.json#/$defs/ErrorEnvelope"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Typed error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "models.schema.json#/$defs/ErrorEnvelope"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Typed error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "models.schema.json#/$defs/ErrorEnvelope"
-                }
-              }
-            }
-          },
-          "410": {
-            "description": "Typed error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "models.schema.json#/$defs/ErrorEnvelope"
-                }
-              }
-            }
-          },
-          "413": {
-            "description": "Typed error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "models.schema.json#/$defs/ErrorEnvelope"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Typed error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "models.schema.json#/$defs/ErrorEnvelope"
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "Typed error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "models.schema.json#/$defs/ErrorEnvelope"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/v1/tutor/turns/{turn_id}/events": {
-      "get": {
-        "operationId": "resumeTurnEvents",
-        "parameters": [
-          {
-            "name": "X-Mnemosyne-Contract-Version",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "const": "0.1.0-draft.1"
-            }
-          },
-          {
-            "name": "turn_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          },
-          {
-            "name": "Last-Event-ID",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "pattern": "^[a-f0-9-]{36}:[1-9][0-9]*$"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "text/event-stream": {
-                "schema": {
-                  "type": "string",
-                  "description": "SSE frames: id = event_id, event = type, JSON data validates events.schema.json. Heartbeat comments have no sequence."
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Typed error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "models.schema.json#/$defs/ErrorEnvelope"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Typed error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "models.schema.json#/$defs/ErrorEnvelope"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Typed error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "models.schema.json#/$defs/ErrorEnvelope"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Typed error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "models.schema.json#/$defs/ErrorEnvelope"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Typed error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "models.schema.json#/$defs/ErrorEnvelope"
-                }
-              }
-            }
-          },
-          "410": {
-            "description": "Typed error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "models.schema.json#/$defs/ErrorEnvelope"
-                }
-              }
-            }
-          },
-          "413": {
-            "description": "Typed error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "models.schema.json#/$defs/ErrorEnvelope"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Typed error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "models.schema.json#/$defs/ErrorEnvelope"
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "Typed error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "models.schema.json#/$defs/ErrorEnvelope"
-                }
-              }
-            }
-          }
-        },
-        "x-event-schema": "events.schema.json",
-        "x-transport-status": "candidate-awaiting-upstream",
-        "description": "Only candidate external streaming route. No WebSocket route. Resume errors precede stream; midstream failures emit turn.error."
-      }
-    },
-    "/v1/tutor/turns/{turn_id}/cancel": {
-      "post": {
-        "operationId": "cancelTurn",
-        "parameters": [
-          {
-            "name": "X-Mnemosyne-Contract-Version",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "const": "0.1.0-draft.1"
-            }
-          },
-          {
-            "name": "turn_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
+              "minLength": 1,
+              "maxLength": 256,
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "description": "Opaque native DeepTutor turn ID, e.g. turn_<milliseconds>_<hex>; do not parse as UUID."
             }
           }
         ],
@@ -3213,26 +2832,7 @@
             }
           }
         },
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "client_mutation_id": {
-                    "type": "string",
-                    "format": "uuid"
-                  }
-                },
-                "required": [
-                  "client_mutation_id"
-                ],
-                "additionalProperties": false
-              }
-            }
-          }
-        }
+        "x-implementation": "planned-unit-extension"
       }
     },
     "/v1/quizzes/{quiz_id}": {
@@ -3244,7 +2844,7 @@
             "in": "header",
             "required": true,
             "schema": {
-              "const": "0.1.0-draft.1"
+              "const": "0.1.0"
             }
           },
           {
@@ -3358,7 +2958,8 @@
               }
             }
           }
-        }
+        },
+        "x-implementation": "planned-unit-extension"
       }
     },
     "/v1/quizzes/{quiz_id}/attempts": {
@@ -3370,7 +2971,7 @@
             "in": "header",
             "required": true,
             "schema": {
-              "const": "0.1.0-draft.1"
+              "const": "0.1.0"
             }
           },
           {
@@ -3494,7 +3095,8 @@
               }
             }
           }
-        }
+        },
+        "x-implementation": "planned-unit-extension"
       }
     },
     "/v1/documents/{document_id}/learning": {
@@ -3506,7 +3108,7 @@
             "in": "header",
             "required": true,
             "schema": {
-              "const": "0.1.0-draft.1"
+              "const": "0.1.0"
             }
           },
           {
@@ -3629,7 +3231,8 @@
               }
             }
           }
-        }
+        },
+        "x-implementation": "planned-unit-extension"
       }
     },
     "/v1/memory/{memory_id}/reviews": {
@@ -3641,7 +3244,7 @@
             "in": "header",
             "required": true,
             "schema": {
-              "const": "0.1.0-draft.1"
+              "const": "0.1.0"
             }
           },
           {
@@ -3765,7 +3368,8 @@
               }
             }
           }
-        }
+        },
+        "x-implementation": "planned-unit-extension"
       }
     },
     "/v1/settings": {
@@ -3777,7 +3381,7 @@
             "in": "header",
             "required": true,
             "schema": {
-              "const": "0.1.0-draft.1"
+              "const": "0.1.0"
             }
           }
         ],
@@ -3882,7 +3486,8 @@
               }
             }
           }
-        }
+        },
+        "x-implementation": "planned-unit-extension"
       },
       "put": {
         "operationId": "updateSettings",
@@ -3892,7 +3497,7 @@
             "in": "header",
             "required": true,
             "schema": {
-              "const": "0.1.0-draft.1"
+              "const": "0.1.0"
             }
           },
           {
@@ -4024,7 +3629,8 @@
               }
             }
           }
-        }
+        },
+        "x-implementation": "planned-unit-extension"
       }
     },
     "/v1/documents/{document_id}/exports": {
@@ -4036,7 +3642,7 @@
             "in": "header",
             "required": true,
             "schema": {
-              "const": "0.1.0-draft.1"
+              "const": "0.1.0"
             }
           },
           {
@@ -4160,7 +3766,8 @@
               }
             }
           }
-        }
+        },
+        "x-implementation": "planned-unit-extension"
       }
     },
     "/v1/exports/{export_id}/file": {
@@ -4172,7 +3779,7 @@
             "in": "header",
             "required": true,
             "schema": {
-              "const": "0.1.0-draft.1"
+              "const": "0.1.0"
             }
           },
           {
@@ -4287,8 +3894,33 @@
               }
             }
           }
+        },
+        "x-implementation": "planned-unit-extension"
+      }
+    },
+    "/ready": {
+      "get": {
+        "operationId": "nativeReady",
+        "x-implementation": "observed-upstream",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Native coordination readiness, not Mnemosyne product readiness"
+          },
+          "503": {
+            "description": "Native coordinator unavailable"
+          }
         }
       }
     }
+  },
+  "x-websocket": {
+    "path": "/ws",
+    "protocol_version": "2.0",
+    "native_schema": "native-turn.schema.json",
+    "semantic_schema": "events.schema.json",
+    "extension_location": "StreamEvent.metadata.mnemosyne",
+    "sequence": "native durable StreamEvent.seq; all frames checkpointed, semantic subset may have gaps",
+    "auth": "Personal profile must reject query credentials; browser same-origin protected cookie and native Authorization header are UNIT-02 requirements, not current upstream behavior."
   }
 }

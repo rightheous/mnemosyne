@@ -1,0 +1,16 @@
+# iPad Pro 13-inch (M5) — 2064x2752 — App Store screenshots target.
+devices(["iPad Pro 13-inch (M5)"])
+
+languages(["en-CA"])
+
+scheme("PumiceUITests")
+
+output_directory("./fastlane/screenshots")
+clear_previous_screenshots(true)
+override_status_bar(true)
+
+# The UI test runs all six states; one test invocation per device.
+concurrent_simulators(false)
+
+# Wait for the first frame of the app rather than using a fixed delay.
+launch_arguments(["-PumiceUITests YES", "-AppleLanguages (en-US)", "-AppleLocale en_US"])

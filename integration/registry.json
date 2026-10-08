@@ -1,22 +1,92 @@
 {
-  "contract_version": "0.1.0-draft.1",
-  "status": "awaiting_upstream_sources",
-  "ready_for_parallel_implementation": false,
-  "external_transport": null,
-  "candidate_transport": "sse",
+  "contract_version": "0.1.0",
+  "status": "source_backed_bootstrap",
+  "ready_for_parallel_implementation": true,
+  "product_ready": false,
+  "cloud_repository_access": "local_only_no_origin",
+  "external_transport": "websocket",
+  "wire_protocol_version": "2.0",
+  "contract_manifest_sha256": "18cb8893160a1c9069a27ceb340dd3fa377d4d26063ace21489deeef1d0ed5be",
+  "contract_copies": [
+    "upstreams/Pumice/MnemosyneContracts",
+    "upstreams/DeepTutor/MnemosyneContracts"
+  ],
   "upstreams": {
-    "pumice": {"url": null, "local_path": null, "commit": null, "license": null, "build_command": null, "test_command": null},
-    "deeptutor": {"url": null, "local_path": null, "commit": null, "license": null, "build_command": null, "test_command": null, "observed_transport": null}
+    "pumice": {
+      "url": "https://github.com/theagitist/Pumice",
+      "ref": "main",
+      "commit": "a688aae2e6bce069ee256063c2a53afdcfe7de21",
+      "license": "MIT",
+      "file_count": 144,
+      "local_path": "upstreams/Pumice",
+      "build_command": "xcodegen generate && xcodebuild -project Pumice.xcodeproj -scheme Pumice -destination \"generic/platform=iOS Simulator\" CODE_SIGNING_ALLOWED=NO build",
+      "test_command": "swift test --package-path Packages/PumiceCore"
+    },
+    "deeptutor": {
+      "url": "https://github.com/HKUDS/DeepTutor",
+      "ref": "main",
+      "commit": "6cf793bd868ba5ecbe64722936d4be8fab5a01df",
+      "license": "Apache-2.0",
+      "file_count": 3763,
+      "local_path": "upstreams/DeepTutor",
+      "build_command": "python -m pip install -e \".[dev]\"; cd web && npm ci && npm run build",
+      "test_command": "python -m pytest tests deeptutor/learning/tests",
+      "observed_transport": "/ws protocol 2.0 websocket"
+    }
   },
   "units": {
-    "UNIT-01": {"source_paths": [], "registration_symbol": null, "candidate": "register_library"},
-    "UNIT-02": {"source_paths": [], "registration_symbol": null, "candidate": "register_tutor"},
-    "UNIT-03": {"source_paths": [], "registration_symbol": null, "candidate": "make_reader_facade"},
-    "UNIT-04": {"source_paths": [], "registration_symbol": null, "candidate": "make_ipad_app"},
-    "UNIT-05": {"source_paths": [], "registration_symbol": null, "candidate": "mount_mnemosyne_web"},
-    "UNIT-06": {"source_paths": [], "registration_symbol": null, "candidate": "run_integration_checks"}
+    "UNIT-01": {
+      "source_paths": [
+        "upstreams/DeepTutor/deeptutor/mnemosyne/library.py"
+      ],
+      "registration_path": "upstreams/DeepTutor/deeptutor/mnemosyne/library.py",
+      "registration_symbol": "register_library",
+      "owned_file_count": 329
+    },
+    "UNIT-02": {
+      "source_paths": [
+        "upstreams/DeepTutor/deeptutor/mnemosyne/tutor.py"
+      ],
+      "registration_path": "upstreams/DeepTutor/deeptutor/mnemosyne/tutor.py",
+      "registration_symbol": "register_tutor",
+      "owned_file_count": 1738
+    },
+    "UNIT-03": {
+      "source_paths": [
+        "upstreams/Pumice/Packages/PumiceCore/Sources/PumiceCore/Mnemosyne/ReaderFacade.swift"
+      ],
+      "registration_path": "upstreams/Pumice/Packages/PumiceCore/Sources/PumiceCore/Mnemosyne/ReaderFacade.swift",
+      "registration_symbol": "makeReaderFacade",
+      "owned_file_count": 42
+    },
+    "UNIT-04": {
+      "source_paths": [
+        "upstreams/Pumice/App/MnemosyneAppDependencies.swift"
+      ],
+      "registration_path": "upstreams/Pumice/App/MnemosyneAppDependencies.swift",
+      "registration_symbol": "makeIPadApp",
+      "owned_file_count": 82
+    },
+    "UNIT-05": {
+      "source_paths": [
+        "upstreams/DeepTutor/web/features/mnemosyne/register.ts"
+      ],
+      "registration_path": "upstreams/DeepTutor/web/features/mnemosyne/register.ts",
+      "registration_symbol": "mountMnemosyneWeb",
+      "owned_file_count": 1407
+    },
+    "UNIT-06": {
+      "source_paths": [
+        "checks/source_adapters.py"
+      ],
+      "registration_path": "checks/source_adapters.py",
+      "registration_symbol": "run_integration_checks",
+      "owned_file_count": 77
+    }
   },
-  "assembly_path": null,
-  "assembly_symbol": null,
-  "source_gate_notes": "No upstream source was supplied. Candidate interfaces are not observed implementation symbols."
+  "assembly_path": "upstreams/DeepTutor/deeptutor/api/main.py",
+  "assembly_symbol": "lifespan",
+  "composition_path": "upstreams/DeepTutor/deeptutor/mnemosyne/bootstrap.py",
+  "composition_symbol": "register_mnemosyne",
+  "source_gate_notes": "Readiness is for source-based local bootstrap, not product completion or GitHub/Cloud publication."
 }

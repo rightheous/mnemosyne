@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "models.schema.json",
-  "title": "Mnemosyne shared DTO candidates",
-  "x-contract-version": "0.1.0-draft.1",
+  "title": "Mnemosyne shared integration DTOs",
+  "x-contract-version": "0.1.0",
   "$defs": {
     "Point": {
       "type": "array",
@@ -550,7 +550,7 @@
       "type": "object",
       "properties": {
         "contract_version": {
-          "const": "0.1.0-draft.1"
+          "const": "0.1.0"
         },
         "code": {
           "type": "string",
@@ -615,7 +615,7 @@
       "type": "object",
       "properties": {
         "contract_version": {
-          "const": "0.1.0-draft.1"
+          "const": "0.1.0"
         },
         "status": {
           "type": "string",
@@ -764,7 +764,10 @@
       "properties": {
         "turn_id": {
           "type": "string",
-          "format": "uuid"
+          "minLength": 1,
+          "maxLength": 256,
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "description": "Opaque native DeepTutor turn ID, e.g. turn_<milliseconds>_<hex>; do not parse as UUID."
         },
         "state": {
           "type": "string",
@@ -776,8 +779,7 @@
           ]
         },
         "event_path": {
-          "type": "string",
-          "pattern": "^/v1/tutor/turns/[a-f0-9-]+/events$"
+          "const": "/ws"
         },
         "response_language": {
           "type": "string",
@@ -1214,7 +1216,10 @@
                 "anyOf": [
                   {
                     "type": "string",
-                    "format": "uuid"
+                    "minLength": 1,
+                    "maxLength": 256,
+                    "pattern": "^[A-Za-z0-9_-]+$",
+                    "description": "Opaque native DeepTutor turn ID, e.g. turn_<milliseconds>_<hex>; do not parse as UUID."
                   },
                   {
                     "type": "null"

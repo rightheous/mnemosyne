@@ -1,42 +1,42 @@
-# Upstream 감사
+# Upstream 소스 감사
 
-2026-10-08 (Asia/Seoul). **실제 Pumice/DeepTutor 소스 미확인.**
+2026-10-08 · 사용자가 지정한 정확한 두 URL의 main을 읽고 아래 SHA에 고정했다. `upstreams/`는 Git archive로 가져온 **원래 tracked 파일 snapshot**이다. 각 내부 경로·언어·프레임워크·라이선스를 보존했고 embedded `.git`, 로컬 사용자 데이터, 자격증명은 가져오지 않았다. Git subtree history라는 주장은 아니다. 독립 GitHub 저장소를 재배치한 것이 아니라 빈 준비 저장소에 두 원래 트리를 그대로 담아 Cloud 작업이 같은 commit에서 출발할 수 있게 했다.
 
-## 확인한 환경
+| 소스 | 지정 URL / ref | 고정 commit | 라이선스 / 기존 지침 |
+|---|---|---|---|
+| Pumice | https://github.com/theagitist/Pumice · main | `a688aae2e6bce069ee256063c2a53afdcfe7de21` | MIT, LICENSE 보존. CLAUDE.md: iPadOS 전용, Swift 6, XcodeGen, 서명값 제외, Conventional Commits. 원래 private PRD는 접근 불가하며 복제하지 않음. 이번 사용자 명세를 적용. |
+| DeepTutor | https://github.com/HKUDS/DeepTutor · main | `6cf793bd868ba5ecbe64722936d4be8fab5a01df` | Apache-2.0, LICENSE와 THIRD_PARTY_NOTICES.md 및 원래 third-party 라이선스 보존. 기존 AGENTS.md 읽음. |
 
-- 현재 경로: `/Users/honghyeonseo/Documents/ChatGPT/므네모시네`.
-- 초기 상태: `.git/`만 있음. 파일·커밋·remote 없음. 브랜치 `master`는 unborn 상태였음.
-- 이 경로와 상위 디렉터리에 적용되는 기존 `AGENTS.md` 없음.
-- 연결된 Codex 프로젝트 목록에는 이 빈 저장소와 비개발 공부 폴더만 있음. Pumice/DeepTutor 소스 프로젝트나 첨부 worktree 없음.
-- 사용자에게 정확한 두 저장소 URL/로컬 경로와 기준 ref를 요청함. 동명 프로젝트를 웹에서 선택하거나 clone하지 않음.
+`integration/upstreams.json`은 모든 원래 파일의 Git blob ID와 SHA-256, 변경 예외를 기록한다. 원래 파일 수정은 DeepTutor `deeptutor/api/main.py`에 공통 등록 호출 4줄 추가한 한 건이다. 신규 adapter와 계약 복사본은 별도로 표시한다. 제품 기능 구현 완료를 뜻하지 않는다.
 
-## 필수 증거 표
+## Pumice: 관찰한 실제 구현
 
-| 항목 | Pumice | DeepTutor |
+| 실제 경로 / 심볼 | 재사용 | Mnemosyne 필수 변경 / 담당 |
 |---|---|---|
-| 지정 URL/경로 | 제공 대기 | 제공 대기 |
-| remote 및 branch | 미확인 | 미확인 |
-| 기준 commit SHA | 미확인 | 미확인 |
-| LICENSE/SPDX, NOTICE/재배포 조건 | 미확인 | 미확인 |
-| 기존 AGENTS/개발 지침 | 미확인 | 미확인 |
-| 실제 build/test 명령과 실행 결과 | 미확인 | 미확인 |
-| 실제 파일/등록 지점 | 미확인 | 미확인 |
-| API/기존 streaming transport | 해당 연결 미확인 | 미확인 |
-| 저장 구조/migration | Reader 로컬 구조 미확인 | DB·원본·파싱·임베딩 구조 미확인 |
+| Sources/Reader/PDFReaderViewController.swift, PDFReaderView.swift, PDFReaderController.swift | UIKit/PDFKit PDF, 선택, page 이동과 0 기반 restorePageIndex, Pencil 펜·형광펜·전체 획 지우개·undo/redo, custom canvas/ink rendering | 03: facade 연결, 텍스트 검색/목차·노트·학습 북마크, 회전/CropBox 좌표. PDFKit 기능이 있다는 것과 앱 UI가 구현됐다는 것은 구별. |
+| PDFReaderViewController.saveIfNeeded | Ink를 PDFAnnotation으로 만들고 NSFileCoordinator/document.write로 **입력 PDF를 덮어씀**, 2초 debounce | 03: 원본 쓰기를 제거하고 sidecar+outbox transaction으로 전환. export만 파생 PDF. 현재 앱을 Mnemosyne 불변 원본/오프라인 요구 충족으로 보고하면 안 됨. |
+| Packages/PumiceCore/Sources/PumiceCore/Coordinates/PageGeometry.swift | Canvas↔MediaBox 변환, physical stroke/HighlightSerialization | 회전/CropBox 계약은 신규 MnemosyneGeometry가 검사되었지만 기존 Reader에는 아직 연결 전. PDFKit 좌표 변환을 두 번 적용하지 말 것. |
+| Sources/Browser/VaultBrowserView.swift, Sources/Vault/VaultStore.swift | 기존 vault 탐색, security bookmark, 읽던 위치 | 04: 과목/Library/Tutor/다운로드·동기화 UI. 파일 bookmark는 학습 bookmark가 아님. |
+| App/PumiceApp.swift, App/LaunchView.swift, project.yml, Config/ | SwiftUI 진입점, iPadOS 18+, Swift 6, XcodeGen | 04: 전용 한국어 화면과 dependency injection. iOS-only와 Catalyst NO 유지. |
 
-## 재사용·수정 후보 (소스 증거가 없는 요구사항 매핑)
+확인 명령: `xcodegen generate`; `xcodebuild -project Pumice.xcodeproj -scheme Pumice -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build`; `swift test --package-path Packages/PumiceCore`. 이 Mac은 full Xcode/XcodeGen이 없어 iPad 제품 빌드 미실행. Swift Core module은 컴파일됐으나 공식 테스트는 CLT의 `Testing` 모듈 부재로 컴파일 실패했다. 캐시를 임시 경로에 둔 별도 Swift fixture/실제 신규 geometry probe와 제품 빌드를 혼동하지 않는다. 결과는 VALIDATION 참조.
 
-Pumice에서 Reader/PDF 선택·검색·목차·읽기 위치/Pencil 코드의 재사용 가능성을 확인해야 한다. `ReaderFacade`는 새 경계 이름이며 upstream 클래스 이름이 아니다. 실제 관련 경로는 비워 두었다. 앱 화면과 Xcode 설정은 UNIT-04, PDF/Pencil 내부는 UNIT-03으로 나누되 실제 파일별 충돌을 감사해야 한다.
+## DeepTutor: 관찰한 실제 구현
 
-DeepTutor에서 파싱/RAG/문서 근거/각 학습 capability/모델 adapter/streaming/학습 상태 저장을 조사해야 한다. 아래 계약의 경로는 새 외부 후보 API이며 기존 API 이름이라는 주장이 아니다. 불필요한 서비스의 경량화가 필수 학습 capability를 제거해서는 안 된다. 웹 UI 재설계 범위와 서버 assembly/manifest의 실제 소유 경로는 미확정이다.
+| 실제 경로 / 심볼 | 재사용 / 의미 | 필요한 연결 / 담당 |
+|---|---|---|
+| deeptutor/api/main.py · lifespan; app/container.py · ApplicationContainer | FastAPI, 한 process-level container; `.turns`가 API/WS 공통 runtime | 통합 담당만 register_mnemosyne를 호출. 유닛은 main/container를 함께 편집하지 않음. |
+| api/routers/unified_ws.py · `/ws`; api/contracts/turn_protocol.py | 외부 WebSocket protocol 2.0. start_turn/subscribe_turn(after_seq)/resume_from(seq)/cancel_turn(command_id). native opaque turn_... ID, StreamEvent.seq와 persisted replay | **외부 WebSocket 하나 확정**. 기존 로그에 metadata.mnemosyne 확장을 저장하고 원래 seq를 유지. 새 SSE 경로 없음. |
+| services/session/sqlite_store.py, session/turns/, session/legacy_migration.py | 기본 SQLite chat_history.db, 선택 PocketBase, turn event/command persistence | 모든 DB/migration은 01. 실행 서비스는 02. 세부 파일 소유 manifest를 따름. |
+| reading/store.py · ReadingStore; reading/extract.py · extract_material | 원본 raw/units/media/render/revisions + manifest/annotations JSON. PDF 물리 순서 보존, locator **1 기반**, SHA-256 **16글자 content key** | 01: 외부 UUID document↔material 매핑 DB, full 원본 SHA version, immutable parser revision, sidecar revision/tombstone/cursor/멱등 transaction. 기존 annotation hard delete/JSON rewrite가 새 sync 계약 구현은 아님. |
+| reading/service.py · verify_quote; reading/references.py | 실제 문서 text quote grounding, revision-bound references 재검증 | 01: 엄격한 offset/hash/geometry 검증 추가. native moved quote도 올바른 page로 명시 교정해야 함. 새 adapter는 fixture의 전체 block만 검증, 부분 span/OCR은 필수 구현 범위. |
+| reading/models.py · Rect; web/components/reading/PdfDocumentView.tsx | top-left 0..1 rect; 실제 PDF rendered page bounds의 selection | 01/05: raw PDF CropBox/Rotate canonical 좌표로 변환. 새 adapter와 실제 parser fixture에서 왕복 검증. |
+| services/parsing/, services/rag/, knowledge/ | 기존 parser IR/assets/cache와 RAG/search pipeline | 01: 그대로 연결. 모든 parser가 page geometry를 준다고 가정하지 않음. LLM/vector 품질·무거운 parser 설치는 미검증. |
+| runtime/bootstrap/builtin_capabilities.py | chat, immersive_reading, deep_question, mastery_path, deep_solve가 실제 built-in 이름 | 02: 외부 chat/reading/quiz/mastery/solve adapter. assessment/memory/progress/review는 services와 persisted 상태이며 가상 built-in 이름으로 등록하지 않음. 전부 이번 범위. |
+| learning/, services/practice/, api/routers/memory.py, learning_journal.py | 기존 mastery/문제·답안/복습/학습 기록 자원 | 02 서비스; learning/storage.py·migration.py·practice/storage.py 등 DB는 01. ko prompt/통합 학습 state 계약은 추가해야 함. |
+| core/turn_request.py, core/response_languages.py | reply_language_override=ko 지원, language 별도 | 02: 문서 언어와 응답 언어를 분리. quote/math/code 보존. |
+| services/llm/, data/user/settings runtime profile | 기존 provider/client adapter와 OpenAI-compatible 설정 | 02 runtime, 06 환경. 서버 자격증명만; 실제 LLM 호출 미검증. |
+| api/routers/auth.py · ws_require_auth | auth 기본 disabled; WS는 현재 query token 또는 cookie, signup/admin 기능 포함 | 02: 개인 프로필에서 auth 강제, 공개 가입/다중 사용자 흐름 제외, native Bearer header·웹 보호 cookie+Origin, query secret 금지, 안전한 오류. 현재 상태는 안전한 배포 완료가 아님. |
+| web/ · React 19, Next 16.2.3, PDF.js; Dockerfile · Node 22/Python 3.11 | 기존 웹·renderer·contract codegen·Docker 배치 | 05 한국어 UI와 전체 학습화면; 06 WSL2/개인 서버 배치·백업/복구. Rust는 일부 Python dependency 빌드 도구일 뿐 제품 재작성 없음. |
 
-## 연결 후 감사 절차
-
-1. 지정 URL/경로의 remote/ref/SHA와 dirty 상태를 기록한다. 사용자 변경을 보존한다.
-2. AGENTS와 license/NOTICE, manifest/lockfile, README/CI에서 build/test 명령을 읽고 정확한 출처 경로를 기록한다.
-3. Reader geometry/storage/undo, backend ingest/search/citation/runtime/streaming/database, web root를 실제 코드까지 추적한다. 관찰한 심볼·파일·행 번호를 표에 추가한다.
-4. 사용 가능한 도구에서 build/test를 실행한다. 기기·WSL2·외부 LLM 부재는 미검증으로 남긴다.
-5. 기존 streaming을 기준으로 외부 transport 하나를 선택한다. 후보 SSE와 upstream streaming adapter의 동작을 검증한다. 외부 SSE/WebSocket을 동시에 만들지 않는다.
-6. 실제 경로를 `OWNERSHIP.md`와 `integration/registry.json`에 채우고 계약을 조정한다. 모든 필수 capability와 offline 저장소를 연결하는 최소 골격만 추가한다.
-
-두 저장소라면 원래 레이아웃을 유지한다. 준비 저장소의 계약 묶음을 immutable tag/SHA+SHA-256 manifest로 각 소비 저장소에 배포하고 동일 digest를 CI에서 확인한다. 단일 저장소로 이미 제공된 경우 그 레이아웃의 `docs/`·`contracts/`를 사용한다. 현재 빈 폴더를 이유로 실제 upstream을 강제로 통합/재배치하지 않는다.
+실제 manifest/lockfile/CI 명령: Python `pip install -e '.[dev]'`, `pytest`; web `npm ci`, `npm run contracts:check`, `npm run typecheck`, `npm run build`; Docker `python scripts/docker_compose.py config`, `docker build -t deeptutor:local .`. 실행한 subset과 실패는 VALIDATION에 기록. Windows WSL2/Pencil 실기기/실제 provider 호출/전체 product 빌드 성공은 주장하지 않는다.

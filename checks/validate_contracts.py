@@ -5,6 +5,7 @@ import copy
 import hashlib
 import json
 import math
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -19,7 +20,7 @@ except ImportError:
 
 ROOT = Path(__file__).resolve().parents[1]
 C = ROOT / 'contracts'
-V = '0.1.0-draft.1'
+V = '0.1.0'
 COUNTS = {'schema_instances': 0, 'negative_cases': 0, 'sync_steps': 0}
 
 def read(path):
@@ -149,10 +150,13 @@ def events_ok(events):
     terminal = False
     citations = {}
     turn_id = events[0]['turn_id']
-    for seq, event in enumerate(events, 1):
+    previous_seq = 0
+    for event in events:
+        seq = event['seq']
         validate('events.schema.json', event)
         ensure(not terminal, 'Event after terminal')
-        ensure(event['turn_id'] == turn_id and event['seq'] == seq, 'Event gap/wrong turn')
+        ensure(event['turn_id'] == turn_id and seq > previous_seq, 'Event order/wrong turn')
+        previous_seq = seq
         ensure(event['event_id'] == f'{turn_id}:{seq}', 'Event ID mismatch')
         kind, payload = event['type'], event['payload']
         if kind == 'citation.verified':
@@ -213,22 +217,25 @@ class SyncReference:
         self.receipts[mid] = (copy.deepcopy(mutation), copy.deepcopy(result))
         return result
 
-def parse_sse(text):
-    result = []
-    fields = {'data': []}
-    for line in text.replace('\r\n', '\n').split('\n'):
-        if not line:
-            if fields['data']:
-                event = json.loads('\n'.join(fields['data']))
-                ensure(fields.get('id') == event['event_id'] and fields.get('event') == event['type'], 'SSE envelope mismatch')
-                result.append(event)
-            fields = {'data': []}
-        elif not line.startswith(':'):
-            key, _, value = line.partition(':')
-            if value.startswith(' '): value = value[1:]
-            if key == 'data': fields['data'].append(value)
-            elif key in ['id', 'event']: fields[key] = value
-    return result
+def check_wire():
+    native = read(C/'native-turn.schema.json')
+    from jsonschema import Draft202012Validator
+    for command in F['wire']['commands']:
+        schema = {'$defs': native['$defs'], **native['properties']['client_command']}
+        Draft202012Validator(schema).validate(command)
+    for key in ['events', 'cancelled_events', 'error_events']:
+        semantic = []
+        for seq, frame in enumerate(F['wire'][key], 1):
+            Draft202012Validator({'$defs':native['$defs'], '$ref':'#/$defs/StreamEvent'}).validate(frame)
+            ensure(frame['seq'] == seq, 'Native sequence gap')
+            e = frame['metadata'].get('mnemosyne')
+            if e is not None:
+                ensure(e['seq'] == seq and e['turn_id'] == frame['turn_id'], 'Wire identity mismatch')
+                if frame['type'] == 'done':
+                    kinds = {'completed':'turn.done', 'failed':'turn.error', 'cancelled':'turn.cancelled'}
+                    ensure(e['type'] == kinds[frame['metadata']['status']], 'Terminal status mismatch')
+                semantic.append(e)
+        ensure(semantic == F[key], 'Semantic subset mismatch')
 
 def check_ownership():
     ownership = read(ROOT / 'integration/ownership.json')
@@ -253,19 +260,40 @@ def check_manifest():
 
 def source_gate():
     state = read(ROOT/'integration/registry.json')
-    ensure(state['ready_for_parallel_implementation'] is True, 'SOURCE GATE: Pumice/DeepTutor sources and real paths are pending; not ready for product jobs.')
-    ensure(state['external_transport'] in ['sse','websocket'], 'Transport unselected')
+    ensure(state['ready_for_parallel_implementation'] is True, 'Source bootstrap gate is not ready')
+    ensure(state['product_ready'] is False, 'Bootstrap must not claim product readiness')
+    ensure(state['external_transport'] == 'websocket', 'Must reuse native /ws transport')
+    ensure(state['contract_manifest_sha256'] == sha((C/'manifest.json').read_bytes()), 'Registry bundle digest differs')
+    provenance = read(ROOT/'integration/upstreams.json')
+    for key, name in [('pumice','Pumice'), ('deeptutor','DeepTutor')]:
+        ensure(state['upstreams'][key]['commit'] == provenance['sources'][name]['commit'], 'Upstream pin differs')
+        ensure((ROOT/'upstreams'/name/'LICENSE').is_file(), 'Upstream license absent')
+        for original in provenance['sources'][name]['files']:
+            path = original['path']
+            override = provenance['modified_originals'].get(path)
+            digest = override['current_sha256'] if override else original['sha256']
+            ensure(sha((ROOT/path).read_bytes()) == digest, f'Upstream snapshot differs: {path}')
+    ensure((C/'native-turn.schema.json').read_bytes() == (ROOT/'upstreams/DeepTutor/web/contracts/schema/turn-protocol.json').read_bytes(), 'Native wire schema copy differs')
+    for copy_path in state['contract_copies']:
+        for path in C.rglob('*'):
+            if path.is_file():
+                ensure(path.read_bytes() == (ROOT/copy_path/path.relative_to(C)).read_bytes(), f'Contract copy differs: {path.name}')
     for source in state['upstreams'].values():
         ensure(all(source[k] for k in ['commit','license','build_command','test_command']), 'Upstream audit incomplete')
         ensure(source['url'] or source['local_path'], 'Upstream location absent')
         ensure(len(source['commit']) == 40, 'Need full upstream SHA')
     ensure(state['assembly_path'] and state['assembly_symbol'], 'Assembly unverified')
     seen = set()
-    for unit in state['units'].values():
+    ownership = read(ROOT/'integration/ownership.json')['owners']
+    for name, unit in state['units'].items():
         ensure(unit['source_paths'] and unit['registration_symbol'], 'Unit paths/registration unverified')
         for path in unit['source_paths']:
             ensure(path not in seen, 'Source path owned twice')
+            ensure(path in ownership[name], 'Registration path owned by another unit')
             seen.add(path)
+        source = (ROOT/unit['registration_path']).read_text()
+        ensure(re.search(r'\b(?:def|func|function)\s+'+re.escape(unit['registration_symbol'])+r'\s*\(', source), 'Registration symbol missing')
+    ensure(state['assembly_symbol'] in (ROOT/state['assembly_path']).read_text(), 'Assembly symbol missing')
 
 def main():
     parser = argparse.ArgumentParser()
@@ -308,7 +336,7 @@ def main():
     validate('annotations.schema.json', batch, 'MutationBatch')
     validate('annotations.schema.json', {'contract_version':V,'document_id':DOC['document_id'],'version_id':DOC['version_id'],'results':[x['expected'] for x in F['sync_steps'][:2]]}, 'SyncReceipt')
     for key in ['events','cancelled_events','error_events']: events_ok(F[key])
-    ensure(parse_sse((C/'fixtures/tutor.sse').read_text()) == F['events'], 'SSE fixture differs')
+    check_wire()
     last = F['reconnect']['last_event_id']
     ensure(F['reconnect']['replayed_events'] == [e for e in F['events'] if e['seq'] > int(last.split(':')[-1])], 'Resume range differs')
     applied = F['events'][:5]
@@ -336,8 +364,8 @@ def main():
     negative('kind payload mismatch', lambda:validate('annotations.schema.json',bad_annotation,'AnnotationRecord'))
     bad_mutation=copy.deepcopy(F['sync_steps'][0]['mutation']);bad_mutation['annotation']['annotation_id']='00000000-0000-0000-0000-000000009999'
     negative('mutation ID mismatch',lambda:mutation_ok(bad_mutation))
-    wrong_event=copy.deepcopy(F['events']);wrong_event[3]['seq']=8
-    negative('event sequence gap',lambda:events_ok(wrong_event))
+    wrong_event=copy.deepcopy(F['events']);wrong_event[3]['seq']=1
+    negative('event sequence reversal',lambda:events_ok(wrong_event))
     wrong_event=copy.deepcopy(F['events']);wrong_event.append(copy.deepcopy(F['events'][-1]))
     negative('event after terminal',lambda:events_ok(wrong_event))
     wrong_event=copy.deepcopy(F['events']);wrong_event[4]['payload']['rects']=[[10,20,2,2]]
@@ -355,17 +383,17 @@ def main():
     negative('unknown Reader command',lambda:validate('events.schema.json',unknown_event))
     operations=[op['operationId'] for path in api['paths'].values() for op in path.values()]
     ensure(len(operations)==len(set(operations)), 'Duplicate operation ID')
-    ensure(sum('text/event-stream' in op['responses'].get('200',{}).get('content',{}) for path in api['paths'].values() for op in path.values())==1, 'Need one candidate stream')
-    ensure(not any(path.startswith('/ws') for path in api['paths']), 'WebSocket route introduced')
+    ensure(not any('text/event-stream' in str(op) for path in api['paths'].values() for op in path.values()), 'Duplicate SSE transport introduced')
+    ensure(api['x-websocket']['path'] == '/ws' and api['x-websocket']['protocol_version'] == '2.0', 'Native WebSocket boundary differs')
     public=[path for path,methods in api['paths'].items() for op in methods.values() if op.get('security')==[]]
-    ensure(set(public)=={'/health','/v1/session/pair'}, 'Unexpected unauthenticated API')
+    ensure(set(public)=={'/health','/ready','/v1/session/pair'}, 'Unexpected unauthenticated API')
     for path,method in [('/v1/settings','put'),('/v1/documents/{document_id}','delete')]:
         headers={p['name'] for p in api['paths'][path][method]['parameters'] if p['in']=='header'}
         ensure({'If-Match','X-Confirm-Action','X-Mnemosyne-Contract-Version'}<=headers, 'Missing protected mutation headers')
     check_manifest(); check_ownership()
-    print(json.dumps({'result':'PASS','openapi_operations':len(operations),'schemas':len(schema_files),**COUNTS,'geometry_cases':len(F['geometry_cases']),'source_ready':read(ROOT/'integration/registry.json')['ready_for_parallel_implementation']},ensure_ascii=False))
     if args.require_ready:
         source_gate()
+    print(json.dumps({'result':'PASS','openapi_operations':len(operations),'schemas':len(schema_files)+1,**COUNTS,'geometry_cases':len(F['geometry_cases']),'source_ready':read(ROOT/'integration/registry.json')['ready_for_parallel_implementation'],'source_gate_checked':args.require_ready},ensure_ascii=False))
 
 if __name__ == '__main__':
     try:

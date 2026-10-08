@@ -1,9 +1,10 @@
-// Fixture-only consumer; UNIT-05 must adapt the actual web runtime after source audit.
+// Common fixture plus source-owned native WebSocket adapter probe.
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import assert from 'node:assert/strict';
 import {fileURLToPath} from 'node:url';
+import {consumeNativeFrame} from '../upstreams/DeepTutor/web/features/mnemosyne/register.ts';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = p => fs.readFileSync(path.join(root, p));
@@ -61,45 +62,43 @@ for(const page of fixture.pages) {
   assert.ok(Math.abs(transformed[2]-(page.geometry.rotation_degrees===90 ? h:w))<1e-8);
 }
 
-// Incremental decoder keeps UTF-8 Korean intact even when a byte chunk splits a glyph.
-class FixtureSSEDecoder {
-  decoder=new TextDecoder('utf-8',{fatal:true}); buffer=''; events=[];
-  push(bytes,final=false) {
-    this.buffer+=this.decoder.decode(bytes,{stream:!final});
-    for(;;) {
-      const boundary=/\r?\n\r?\n/.exec(this.buffer);
-      if(!boundary)break;
-      const frame=this.buffer.slice(0,boundary.index);
-      this.buffer=this.buffer.slice(boundary.index+boundary[0].length);
-      let id,type;const data=[];
-      for(const line of frame.split(/\r?\n/)) {
-        if(line.startsWith(':'))continue;
-        const sep=line.indexOf(':'); if(sep<0)continue;
-        const key=line.slice(0,sep),value=line.slice(sep+1).replace(/^ /,'');
-        if(key==='id')id=value;
-        else if(key==='event')type=value;
-        else if(key==='data')data.push(value);
-      }
-      if(!data.length)continue;
-      const event=JSON.parse(data.join('\n'));
-      assert.equal(id,event.event_id);assert.equal(type,event.type);
-      this.events.push(event);
-    }
-  }
+// Compare canonical transforms to the actual upstream PDF.js viewport.
+// Requires the existing web npm ci; no new viewer or dependency is introduced.
+const {getDocument}=await import('../upstreams/DeepTutor/web/node_modules/pdfjs-dist/legacy/build/pdf.mjs');
+const pdfTask=getDocument({data:new Uint8Array(read(`contracts/fixtures/${fixture.original_file}`)),useSystemFonts:false,disableFontFace:true});
+const pdf=await pdfTask.promise;
+for(const page of fixture.pages) {
+  const native=await pdf.getPage(page.page_index+1);
+  assert.deepEqual(native.view,page.geometry.crop_box);
+  assert.equal(native.rotate,page.geometry.rotation_degrees);
+  const point=[native.view[0]+32,native.view[1]+50];
+  const viewport=native.getViewport({scale:1.25,offsetX:7,offsetY:13});
+  assert.deepEqual(viewport.convertToViewportPoint(...point),toViewport(point,page.geometry,1.25,[7,13]));
+  assert.deepEqual(viewport.convertToPdfPoint(...toViewport(point,page.geometry,1.25,[7,13])),point);
 }
-for(const wire of [read('contracts/fixtures/tutor.sse'),Buffer.from(read('contracts/fixtures/tutor.sse').toString().replaceAll('\n','\r\n'))]) {
-  const stream=new FixtureSSEDecoder();
-  for(let i=0;i<wire.length;i+=7)stream.push(wire.subarray(i,i+7));
-  stream.push(new Uint8Array(),true);
-  assert.deepEqual(stream.events,fixture.events);
+await pdfTask.destroy();
+
+// Every native frame advances the cursor. The semantic subset may contain gaps.
+for(const key of ['events','cancelled_events','error_events']) {
+  const frames=fixture.wire[key];
+  const decoded=[];
+  frames.forEach((frame,index)=>{
+    assert.equal(frame.seq,index+1);
+    const event=consumeNativeFrame(frame);
+    if(event)decoded.push(event);
+  });
+  assert.deepEqual(decoded,fixture[key]);
 }
+const invalid=structuredClone(fixture.wire.events.at(-1));
+invalid.metadata.status='failed';
+assert.throws(()=>consumeNativeFrame(invalid),/Terminal status/);
 
 // Simulate resume checkpoint and dedup without claiming browser durable storage.
-const checkpoint={lastSeq:5,approvedAnnotationEvents:[]};
+const checkpoint={lastSeq:Number(fixture.reconnect.last_event_id.split(':').at(-1)),approvedAnnotationEvents:[]};
 const dispatched=[];
 for(const e of [fixture.reconnect.duplicate_delivery,...fixture.reconnect.replayed_events]) {
   if(e.seq<=checkpoint.lastSeq)continue;
-  assert.equal(e.seq,checkpoint.lastSeq+1);
+  assert.ok(e.seq>checkpoint.lastSeq);
   checkpoint.lastSeq=e.seq;dispatched.push(e.type);
   if(e.type==='reader.annotate') {
     assert.equal(e.payload.requires_confirmation,true);
@@ -114,4 +113,4 @@ assert.equal(fixture.attempt.answers[0].question_id,fixture.quiz.questions[0].qu
 assert.equal(fixture.learning_state.quiz_attempts[0].attempt_id,fixture.attempt.attempt_id);
 assert.equal(fixture.assessment.learning_revision,fixture.learning_state.learning_revision);
 assert.deepEqual(new Set(fixture.annotation_snapshot.annotations.map(a=>a.kind)),new Set(['highlight','note','bookmark','ink']));
-console.log(JSON.stringify({result:'PASS',consumer:'web-node-fixture',geometryCases:fixture.geometry_cases.length,events:fixture.events.length,sseChunkBytes:7,wireVariants:2,actualBrowserVerified:false}));
+console.log(JSON.stringify({result:'PASS',consumer:'web-node-fixture',geometryCases:fixture.geometry_cases.length,pdfjsPages:fixture.pages.length,events:fixture.events.length,nativeFrames:fixture.wire.events.length,actualBrowserVerified:false}));

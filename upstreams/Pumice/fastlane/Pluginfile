@@ -1,0 +1,2 @@
+# Plugins this fastlane setup depends on. None right now; built-in actions
+# (gym, deliver, snapshot, app_store_connect_api_key) cover the whole flow.

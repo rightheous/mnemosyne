@@ -1,9 +1,15 @@
 # UNIT-03 인수 경계
 
-현재 제품 소유 경로: 없음 (Pumice audit 대기). 현재 준비 문서 소유: 이 파일만.
+담당: iPad PDF/Pencil·canonical geometry·sidecar local store/outbox·Reader facade. 공통 시작 tag `mnemosyne-bootstrap-v0.1.0`, 계약 `0.1.0`.
 
-담당: 기존 PDF Reader 재사용, 선택/검색/목차/읽기 위치, Pencil pen/highlighter/whole-stroke eraser/undo/redo, canonical geometry, 다운로드된 원본 검증, ReaderFacade, local storage/outbox 원자성. UI network·app entry·Xcode 설정은 UNIT-04.
+실제 등록 경로: `upstreams/Pumice/Packages/PumiceCore/Sources/PumiceCore/Mnemosyne/ReaderFacade.swift` · `makeReaderFacade`. docs/INTEGRATION.md의 signature와 callers를 읽는다.
 
-입력 저장은 network 호출 없이 local transaction. 필기 편집과 outbox를 같이 기록하고 앱 재시작에 보존한다. worker는 facade의 pending/apply 메서드를 사용한다. 영구 주석 제안 승인과 event ID도 저장한다. 실패 시 pending 초안을 버리지 않는다.
+Pumice saveIfNeeded의 original write를 반드시 제거. 읽기 cache hash, input+outbox, receipt/cursor, 승인 event ID를 atomic durable 저장. PDFKit/Pencil 실제 render/undo/redo 유지. export는 파생 copy. 검색·목차·읽던 위치·하이라이트·노트·학습 bookmark, 오프라인 읽기/필기/재시작을 포함. 네트워크/Xcode 편집 금지.
 
-인수: 실제 iPad Pencil, 비행기 모드/재시작, 회전과 CropBox/줌, redo/outbox/삭제 복구, 원본 hash 불변과 annotated export. 공통 Swift 소비 검사는 기하 규칙의 증거이며 PDFKit/Pumice 통합 증거가 아니다.
+현재 common seam/fixture가 있다는 것은 제품 구현 완료가 아니다. 빈 port를 success/no-op으로 채우지 않는다. 필수 기능은 모두 이번 범위다.
+
+정확한 수정 가능 파일 42개는 integration/ownership.json의 owners.UNIT-03 배열이다. 주요 directory는 OWNERSHIP.md 참조. 다른 소유자의 공통 startup/계약/DB/manifest 파일을 편집하지 않는다.
+
+새 계약 변경은 소비자 영향·version·fixture·검증 변경을 포함해 통합 담당에게 제안한다. DB 요구는 schema/migration/transaction/검증 명세로 01에 전달한다. 사용자 지시 없이 다른 채팅에 메시지를 보내지 않는다.
+
+인수 결과는 실행한 명령·실제 source/service/build/device 종류·실패/차단을 구별하고 기록한다. 공통 fixture PASS를 제품 오프라인/LLM/기기 검증으로 대체하지 않는다. 원본 hash, 잘못된 인용 거부, replay/cancel/error와 재시작 저장을 실제 경계에서 확인한다.

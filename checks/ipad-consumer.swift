@@ -1,4 +1,5 @@
-// Codable/geometry fixture probe only. It does not import Pumice, PDFKit or UIKit.
+// Codable fixture and actual PumiceCore geometry/facade compilation probe.
+// PDFKit/Pencil UI and physical iPad validation are separate checks.
 import Foundation
 
 struct Geometry: Decodable {
@@ -82,7 +83,7 @@ struct EventPayload: Decodable {
     let quiz_id: UUID?
     let question_id: UUID?
 }
-struct Event: Decodable {let event_id:String; let turn_id:UUID; let seq:Int; let type:EventType; let payload:EventPayload}
+struct Event: Decodable {let event_id:String; let turn_id:String; let seq:Int; let type:EventType; let payload:EventPayload}
 struct GeometryCase: Decodable {let name:String; let geometry:Geometry; let point_pdf:[Double]; let scale:Double; let offset:[Double]; let expected_viewport:[Double]}
 struct UnicodeProbe: Decodable {let text:String; let start_scalar:Int; let end_scalar:Int; let quote:String}
 struct Question: Decodable {let question_id:UUID; let prompt:String; let citations:[Citation]}
@@ -116,37 +117,37 @@ func check(_ condition: Bool, _ message:String) throws {
 func scalarSlice(_ text:String,_ start:Int,_ end:Int)->String {
     String(String.UnicodeScalarView(Array(text.unicodeScalars)[start..<end]))
 }
-func transform(_ p:[Double],_ g:Geometry,_ scale:Double,_ offset:[Double],inverse:Bool=false)->[Double] {
-    let x0=g.crop_box[0],y0=g.crop_box[1],w=g.crop_box[2]-x0,h=g.crop_box[3]-y0,f=g.user_unit*scale
-    if inverse {
-        let X=(p[0]-offset[0])/f,Y=(p[1]-offset[1])/f
-        let u:Double,v:Double
-        switch g.rotation_degrees {
-        case 0:(u,v)=(X,h-Y)
-        case 90:(u,v)=(Y,X)
-        case 180:(u,v)=(w-X,Y)
-        case 270:(u,v)=(w-Y,h-X)
-        default: fatalError("Invalid fixture rotation")
-        }
-        return [u+x0,v+y0]
-    }
-    let u=p[0]-x0,v=p[1]-y0
-    let X:Double,Y:Double
-    switch g.rotation_degrees {
-    case 0:(X,Y)=(u,h-v)
-    case 90:(X,Y)=(v,u)
-    case 180:(X,Y)=(w-u,v)
-    case 270:(X,Y)=(h-v,w-u)
-    default:fatalError("Invalid fixture rotation")
-    }
-    return [offset[0]+X*f,offset[1]+Y*f]
+func transform(_ p:[Double],_ g:Geometry,_ scale:Double,_ offset:[Double],inverse:Bool=false) -> [Double] {
+    let box=g.crop_box
+    let geometry=try! MnemosyneGeometry(cropBox:CGRect(x:box[0],y:box[1],width:box[2]-box[0],height:box[3]-box[1]),rotation:g.rotation_degrees,userUnit:g.user_unit)
+    let point=CGPoint(x:p[0],y:p[1]), origin=CGPoint(x:offset[0],y:offset[1])
+    let result=inverse ? geometry.pdfPoint(fromViewport:point,scale:scale,offset:origin) : geometry.viewportPoint(fromPDF:point,scale:scale,offset:origin)
+    return [result.x,result.y]
 }
 
+@main struct FixtureMain {
+static func main() {
+
 do {
-    let source=URL(fileURLWithPath:#filePath).deletingLastPathComponent().deletingLastPathComponent()
+    let source=URL(fileURLWithPath:CommandLine.arguments.count>1 ? CommandLine.arguments[1] : FileManager.default.currentDirectoryPath)
     let data=try Data(contentsOf:source.appendingPathComponent("contracts/fixtures/study-session.json"))
     let f=try JSONDecoder().decode(Fixture.self,from:data)
-    try check(f.contract_version=="0.1.0-draft.1","Contract mismatch")
+    let rootJSON=try JSONSerialization.jsonObject(with:data) as! [String:Any]
+    let wire=rootJSON["wire"] as! [String:Any]
+    for key in ["events","cancelled_events","error_events"] {
+        let frames=wire[key] as! [[String:Any]]
+        var extensions:[Event]=[]
+        for (index,frame) in frames.enumerated() {
+            let decoded=try decodeMnemosyneTurnFrame(JSONSerialization.data(withJSONObject:frame))
+            try check(decoded.sequence==index+1,"Native sequence")
+            if let semantic=decoded.semanticEvent {
+                extensions.append(try JSONDecoder().decode(Event.self,from:semantic))
+            }
+        }
+        let expected=key=="events" ? f.events : key=="cancelled_events" ? f.cancelled_events : f.error_events
+        try check(extensions.map {$0.event_id}==expected.map {$0.event_id},"Native extension subset")
+    }
+    try check(f.contract_version=="0.1.0","Contract mismatch")
     try check(f.document.page_count==f.pages.count,"Page count")
     for page in f.pages {try check(page.display_page_number==page.page_index+1,"Page base")}
     for c in f.citations {
@@ -168,27 +169,32 @@ do {
     for stream in [f.events,f.cancelled_events,f.error_events] {
         try check(stream.first?.type == .started,"Stream start")
         var terminal=false
-        for (index,event) in stream.enumerated() {
-            try check(!terminal && event.seq==index+1,"Event sequence/terminal")
-            try check(event.event_id==event.turn_id.uuidString.lowercased()+":"+String(event.seq),"Event ID")
+        var previousSeq=0
+        for event in stream {
+            try check(!terminal && event.seq>previousSeq,"Event sequence/terminal")
+            previousSeq=event.seq
+            try check(event.event_id==event.turn_id+":"+String(event.seq),"Event ID")
             if event.type == .annotate {try check(event.payload.requires_confirmation==true,"Annotation proposal")}
             if event.type == .highlight || event.type == .flash {try check(event.payload.persistent==false && (event.payload.ttl_ms ?? 0)>0,"Temporary Reader effect")}
             terminal = [.done,.cancelled,.error].contains(event.type)
         }
         try check(terminal,"Missing terminal")
     }
-    var lastSeq=5,proposalCount=0
+    var lastSeq=Int(f.reconnect.last_event_id.split(separator:":").last!)!,proposalCount=0
     for event in [f.reconnect.duplicate_delivery]+f.reconnect.replayed_events {
         if event.seq<=lastSeq {continue}
-        try check(event.seq==lastSeq+1,"Resume gap")
+        try check(event.seq>lastSeq,"Resume gap")
         lastSeq=event.seq
         if event.type == .annotate {proposalCount+=1}
     }
-    try check(lastSeq==f.events.count && proposalCount==1,"Resume dedup")
+    try check(lastSeq==f.events.last!.seq && proposalCount==1,"Resume dedup")
     try check(f.attempt.quiz_id==f.quiz.quiz_id && f.attempt.answers[0].question_id==f.quiz.questions[0].question_id,"Quiz relation")
     try check(f.learning_state.quiz_attempts[0].attempt_id==f.attempt.attempt_id,"Saved attempt")
     print("{\"result\":\"PASS\",\"consumer\":\"ipad-swift-codable-fixture\",\"geometryCases\":\(f.geometry_cases.count),\"events\":\(f.events.count),\"actualDeviceVerified\":false}")
 } catch {
     fputs("FAIL: \(error)\n",stderr)
     exit(1)
+}
+
+}
 }

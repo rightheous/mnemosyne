@@ -1,16 +1,16 @@
 {
-  "contract_version": "0.1.0-draft.1",
-  "status": "draft-awaiting-upstream",
+  "contract_version": "0.1.0",
+  "status": "source-backed-bootstrap",
   "algorithm": "sha256",
   "files": {
-    "README.md": "e35467ae6d53700752db5b1cad00564c0012236736701f9534227a30ad4bfe7f",
-    "annotations.schema.json": "9b30a5e93e7faf95aca9443e7d3f6023cb9c0687e29f2bea8573ee95f7dd9ba7",
-    "events.schema.json": "1310997ea9179e950ace2a9eafac796361147f8a45f2e043e7a2417d5d9228a5",
-    "fixtures/README.md": "59b353bf3afaba5fde05a02310a2c83cf2e5a0a30ecead1a8a4a3e8bea4378a6",
+    "README.md": "84403b468f31bc34247d03efada64e3009dc3022a59835e9398072f68394cbf9",
+    "annotations.schema.json": "90fe41f3e76c6ba83690b8ad8b7a85b2cde3b36f91388a8042c3917120794ff0",
+    "events.schema.json": "fc99991849af2b5d7a5cae32c1f446b122e67672519304459b8fc54ec8d91270",
+    "fixtures/README.md": "999637cb7fcc5ace19af5fc4e27f02fd84baf0e6299b6c0c10aa4c269119a2fd",
     "fixtures/bilingual-geometry.pdf": "937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
-    "fixtures/study-session.json": "e08183deb09c2df6957fd981894ed43c0c63e0ed46d953eb960bd486909aba51",
-    "fixtures/tutor.sse": "ac5539e783b422ee66c3d607072bf4187bd69c23a915192352d3fe6082be98d1",
-    "models.schema.json": "2c815c52bd6945a55d6fa62dd93eee00e7df9eb000618033b93147bd37f344b2",
-    "openapi.yaml": "cb829702fb36fa19170a26faef242b184645c8b0026fc8ea832e89501b88ef98"
+    "fixtures/study-session.json": "2df7257b5f1b7402ec180e2db72ed5a36130d756282248e0859b4cf935368ab9",
+    "models.schema.json": "2e8d9bc2608c9ead3515132624e54adfd2a6c475a7b3846b12f71f1e0ea76fb8",
+    "native-turn.schema.json": "5ac52c26ca45388f12c600b4a4be1b81563b6d59a3e8386f153f0f01f0ff3d78",
+    "openapi.yaml": "6deb25ae662ba6dcf917d60ced3d871ed16e320dabdf0382968136c8b76c9cf6"
   }
 }

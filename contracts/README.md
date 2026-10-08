@@ -1,10 +1,12 @@
 # 계약 묶음
 
-버전 `0.1.0-draft.1`, 상태 `draft-awaiting-upstream`. 모든 문서/API/event/fixture는 이 버전을 사용한다. `manifest.json`의 SHA-256은 묶음의 정확한 바이트를 고정한다. HTTP header `X-Mnemosyne-Contract-Version`으로 peer 버전을 확인하고 불일치 시 `contract_mismatch`로 거부한다. 버전 호환성이 확정되기 전 임의 fallback은 없다.
+버전 `0.1.0`, 상태 `source-backed-bootstrap`. 모든 문서/API/event/fixture는 이 버전을 사용한다. `manifest.json`의 SHA-256은 묶음의 정확한 바이트를 고정한다. HTTP header `X-Mnemosyne-Contract-Version`으로 peer 버전을 확인하고 불일치 시 `contract_mismatch`로 거부한다. 버전 호환성이 확정되기 전 임의 fallback은 없다.
 
-`openapi.yaml`은 **JSON으로 직렬화된 OpenAPI 3.1.0**이다. JSON은 YAML의 부분집합이므로 YAML/OpenAPI 도구가 읽을 수 있으며 별도 YAML runtime이 없어도 웹의 JSON parser와 Python stdlib가 같은 파일을 읽는다. JSON Schema는 draft 2020-12이며 외부 `$ref`는 이 묶음 안의 상대 경로만 사용한다. `models.schema.json`에 공통 DTO, `annotations.schema.json`에 주석/mutation, `events.schema.json`에 typed event가 있다. codegen 도구의 3.1 지원은 실제 upstream manifest를 본 후 검증한다.
+`openapi.yaml`은 **JSON으로 직렬화된 OpenAPI 3.1.0**이다. JSON은 YAML의 부분집합이므로 YAML/OpenAPI 도구가 읽을 수 있으며 별도 YAML runtime이 없어도 웹의 JSON parser와 Python stdlib가 같은 파일을 읽는다. JSON Schema는 draft 2020-12이며 외부 `$ref`는 이 묶음 안의 상대 경로만 사용한다. `models.schema.json`에 공통 DTO, `annotations.schema.json`에 주석/mutation, `events.schema.json`에 typed event가 있다. DeepTutor의 기존 OpenAPI/JSON Schema codegen 흐름을 유지한다. 신규 계약의 실제 TS/Swift 소비는 공통 fixture로 확인한다.
 
-**이 계약은 기존 구현이 없는 환경에서 작성한 후보다.** 외부 transport는 SSE 한 가지를 후보로 검증하지만 확정 선택은 아니며 registry의 `external_transport`는 null이다. DeepTutor의 실제 transport를 조사한 뒤 하나만 확정한다. 지금 SSE나 WebSocket 제품 서버를 만들지 않는다.
+지정 upstream을 확인한 통합 계약이다. 외부 Tutor 스트리밍은 **DeepTutor native `/ws` WebSocket protocol 2.0 하나**다. `native-turn.schema.json`은 upstream web/contracts/schema/turn-protocol.json의 바이트 동일 복사본이다. models/events/annotations는 새 Mnemosyne 경계이며 아직 제품 구현이 필요한 부분이 있다. OpenAPI의 각 `x-implementation`이 실제 observed route와 planned unit extension을 구별한다. JSON Schema 검증은 HTTP handler 구현 완료를 뜻하지 않는다.
+
+DeepTutor locator는 1 기반이므로 `page_index+1`로 넘긴다. native material_id/16자 content hash를 document UUID/full SHA version으로 간주하지 않는다. UNIT-01이 durable 매핑을 제공한다. 현재 fixture adapter는 ReadingStore와 실제 PDF parser를 사용하고 whole-block anchor만 검증한다.
 
 ## 문서와 인용
 
@@ -27,7 +29,7 @@ CropBox의 폭/높이를 `W,H`, 점을 `u=x-llx,v=y-lly`라 할 때, 회전된 c
 | 180 | `W-u, v` | `W,H` |
 | 270 | `H-v, W-u` | `H,W` |
 
-viewport는 `(offset_x + X*user_unit*scale, offset_y + Y*user_unit*scale)`. `scale`은 physical PDF point당 CSS px 또는 UIKit point이며 devicePixelRatio는 canvas backing에만 추가한다. rect는 네 꼭짓점을 변환한 bounds를 사용한다. invert transform으로 터치/Pencil 점을 저장 좌표로 되돌린다. PDFKit/PDF.js가 제공하는 page conversion이 회전을 이미 적용했다면 다시 적용하지 말고 이 canonical 공간과 대조한다. 특정 upstream 라이브러리 동작은 아직 미확인이다.
+viewport는 `(offset_x + X*user_unit*scale, offset_y + Y*user_unit*scale)`. `scale`은 physical PDF point당 CSS px 또는 UIKit point이며 devicePixelRatio는 canvas backing에만 추가한다. rect는 네 꼭짓점을 변환한 bounds를 사용한다. invert transform으로 터치/Pencil 점을 저장 좌표로 되돌린다. PDFKit/PDF.js가 제공하는 page conversion이 회전을 이미 적용했다면 다시 적용하지 말고 이 canonical 공간과 대조한다. Pumice 기존 PageGeometry는 MediaBox 기준이며 신규 MnemosyneGeometry가 이 canonical 변환을 제공한다. 실제 PDFKit 화면 연결은 UNIT-03, PDF.js 화면 연결은 UNIT-05가 검증한다.
 
 fixture의 page 0은 rotation 0/CropBox `[20,30,580,760]`, page 1은 rotation 90/CropBox `[10,20,590,770]`, `user_unit=1`. 나머지 180/270 및 `user_unit=2`, 다른 offset/scale도 geometry 검사에 포함한다. 실제 제품은 PDF.js/PDFKit 화면에서 같은 점을 비교해야 한다.
 
@@ -49,11 +51,13 @@ Reader 내부(UNIT-03)가 입력 상태+outbox를 로컬 transaction으로 저�
 
 ## Tutor 이벤트
 
-후보 transport: `POST /v1/tutor/turns`로 turn을 만들고 authenticated `GET /v1/tutor/turns/{turn_id}/events`로 SSE 수신. bearer header를 붙이는 fetch/URLSession consumer를 사용하며 URL query에 token을 넣지 않는다. `Last-Event-ID`로 resume, 최초는 생략. keepalive SSE comment는 event log에 넣지 않는다. 각 data는 `events.schema.json`의 envelope, SSE `id`는 JSON `event_id`와 같고 `event`는 JSON type과 같다.
+Native start_turn으로 시작하고 subscribe_turn(after_seq) 또는 resume_from(seq)로 이어 받는다. cancel_turn에는 안정된 command_id를 보내며 같은 ID 재전송을 기존 durable command 처리에 연결한다. disconnect 자체는 취소가 아니다. API key/pairing secret을 query URL에 넣지 않는다. 현재 upstream WS auth는 query/cookie 방식이므로 개인 프로필의 Bearer header+Origin 보호는 UNIT-02가 추가해야 한다.
 
-`event_id=<turn UUID>:<seq>`; seq는 1부터 연속 증가하며 서버가 로그를 저장한 뒤 발행한다. 클라이언트는 turn별 durable last seq로 중복을 무시하고 gap이면 재연결한다. reconnect는 같은 event ID/내용을 되돌린다. retention은 준비 응답의 `event_resume_seconds`(초안 86400) 이상, 유효하지 않거나 만료된 resume은 stream 시작 전 410. 서버 종료 후 진행 turn도 persisted terminal/snapshot에서 복구할 수 있어야 한다.
+Semantic event는 native StreamEvent.metadata.mnemosyne이다. `event_id=<native turn ID>:<native seq>`, turn ID는 SQLiteSessionStore가 생성하는 `turn_<milliseconds>_<hex>` 등 opaque 문자열이며 UUID로 변환하지 않는다. turn/seq는 바깥 frame과 같아야 한다. seq는 native persisted log 전체에서 연속 증가한다. 확장 없는 progress/thinking 등도 checkpoint하며 semantic subset에는 빈 번호가 허용된다. native log 저장 전에 발행하지 않는다. 받은 frame과 효과·checkpoint를 원자 저장하고 중복을 무시한다. 정상 wire의 gap은 resume으로 복구한다. client가 semantic event를 다시 순번 매기면 안 된다.
 
-`turn.started` 다음 delta/근거/Reader/퀴즈 이벤트, 마지막은 `turn.done`, `turn.error`, `turn.cancelled` 중 **정확히 하나**다. terminal 이후 발행하지 않는다. cancel HTTP와 이미 완료의 race는 저장된 terminal을 반환한다. stream 중 오류는 typed terminal `turn.error`; HTTP 시작 전 오류는 공통 ErrorEnvelope. disconnect 자체는 cancel이 아니다. `quiz.show`와 `question.show`는 저장된 quiz/question ID를 가리킨다.
+`turn.started` 이후 delta/근거/Reader/퀴즈 확장을 전달한다. 마지막 semantic event는 정확히 하나이며 native done의 metadata.status(completed/failed/cancelled)와 turn.done/turn.error/turn.cancelled가 일치한다. native error는 recoverable일 수 있으므로 단독으로 terminal로 변환하지 않는다. native protocol_error/command_ack/pong은 control frame이며 turn seq를 만들지 않는다. 취소와 완료 race는 이미 저장된 terminal 상태를 따른다. 재연결은 read-only subscription이며 기존 turn을 새로 시작하지 않는다.
+
+완료된 로그 retention과 실패·만료 resume의 UX는 01/02가 명시적으로 구현한다. native replay 범위를 벗어나면 protocol_error와 snapshot/recovery UI로 복구하며 가상의 HTTP 410 SSE 응답을 만들지 않는다. event_resume_seconds는 Mnemosyne readiness의 보장 값이며 실제 retention 설정 검증 전 제품 ready로 보고하지 않는다.
 
 Reader context는 문서 version, page, 읽기 위치, 선택 anchor, response_language를 포함한다. `reader.goto`는 위치 이동, `reader.highlight`/`reader.flash`는 TTL 있는 **일시 효과**다. `reader.annotate`는 확인이 필요한 영구 주석 **제안**이며 즉시 저장하지 않는다. 사용자가 승인하면 event의 안정된 `suggested_mutation_id`로 outbox에 한 번 기록한다. replay로 주석이 중복 생성되지 않는다. 승인된 event ID를 로컬에 저장한다. 문서/version이 현재 Reader와 다르면 명시 전환 후 적용하고 틀린 페이지에 적용하지 않는다.
 
@@ -65,7 +69,7 @@ Quiz는 질문 ID, 문제/보기/채점 가능한 공개 정보와 검증된 근
 
 ## 보호와 준비 상태
 
-사설망도 pairing bearer가 필요하다. 개인 서버 console의 일회용 code로 기기를 pair하며 rate limit/expiry/회전·폐기 기능을 둔다. auth code/token/LLM 비밀값은 log/URL에 남기지 않는다. CORS는 설정된 정확한 Origin만 허용한다. 웹 secret은 가능하면 메모리에 두며 XSS 보호를 적용한다. Tailscale은 네트워크 연결, pairing은 앱 권한으로 구별한다. 공용 노출시 HTTPS 필수, 원격 private망도 HTTPS를 기본으로 한다.
+사설망도 pairing bearer가 필요하다. 개인 서버 console의 일회용 code로 기기를 pair하며 rate limit/expiry/회전·폐기 기능을 둔다. auth code/token/LLM 비밀값은 log/URL에 남기지 않는다. CORS는 설정된 정확한 Origin만 허용한다. 웹 WS는 same-origin 보호 cookie를 우선하고 exact Origin을 검증한다. iPad URLSession은 Authorization header를 사용한다. XSS 보호와 cookie CSRF/Origin 검증을 적용한다. Tailscale은 네트워크 연결, pairing은 앱 권한으로 구별한다. 공용 노출시 HTTPS 필수, 원격 private망도 HTTPS를 기본으로 한다.
 
 업로드는 PDF magic+실제 parser 검사, 제한 용량/페이지/parse 시간, server generated key, symlink/경로 traversal 방지, data root 밖 쓰기 금지. API는 원본 OS 파일 경로를 받지 않는다. 파일 download는 document ID+version을 검증한다. 삭제는 bearer+If-Match 문서 revision+`X-Confirm-Action: document.delete:<document_id>`를 요구하고 명시 UI 확인을 거친다. 설정 변경도 bearer+If-Match 설정 revision+`X-Confirm-Action: settings.update`가 필요하다. 설정 반환은 masked metadata만. provider base URL은 서버 측 allowlist/명시 설정을 사용하고 metadata/private 임의 URL SSRF를 차단한다. 서버 PC의 지정 loopback provider는 서버 console에서 허용한다.
 

@@ -1,0 +1,1 @@
+Works on any folder of PDFs and Markdown notes, but built for Obsidian vault users who want to highlight and scribble inside their own files.

@@ -1,0 +1,31 @@
+Pumice is a PDF annotation app for the iPad, built for people who keep their reading inside a folder, not inside a service. It works on any folder of PDFs and Markdown notes, but it's built for Obsidian vault users who want to highlight and scribble inside their own files.
+
+Open any folder. Pumice treats it as your vault. Apple Pencil draws on the page, finger scrolls. Highlight a line of text and Pumice snaps to it, writing a standard PDF highlight that any reader (Preview, Adobe, Apple Books) can see. Press the side of your Pencil to swap between pen and highlighter; squeeze and hold the Pencil Pro to use the eraser. Tap a Markdown note to preview headings, lists, blockquotes, and code blocks, and convert it to a PDF on device if you want to annotate it the same way.
+
+Your annotations are written back into the PDF itself. No sidecar files. No cloud account. No telemetry. The PDF Pumice saves is the PDF every other app can read, with your scribbles and highlights in the right places.
+
+WHO THIS IS FOR
+
+- Researchers and students reading papers in iCloud Drive or a Files-app vault.
+- Obsidian and Logseq users whose plain-text knowledge base already lives on the device. Pumice fits next to it, marking up the PDFs in your vault without bouncing them through a service.
+- Anyone who wants their reading marked up with an Apple Pencil and is tired of apps that hide their work behind a proprietary format or a subscription.
+
+WHAT'S IN VERSION 0.3.0
+
+- Markdown notes (.md) appear in the sidebar alongside your PDFs. Tap to preview headings, lists, blockquotes, and code blocks.
+- Convert to PDF action on any note generates a paginated PDF on device with the same layout as the preview, dropped next to the source.
+- Sidebar refreshes, deletes, and converts in place; your open folders stay open.
+- Delete files from the tree with swipe-left or long-press, with a confirm step.
+- Tap a file name in the navigation bar to see its full vault path; tap to copy.
+- Apple Pencil drawing with six pen colors at three widths. Snap-to-text highlighter in five colors. Real-time eraser that crosses both ink and highlights.
+- Apple Pencil 2 double-tap alternates pen and highlighter. Apple Pencil Pro squeeze sets the eraser while held.
+- Last-opened PDF restored to the page you were on. Recent vaults remembered. Lazy folder browsing for vaults of any size.
+- Pure local storage. No network calls, no analytics, no account.
+
+WHAT'S NOT HERE (yet)
+
+No cloud sync, no shared cursors, no AI summarization, no in-app purchases. By design.
+
+SOURCE
+
+Pumice is MIT-licensed and developed in the open at github.com/theagitist/Pumice. If something is wrong, file an issue there.

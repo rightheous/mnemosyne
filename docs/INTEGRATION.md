@@ -1,56 +1,51 @@
-# 통합 경계와 시작 조건
+# 공통 시작점과 연결 경계
 
-## 현재 상태
+계약 `0.1.0`, 두 지정 upstream snapshot과 최소 adapter를 포함한 소스 기반 bootstrap이다. registry의 `ready_for_parallel_implementation`은 **공통 시작점의 준비**다. `product_ready=false`이며 아래 학습·오프라인·보호 기능은 여섯 작업이 이번 범위에서 구현해야 한다. Cloud가 읽을 GitHub remote는 아직 없다. 로컬 branch/SHA는 확정할 수 있으나 온라인 Cloud dispatch/PR 생성까지 완료됐다고 보고하지 않는다.
 
-계약 `0.1.0-draft.1`, 실제 소스 미연결, 제품 API/빌드/transport 미검증. `integration/registry.json`의 `ready_for_parallel_implementation=false`. 지금 commit은 **검토용 준비 초안**이며 여섯 제품 작업의 시작 SHA가 아니다. 원본 upstream을 확인하기 전 새 backend/iPad/web 구조를 강제로 만들지 않는다.
+## 실제 등록 함수와 호출자
 
-## 등록 함수 후보
+경로는 준비 저장소 기준이다. registry의 source_paths와 ownership.json은 파일 단위의 판정 기준이다.
 
-아래 이름은 통합 경계를 명세하는 **새 인터페이스 후보**이며 실제 upstream 심볼이 아니다. 언어의 await/error 타입과 실제 symbol/path는 소스 감사 후 registry에 고정한다. 각 유닛은 자신의 adapter를 내보내고 통합 담당만 기존 assembly에서 한 번 등록한다.
+| 담당 | 실제 등록 경로 / 심볼 | 입력·반환 / 연결 책임 |
+|---|---|---|
+| 01 | upstreams/DeepTutor/deeptutor/mnemosyne/library.py · register_library(store, annotation_sync=None) | ReadingStore→LibraryAdapter(search, verify_anchor). AnnotationSync/UUID mapping/DB transaction 구현. 02가 검색/검증을 호출. |
+| 02 | upstreams/DeepTutor/deeptutor/mnemosyne/tutor.py · register_tutor(turns, library, learning_store=None) | 기존 container.turns + 01 ports→TutorAdapter. 한국어 native request와 metadata.mnemosyne 이벤트, LearningStateStore 구현. |
+| 03 | upstreams/Pumice/Packages/PumiceCore/Sources/PumiceCore/Mnemosyne/ReaderFacade.swift · makeReaderFacade(factory, localStore) | 실제 factory 주입이 필수. Reader/localStore protocol, input+outbox 원자성, sidecar, geometry. 아직 concrete Reader facade 구현은 없음. |
+| 04 | upstreams/Pumice/App/MnemosyneAppDependencies.swift · makeIPadApp(reader,syncWorker,serverURL) | app dependency seam와 Sources/Network/MnemosyneTurnWire.swift의 native frame decoder. 04가 PumiceApp/LaunchView에서 실제 화면을 연결. 네트워크 worker는 facade만 호출. |
+| 05 | upstreams/DeepTutor/web/features/mnemosyne/register.ts · mountMnemosyneWeb(dependencies) | native StreamEvent 소비 adapter+화면 dependency seam. 기존 app/에서 새 한국어 화면을 연결. 아직 제품 UI mount 완료가 아님. |
+| 06 | checks/source_adapters.py · run_integration_checks() | 실제 upstream import/ReadingStore/PDF/parser/native protocol/등록 검증. scripts/Docker/CI 및 manifests 소유. |
+| 통합 | upstreams/DeepTutor/deeptutor/mnemosyne/bootstrap.py · register_mnemosyne(container,store,annotation_sync,learning_store) | api/main.py lifespan에서 한 번 호출. 기존 `.turns` 그대로 사용. ports.py가 공유 signature. 신규 라우터 assembly는 통합 담당만. |
 
-| 유닛 | export 후보와 입력 | 제공 port | 소비자 |
-|---|---|---|---|
-| 01 | `register_library(host, config)` | DocumentRepository, DocumentSearch, CitationVerifier, AnnotationSync | Tutor 02, client 04/05, assembly |
-| 02 | `register_tutor(host, document_search, citation_verifier, learning_store, provider)` | TutorRuntime, LearningStateStore, capability registry | API assembly, client 04/05 |
-| 03 | `make_reader_facade(local_config)` | ReaderFacade와 원자 local store/outbox | iPad 04 |
-| 04 | `make_ipad_app(reader_facade, api_client, sync_worker)` | 앱 root/화면, network/worker | 앱 진입점 자체 소유 |
-| 05 | `mount_mnemosyne_web(api_config)` | web root, PDF viewer/event consumer | 웹 진입점 자체 소유 |
-| 06 | `run_integration_checks(config)` | 설치·실행·CI·health smoke 및 검사 | 개발자/CI |
+서버 DocumentRepository는 get_document(document_id,version_id?), get_page(document_id,version_id,page_index,parse_revision), get_asset(document_id,version_id,asset_id)다. 실제 구현은 UNIT-01이며 Tutor는 UUID/version 매핑과 접근 검증을 이 경계에서 받아야 한다. 기존 ReadingStore의 OS 경로를 client에 노출하지 않는다.
 
-공통 host는 router/container/상태 조회의 최소 조립 객체다. 유닛이 전역 singleton/import side effect로 router를 등록하지 않는다. DB session/UoW는 UNIT-01이 제공하고 UNIT-02가 학습 port 구현에 사용한다. UNIT-02가 DB schema를 직접 만들지 않는다. plugin/capability 등록에는 필수 `chat, reading, quiz, assessment, mastery, solve, memory, progress, review`가 모두 있어야 한다. 없어도 성공으로 표기하는 경량화는 금지한다.
+서버 AnnotationSync는 apply_mutations(batch), snapshot(document_id,version_id), changes(cursor,limit). LearningStateStore는 get_state, submit_attempt, save_activity(activity,mutation_id,base_revision), review_memory. 공통 DB/UoW는 01, 학습 서비스 의미는 02. persistence 변경 명세에는 schema·migration·transaction·롤백·검증을 넣어 01에 전달한다.
 
-## port 메서드와 데이터
+Reader facade는 openCached, installDownloadedOriginal, downloadState, readerContext, applyReaderEvent, commitLocalEdit, undo/redo, pendingMutations, applySyncReceipts, applyRemotePage, exportAnnotatedCopy를 고정했다. 각 Data는 계약 DTO JSON이다. 03은 durable 저장·pending outbox·받은 cursor와 receipts·승인 annotate event ID를 원자 보관한다. 04가 다운로드한 임시 파일을 facade에 넘기면 03이 원본 full hash를 검증하고 atomic cache install한다. downloadState의 cached는 검증된 durable 파일에만 해당한다. 04는 Reader DB 파일을 직접 열지 않는다. 03은 네트워크를 만들지 않는다. 05는 iPad ink를 표시만 한다.
 
-- DocumentRepository(01): `get_document(id, version?)`, `get_page(id, version, page_index, parse_revision)`, `get_asset(id, version, asset_id)`; 외부 path를 받지 않는다.
-- DocumentSearch(01): `search(document_ids, query, language, limit)` → score+anchor+segment geometry. 문서 접근·준비 상태를 확인한다. 실제 embedding/vector store adapter를 재사용한다.
-- CitationVerifier(01): `verify_citation(anchor)` → 검증된 citation 또는 ErrorEnvelope. page/text/hash/geometry를 서버 데이터로 대조한다. Tutor가 `verified:true`를 직접 만들어내지 않는다.
-- AnnotationSync(01): `apply_mutations(batch)`와 `snapshot(document,version)`, `changes(cursor,limit)` → 공통 schema. 멱등 receipt+revision+log는 한 transaction.
-- LearningStateStore(02): `get_state(document_id)`, `save_activity(activity, mutation_id, base_revision)`, `submit_attempt(attempt)`, `review_memory(review)` → learning snapshot/receipt. DB schema 변경은 `handoff/UNIT-02.md`에 migration 요구로 01에 전달한다. mutation receipt와 파생 상태 갱신을 한 UoW로 묶는다.
-- TutorRuntime(02): `create_turn(request)`, `subscribe(turn_id,after_event_id)`, `cancel(turn_id)`; 후보 외부 SSE를 기존 streaming에 adapter로 연결한다. token/secret은 서버에만 있다.
-- ReaderFacade(03): `open_cached(document,version)`, `download_state()`, `get_context()`, `goto(target)`, `show_highlight(target,ttl)`, `flash(target,ttl)`, `propose_annotation(event)`, `commit_local_edit(edit)`, `undo()`, `redo()`, `pending_mutations(limit)`, `apply_sync_receipts(receipts)`, `apply_remote_page(changes,cursor)`, `export_annotated_copy()`.
-- local store/outbox(03): page position, immutable PDF cache+hash, ink/annotation draft, mutation receipt, last event seq/approved annotate event ID/cursor를 원자적으로 저장한다. UNIT-04 worker는 facade API만 사용한다. 로컬 저장 성공 전에 `기기에 저장됨`을 표시하지 않는다.
+## 실제 transport와 API 구현 상태
 
-언어 중립 port DTO는 `models.schema.json`, `annotations.schema.json`, `events.schema.json`을 사용한다. HTTP DTO와 internal transaction은 구별하되 문서/version/좌표/offset 의미를 바꾸지 않는다. 취소·오류를 숨기는 빈 성공 값은 반환하지 않는다.
+`/ws`, protocol 2.0을 재사용한다. HTTP turn 생성/취소와 SSE 후보는 제거했다. start_turn/subscribe_turn/resume_from/cancel_turn은 원래 command schema를 사용한다. 모든 native persisted frame.seq를 checkpoint한다. semantic `metadata.mnemosyne`만 거르면 seq가 비어 있을 수 있으므로 그 subset을 다시 1부터 세지 않는다. recoverable native error를 terminal로 오인하지 않는다. native done metadata.status가 completed/failed/cancelled일 때 정확히 하나의 semantic terminal을 싣는다.
 
-## 실행·통합 순서
+`contracts/openapi.yaml`의 `x-implementation=observed-upstream`은 실제 `/health`, `/ready`다. `planned-unit-extension`은 이번 유닛이 구현할 HTTP facade이며 현재 등록된 API가 아니다. 네이티브 websocket schema는 원래 Pydantic export의 byte-identical copy다. 공통 models/events/annotations는 새로운 Mnemosyne 경계다. upstream REST를 전부 대체하거나 native schema를 임의로 갈아엎지 않는다.
 
-1. 정확한 두 소스를 연결해 UPSTREAM-AUDIT의 URL/SHA/LICENSE/명령/transport/저장 구조를 채운다. 기존 경로를 유지한다.
-2. 실제 파일 소유표와 registry의 symbol/path를 고정하고 통합 담당이 최소 등록 adapter/assembly 변경을 커밋한다. 아직 어떤 제품 코드도 이 준비에서 만들지 않았다.
-3. source-backed 계약을 확정하고 fixture에 실제 parser/Reader adapter의 대응 결과를 추가한다. 외부 streaming은 하나만 선택한다. 클라이언트 모델/codegen을 실제 스택에서 검사한다.
-4. UNIT-06은 실제 backend/web/iPad build 명령과 WSL2/Docker 실행을 연결한다. 통합 담당은 각 port의 signature/import 검사를 실행한다.
-5. 같은 기준 SHA와 contract digest를 여섯 작업에 전달한다. 작업별 브랜치에서 단독 소유 파일만 수정한다. 시작 후 공통 contracts/assembly는 통합 담당을 통해 변경한다.
-6. Library/storage → Tutor/learning → Reader/app/web 소비 경계를 실제 서버에서 통합 검사한다. 이것은 **통합 순서**이며 필수 제품 기능의 후속 phase 이관이 아니다.
+## 계약 배포와 동일 버전
 
-## 기준 commit과 두 저장소 배포
+루트 contracts/가 유일한 편집 원본이다. 두 snapshot에는 `MnemosyneContracts/`에 동일한 바이트를 복사했다. `python checks/sync_contracts.py --check`와 `validate_contracts.py --require-ready`가 버전·전체 file digest·두 복사본·원래 소스 provenance·등록 심볼·단독 소유를 확인한다. 복사본은 통합 담당만 generator로 갱신한다. unit은 API 소비 코드만 수정한다.
 
-검토용 준비 commit은 `git rev-parse codex/mnemosyne-bootstrap`으로 확인한다. clean 상태, `contracts/manifest.json` digest, `integration/registry.json` 상태를 함께 보관한다. 확정 시작은 모든 upstream SHA와 실제 경로가 등록되고 `checks/validate_contracts.py --require-ready`가 성공한 뒤 통합 담당이 immutable tag를 만든다. source tree가 dirty하면 확인한 변경 diff와 기준 commit을 별도로 기록한다.
+소스 트리 안에서 각각 독립 작업/빌드할 수 있고 모든 내부 상대 경로는 보존했다. 새로운 파일은 소유자가 먼저 배정한다. 원래 파일의 개발 지침과 license도 그대로 보존한다. `.git`를 중첩해 gitlink로 만들지 않는다.
 
-두 저장소인 경우 각 소스는 원래 경로와 independent commit을 유지한다. 계약은 준비 저장소의 동일 immutable bundle을 `vendor/mnemosyne-contracts/` **후보** 위치에 배포하되 실제 기존 vendor 관례에 맞춰 최종 위치를 기록한다. registry에 각 source SHA와 contract bundle SHA/digest를 기록하고 양쪽 CI가 fixture를 소비한다. 후보 vendor 위치가 기존 레이아웃 재배치를 지시하는 것은 아니다. 단일 저장소인 경우 루트 계약을 직접 소비한다.
+## 실행과 후속 통합
 
-## 실제 제품 인수 검사
+1. 여섯 branch 모두 아래 시작 SHA와 contracts/manifest.json digest에서 출발한다. 첫 단계에서 각 handoff와 정확한 소유 파일 목록을 읽는다.
+2. 01 저장/검색/인용/sync와 03 로컬 facade를 구현한다. 02는 ports를 소비하며 학습 persistence 요구를 01에 전달한다. 04/05는 fixture와 같은 계약으로 UI/네트워크를 독립 구현한다. 06은 기존 manifests/CI/Docker를 연결한다.
+3. 서버 main/container/routes의 변경은 통합 담당이 등록 함수만 연결한다. 제품 callback은 각 유닛 파일에 두고 공통 파일 편집 경쟁을 피한다.
+4. 실제 upload/parse/search/citation, 두 기기 수정·삭제·retry/cursor expiry, 학습 상태 저장·재시작, WS resume/cancel/error, 원본 hash/파생 export를 통합 검사한다.
+5. iPad 오프라인 필기·앱 종료 복구·회전/줌/Pencil, 웹 PDF/ink/한국어 전체 학습, Windows WSL2 설치·재시작·백업 복구를 제품 인수로 검사한다. 준비 fixture 성공으로 대체하지 않는다.
 
-UNIT-06은 real adapter를 사용한 문서 업로드/파싱/검색/인용 검증, 2-device 수정·삭제·재전송·cursor 만료, turn resume/cancel/error, 전체 학습 capability 저장/복구, 원본 hash 보존/파생 export를 검사한다. iPad는 실제 Pencil/오프라인/앱 재시작/가로세로 geometry, Mac은 실제 PDF rendering과 ink 표시/근거 이동을 검사한다. mock/fixture 성공을 이 결과로 대체하지 않는다.
+이것은 dependency 통합 순서다. Chat/Reading/Quiz/Assessment/Mastery/Solve/Memory/Progress/Review나 오프라인을 후속 phase로 미루는 뜻이 아니다.
 
-## 남은 필수 입력
+## 시작 commit 확인
 
-정확한 Pumice와 DeepTutor URL/로컬 경로 및 ref, 실제 제품 저장소 연결, PR용 remote. 저장소에 git identity가 없어 준비 commit은 명시된 `Codex Bootstrap <codex-bootstrap@localhost>` identity로 기록한다. 제품 경로·라이선스·build·transport·시작 SHA와 cloud repository 접근성은 아직 확정할 수 없다.
+`git rev-parse mnemosyne-bootstrap-v0.1.0^{commit}`이 확정 시작 SHA다. tag는 마지막 검사와 commit 이후 만든다. 문서에 자기 자신 commit SHA를 써서 순환시키지 않는다. registry는 두 upstream SHA와 contract digest를, 로컬 tag는 공통 시작 SHA를 고정한다. 기본 브랜치에는 통합하지 않는다.
+
+GitHub remote가 없으므로 Cloud 작업을 실제 시작하려면 이 branch/tag를 사용자 GitHub 저장소에 게시해야 한다. 현재 로컬 파일과 commit은 검토 가능하며 PR 본문은 docs/REVIEW.md에 준비했다. 사용자 소유 remote를 추정하거나 두 upstream에 직접 push하지 않는다.

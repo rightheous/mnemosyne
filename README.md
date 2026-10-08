@@ -1,23 +1,13 @@
-# 므네모시네 공통 준비
+# Mnemosyne · 므네모시네
 
-단일 사용자를 위한 iPad PDF/Pencil Reader, Mac 웹, 개인 서버의 문서 중심 학습 시스템.
+개인 문서 중심 학습 시스템의 **공통 소스 기반 시작점**이다. 사용자가 지정한 Pumice(iPad)와 DeepTutor(서버·웹)의 원래 tracked source를 pinned snapshot으로 보존했다. 제품 구현을 넓게 시작하지 않고 여섯 유닛을 위한 소유권·계약·등록 seam·검사를 준비했다.
 
-**2026-10-08 현재: 소스 확인 대기 중인 준비 초안입니다.** 이 저장소는 처음 확인했을 때 파일·커밋·remote가 없었습니다. 재사용할 Pumice/DeepTutor의 정확한 URL/경로를 요청했습니다. 동명 프로젝트를 선택하지 않았으며 실제 제품 API, 라이선스, 빌드, 스트리밍을 확인했다는 의미가 아닙니다. 여섯 제품 작업을 시작하는 승인된 기준 커밋은 아직 없습니다.
+먼저 docs/REQUIREMENTS.md, UPSTREAM-AUDIT.md, OWNERSHIP.md, INTEGRATION.md와 integration/registry.json을 읽는다. 정확한 파일별 소유권은 integration/ownership.json, 원래 소스 provenance는 integration/upstreams.json이다.
 
-- [요구사항](docs/REQUIREMENTS.md), [소스 감사](docs/UPSTREAM-AUDIT.md)
-- [소유 경로](docs/OWNERSHIP.md), [통합과 시작 조건](docs/INTEGRATION.md)
-- [UI 방향](docs/UI-DIRECTION.md), [계약 설명](contracts/README.md)
-- [검증 결과](docs/VALIDATION.md), [준비 상태](integration/registry.json)
+- upstreams/Pumice/: Swift 6 · SwiftUI/UIKit/PDFKit · iPadOS 18+, MIT.
+- upstreams/DeepTutor/: Python/FastAPI · 기존 학습 runtime · Next/React 웹, Apache-2.0 및 third-party notices.
+- contracts/: 계약 0.1.0, 실제 parser 기반 영문/한글 PDF fixture와 native WebSocket 2.0 확장. 두 source의 MnemosyneContracts/에 동일 bundle 제공.
+- handoff/: 여섯 작업의 실제 경로·호출 경계·필수 인수 조건.
+- checks/: schema/fixture/소유권/source gate, 실제 backend/웹/Swift adapter 검사.
 
-계약 버전 `0.1.0-draft.1`. 계약은 현재 구현을 반영한 확정 외부 API가 아니라 요구사항을 검증하기 위한 후보입니다. 소스 확인 후 실제 구현에 맞춰 같은 버전 묶음을 확정해야 합니다.
-
-```sh
-python3 -m venv /tmp/mnemosyne-checks
-/tmp/mnemosyne-checks/bin/python -m pip install -r checks/requirements.txt
-/tmp/mnemosyne-checks/bin/python checks/validate_contracts.py
-node checks/web-consumer.mjs
-swift -module-cache-path /tmp/mnemosyne-swift-cache checks/ipad-consumer.swift
-/tmp/mnemosyne-checks/bin/python checks/validate_contracts.py --require-ready
-```
-
-마지막 명령은 소스 감사가 끝날 때까지 의도적으로 실패합니다. 앞의 성공은 제품 실행이나 실제 Pumice/DeepTutor 통합의 증거가 아닙니다. Python/Node/Swift 소비 예제는 공통 fixture 검사 전용입니다.
+기준 tag는 mnemosyne-bootstrap-v0.1.0. 로컬 Git branch는 codex/mnemosyne-bootstrap이다. 아직 GitHub remote가 없어 Cloud 게시/PR 생성은 완료되지 않았다. 제품 준비 상태는 false이며 필수 학습·오프라인·불변 원본·개인 서버 보호를 각 유닛이 이번 범위에서 완성한다. 실행 결과와 기기/Windows 미검증 항목은 docs/VALIDATION.md를 본다.

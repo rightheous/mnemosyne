@@ -1,9 +1,15 @@
 # UNIT-04 인수 경계
 
-현재 제품 소유 경로: 없음 (Pumice audit 대기). 현재 준비 문서 소유: 이 파일만.
+담당: iPad 한국어 앱 화면·Library/Tutor·네트워크·sync worker·App/Xcode. 공통 시작 tag `mnemosyne-bootstrap-v0.1.0`, 계약 `0.1.0`.
 
-담당: iPad 한국어 앱 화면/과목/Library/Tutor/학습 화면, API client/pairing, network/sync worker, 앱 진입점, Xcode project/settings. Reader 내부와 local DB는 UNIT-03 facade로만 호출한다.
+실제 등록 경로: `upstreams/Pumice/App/MnemosyneAppDependencies.swift` · `makeIPadApp`. docs/INTEGRATION.md의 signature와 callers를 읽는다.
 
-가로 PDF 옆 Tutor, 세로 sheet. 오프라인 읽기/필기 저장 상태와 network Tutor 상태를 구별한다. actor/직렬 실행 모델은 실제 upstream에 맞춘다. mutation/receipt 순서와 backoff, SSE candidate event dedup/gap/resume, 임시 효과와 영구 제안 승인을 소비한다. URL에 token을 넣지 않는다.
+makeReaderFacade factory로 실제 03 구현을 주입하고 App/LaunchView/기존 Browser 연결. worker는 facade만 사용하고 local DB 직접 편집 금지. download/pairing/WS checkpoint/retry/conflict UI. 가로 PDF옆 Tutor, 세로 sheet. iPadOS-only/Catalyst NO 유지, 서명값은 local config.
 
-인수: library download/pairing, two-device synchronization, 과목과 학습 화면, 앱 재시작 뒤 outbox/stream 복구, 모든 required event를 facade/화면에 연결. project file과 Reader 파일을 함께 수정하지 않는다.
+현재 common seam/fixture가 있다는 것은 제품 구현 완료가 아니다. 빈 port를 success/no-op으로 채우지 않는다. 필수 기능은 모두 이번 범위다.
+
+정확한 수정 가능 파일 82개는 integration/ownership.json의 owners.UNIT-04 배열이다. 주요 directory는 OWNERSHIP.md 참조. 다른 소유자의 공통 startup/계약/DB/manifest 파일을 편집하지 않는다.
+
+새 계약 변경은 소비자 영향·version·fixture·검증 변경을 포함해 통합 담당에게 제안한다. DB 요구는 schema/migration/transaction/검증 명세로 01에 전달한다. 사용자 지시 없이 다른 채팅에 메시지를 보내지 않는다.
+
+인수 결과는 실행한 명령·실제 source/service/build/device 종류·실패/차단을 구별하고 기록한다. 공통 fixture PASS를 제품 오프라인/LLM/기기 검증으로 대체하지 않는다. 원본 hash, 잘못된 인용 거부, replay/cancel/error와 재시작 저장을 실제 경계에서 확인한다.

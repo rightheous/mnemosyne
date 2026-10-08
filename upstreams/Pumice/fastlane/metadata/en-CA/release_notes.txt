@@ -1,0 +1,10 @@
+0.3.0 brings markdown notes into the vault alongside PDFs.
+
+- Markdown notes (.md) now appear in the sidebar tree next to your PDFs. Tap to preview headings, lists, blockquotes, and code blocks.
+- New Convert to PDF action on any note generates a paginated PDF on device with the same layout as the preview, and drops it next to the source.
+- The sidebar refreshes in place. Converting, deleting, or refreshing no longer collapses your open folders.
+- Delete files from the tree with swipe-left or long-press, with a confirm step.
+- Tap the file name in the navigation bar to see the full vault path; it copies to the clipboard.
+- Tap the vault name for a quick menu: switch vaults, connect a new one, manage your list.
+- Distinct icons across the tree: orange for PDFs, blue for notes, warm stone for folders.
+- Splash screen now uses the colour rock logo.

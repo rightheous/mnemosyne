@@ -1,22 +1,25 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "events.schema.json",
-  "title": "Mnemosyne ordered Tutor events candidates",
-  "x-contract-version": "0.1.0-draft.1",
+  "title": "Mnemosyne ordered Tutor events",
+  "x-contract-version": "0.1.0",
   "oneOf": [
     {
       "type": "object",
       "properties": {
         "contract_version": {
-          "const": "0.1.0-draft.1"
+          "const": "0.1.0"
         },
         "event_id": {
           "type": "string",
-          "pattern": "^[a-f0-9-]{36}:[1-9][0-9]*$"
+          "pattern": "^[A-Za-z0-9_-]+:[1-9][0-9]*$"
         },
         "turn_id": {
           "type": "string",
-          "format": "uuid"
+          "minLength": 1,
+          "maxLength": 256,
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "description": "Opaque native DeepTutor turn ID, e.g. turn_<milliseconds>_<hex>; do not parse as UUID."
         },
         "seq": {
           "type": "integer",
@@ -74,15 +77,18 @@
       "type": "object",
       "properties": {
         "contract_version": {
-          "const": "0.1.0-draft.1"
+          "const": "0.1.0"
         },
         "event_id": {
           "type": "string",
-          "pattern": "^[a-f0-9-]{36}:[1-9][0-9]*$"
+          "pattern": "^[A-Za-z0-9_-]+:[1-9][0-9]*$"
         },
         "turn_id": {
           "type": "string",
-          "format": "uuid"
+          "minLength": 1,
+          "maxLength": 256,
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "description": "Opaque native DeepTutor turn ID, e.g. turn_<milliseconds>_<hex>; do not parse as UUID."
         },
         "seq": {
           "type": "integer",
@@ -125,15 +131,18 @@
       "type": "object",
       "properties": {
         "contract_version": {
-          "const": "0.1.0-draft.1"
+          "const": "0.1.0"
         },
         "event_id": {
           "type": "string",
-          "pattern": "^[a-f0-9-]{36}:[1-9][0-9]*$"
+          "pattern": "^[A-Za-z0-9_-]+:[1-9][0-9]*$"
         },
         "turn_id": {
           "type": "string",
-          "format": "uuid"
+          "minLength": 1,
+          "maxLength": 256,
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "description": "Opaque native DeepTutor turn ID, e.g. turn_<milliseconds>_<hex>; do not parse as UUID."
         },
         "seq": {
           "type": "integer",
@@ -175,15 +184,18 @@
       "type": "object",
       "properties": {
         "contract_version": {
-          "const": "0.1.0-draft.1"
+          "const": "0.1.0"
         },
         "event_id": {
           "type": "string",
-          "pattern": "^[a-f0-9-]{36}:[1-9][0-9]*$"
+          "pattern": "^[A-Za-z0-9_-]+:[1-9][0-9]*$"
         },
         "turn_id": {
           "type": "string",
-          "format": "uuid"
+          "minLength": 1,
+          "maxLength": 256,
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "description": "Opaque native DeepTutor turn ID, e.g. turn_<milliseconds>_<hex>; do not parse as UUID."
         },
         "seq": {
           "type": "integer",
@@ -239,15 +251,18 @@
       "type": "object",
       "properties": {
         "contract_version": {
-          "const": "0.1.0-draft.1"
+          "const": "0.1.0"
         },
         "event_id": {
           "type": "string",
-          "pattern": "^[a-f0-9-]{36}:[1-9][0-9]*$"
+          "pattern": "^[A-Za-z0-9_-]+:[1-9][0-9]*$"
         },
         "turn_id": {
           "type": "string",
-          "format": "uuid"
+          "minLength": 1,
+          "maxLength": 256,
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "description": "Opaque native DeepTutor turn ID, e.g. turn_<milliseconds>_<hex>; do not parse as UUID."
         },
         "seq": {
           "type": "integer",
@@ -331,15 +346,18 @@
       "type": "object",
       "properties": {
         "contract_version": {
-          "const": "0.1.0-draft.1"
+          "const": "0.1.0"
         },
         "event_id": {
           "type": "string",
-          "pattern": "^[a-f0-9-]{36}:[1-9][0-9]*$"
+          "pattern": "^[A-Za-z0-9_-]+:[1-9][0-9]*$"
         },
         "turn_id": {
           "type": "string",
-          "format": "uuid"
+          "minLength": 1,
+          "maxLength": 256,
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "description": "Opaque native DeepTutor turn ID, e.g. turn_<milliseconds>_<hex>; do not parse as UUID."
         },
         "seq": {
           "type": "integer",
@@ -423,15 +441,18 @@
       "type": "object",
       "properties": {
         "contract_version": {
-          "const": "0.1.0-draft.1"
+          "const": "0.1.0"
         },
         "event_id": {
           "type": "string",
-          "pattern": "^[a-f0-9-]{36}:[1-9][0-9]*$"
+          "pattern": "^[A-Za-z0-9_-]+:[1-9][0-9]*$"
         },
         "turn_id": {
           "type": "string",
-          "format": "uuid"
+          "minLength": 1,
+          "maxLength": 256,
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "description": "Opaque native DeepTutor turn ID, e.g. turn_<milliseconds>_<hex>; do not parse as UUID."
         },
         "seq": {
           "type": "integer",
@@ -487,15 +508,18 @@
       "type": "object",
       "properties": {
         "contract_version": {
-          "const": "0.1.0-draft.1"
+          "const": "0.1.0"
         },
         "event_id": {
           "type": "string",
-          "pattern": "^[a-f0-9-]{36}:[1-9][0-9]*$"
+          "pattern": "^[A-Za-z0-9_-]+:[1-9][0-9]*$"
         },
         "turn_id": {
           "type": "string",
-          "format": "uuid"
+          "minLength": 1,
+          "maxLength": 256,
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "description": "Opaque native DeepTutor turn ID, e.g. turn_<milliseconds>_<hex>; do not parse as UUID."
         },
         "seq": {
           "type": "integer",
@@ -538,15 +562,18 @@
       "type": "object",
       "properties": {
         "contract_version": {
-          "const": "0.1.0-draft.1"
+          "const": "0.1.0"
         },
         "event_id": {
           "type": "string",
-          "pattern": "^[a-f0-9-]{36}:[1-9][0-9]*$"
+          "pattern": "^[A-Za-z0-9_-]+:[1-9][0-9]*$"
         },
         "turn_id": {
           "type": "string",
-          "format": "uuid"
+          "minLength": 1,
+          "maxLength": 256,
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "description": "Opaque native DeepTutor turn ID, e.g. turn_<milliseconds>_<hex>; do not parse as UUID."
         },
         "seq": {
           "type": "integer",
@@ -594,15 +621,18 @@
       "type": "object",
       "properties": {
         "contract_version": {
-          "const": "0.1.0-draft.1"
+          "const": "0.1.0"
         },
         "event_id": {
           "type": "string",
-          "pattern": "^[a-f0-9-]{36}:[1-9][0-9]*$"
+          "pattern": "^[A-Za-z0-9_-]+:[1-9][0-9]*$"
         },
         "turn_id": {
           "type": "string",
-          "format": "uuid"
+          "minLength": 1,
+          "maxLength": 256,
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "description": "Opaque native DeepTutor turn ID, e.g. turn_<milliseconds>_<hex>; do not parse as UUID."
         },
         "seq": {
           "type": "integer",
@@ -651,15 +681,18 @@
       "type": "object",
       "properties": {
         "contract_version": {
-          "const": "0.1.0-draft.1"
+          "const": "0.1.0"
         },
         "event_id": {
           "type": "string",
-          "pattern": "^[a-f0-9-]{36}:[1-9][0-9]*$"
+          "pattern": "^[A-Za-z0-9_-]+:[1-9][0-9]*$"
         },
         "turn_id": {
           "type": "string",
-          "format": "uuid"
+          "minLength": 1,
+          "maxLength": 256,
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "description": "Opaque native DeepTutor turn ID, e.g. turn_<milliseconds>_<hex>; do not parse as UUID."
         },
         "seq": {
           "type": "integer",
@@ -707,15 +740,18 @@
       "type": "object",
       "properties": {
         "contract_version": {
-          "const": "0.1.0-draft.1"
+          "const": "0.1.0"
         },
         "event_id": {
           "type": "string",
-          "pattern": "^[a-f0-9-]{36}:[1-9][0-9]*$"
+          "pattern": "^[A-Za-z0-9_-]+:[1-9][0-9]*$"
         },
         "turn_id": {
           "type": "string",
-          "format": "uuid"
+          "minLength": 1,
+          "maxLength": 256,
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "description": "Opaque native DeepTutor turn ID, e.g. turn_<milliseconds>_<hex>; do not parse as UUID."
         },
         "seq": {
           "type": "integer",
@@ -761,15 +797,18 @@
       "type": "object",
       "properties": {
         "contract_version": {
-          "const": "0.1.0-draft.1"
+          "const": "0.1.0"
         },
         "event_id": {
           "type": "string",
-          "pattern": "^[a-f0-9-]{36}:[1-9][0-9]*$"
+          "pattern": "^[A-Za-z0-9_-]+:[1-9][0-9]*$"
         },
         "turn_id": {
           "type": "string",
-          "format": "uuid"
+          "minLength": 1,
+          "maxLength": 256,
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "description": "Opaque native DeepTutor turn ID, e.g. turn_<milliseconds>_<hex>; do not parse as UUID."
         },
         "seq": {
           "type": "integer",
