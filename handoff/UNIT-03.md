@@ -39,9 +39,9 @@ let facade = try makeReaderFacade(
 
 ## Mac/Xcode 및 iPad 수동 검증 절차
 
-현재 로컬 검증 환경은 XcodeGen/full Xcode/iOS SDK를 제공하지 않는다. xcode-select -p는 /Library/Developer/CommandLineTools를 반환한다. xcodebuild -version은 active developer directory가 Command Line Tools라 Xcode가 필요하다고 실패했고, xcrun --sdk iphonesimulator --show-sdk-path는 SDK를 찾지 못했다. xcodegen 명령도 설치되어 있지 않다.
+2026-10-09 재확인: 현재 로컬 검증 환경은 XcodeGen/full Xcode/iOS SDK를 제공하지 않는다. xcode-select -p는 /Library/Developer/CommandLineTools를 반환한다. xcodebuild -version은 active developer directory가 Command Line Tools라 Xcode가 필요하다고 실패했고, xcrun --sdk iphonesimulator --show-sdk-path는 SDK를 찾지 못했다. `/Applications/Xcode*.app`와 Spotlight 검색에서 Xcode bundle을 찾지 못했고, `xcodegen` 명령도 설치되어 있지 않다.
 
-Cloud Apple SDK 확인 결과도 미확인이다. 현재 도구 목록에는 Cloud Xcode/SDK probe나 원격 Mac build 실행기가 없고, project 목록에서 Cloud Mac project를 찾지 못했다. registry의 cloud_repository_access는 local_only_no_origin이다. 이는 이 환경에서 확인할 수 없다는 뜻이며 Cloud에 SDK가 없다는 증거는 아니다. Cloud runner에 접근할 수 있으면 아래도 기록한다.
+Cloud Apple SDK 확인 결과도 미확인이다. 2026-10-09 현재 도구 목록에는 Cloud Xcode/SDK probe나 원격 Mac build 실행기가 없고, project 목록에는 local projects와 ChatGPT projects만 있어 Cloud Mac project를 찾지 못했다. registry의 cloud_repository_access는 local_only_no_origin이다. 이는 이 환경에서 확인할 수 없다는 뜻이며 Cloud에 SDK가 없다는 증거는 아니다. Cloud runner에 접근할 수 있으면 아래도 기록한다.
 
     xcodebuild -version
     xcodebuild -showsdks
