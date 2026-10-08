@@ -79,3 +79,27 @@ UNIT-04 코드는 `PumiceApp.swift`, `MnemosyneAppDependencies.swift`, `LaunchVi
 ## API 준비/실제 연결 구분
 
 `/health`와 `/ready`만 감사에서 observed upstream입니다. contract의 `/v1/*` operation은 계획된 wire 계약이고, 별도 branch에 있는 Library router factory도 mounted API가 아닙니다. UNIT-04 client는 wire 계약 소비 코드이며 handler가 통합 server에 연결되기 전까지 제품 서버 연결 성공으로 표시하지 않습니다.
+
+## UNIT-04 implementation checkpoint — 2026-10-09
+
+이 checkpoint가 위의 이전 Reader 작업본/연결 상태를 갱신한다.
+
+- UNIT-04 앱 composition은 `FileMnemosyneLocalStore`, `PersistentMnemosyneReaderFacade`, `PumiceReaderEngine`, `PDFReaderController`를 `makeIPadApp()`에서 실제 조립한다. Library workspace는 verified durable PDF URL을 `PDFReaderView`에 표시하고, Reader lifecycle에서 context를 저장한다. Pencil/annotation sidecar 저장은 UNIT-03 facade/engine 경계를 사용한다. Tutor `reader.annotate`는 facade의 `approveAnnotationSuggestion`을 거친 사용자 승인만 outbox에 저장한다.
+- Sync worker는 pairing 뒤 시작하고 facade의 pending mutations, receipts, change pages와 cursor를 사용한다. Snapshot adapter는 snapshot을 Reader facade의 atomic change-page 입력으로 바꾸고, 사라진 server annotation에는 snapshot watermark tombstone을 만들어 pending local mutation을 보호한다. 이 adapter는 fixture/device runtime에서 아직 검증되지 않았다.
+- Native turn checkpoint는 raw Tutor frame/text 대신 turn ID와 sequence만 저장한다. Semantic event를 처리한 뒤 sequence를 commit해 처리 실패 때 서버 replay를 받을 수 있게 했다.
+- 의존 구현의 확인된 clean commit은 UNIT-03 `3a98ac43474722c98eded510ec6428f8329cd3d2` (offline Reader facade/Pencil), UNIT-01 `51d75c1` (Library/sync hardening), UNIT-02 `17d6e6b` (Tutor runtime)이다. 합쳐서 확인한 통합 복제본은 임시 경로 `/tmp/mnemosyne-unit04-integration-check`이다.
+
+### 실제 검사 결과
+
+- Swift 구문 파싱: UNIT-04 App/Network/UI test와 통합 복제본의 Reader/Core 소스에 대해 통과. `git diff --check` 통과.
+- `checks/sync_contracts.py --check`: 계약 `0.1.0`, 두 생성 복사본, bundle 10개 통과.
+- UNIT-01 최신 library fixture 5개 통과, 6개 PyMuPDF SWIG deprecation warnings.
+- UNIT-02 mock provider fixture 110개 통과, 4 warnings.
+- 통합 `checks/validate_contracts.py --require-ready`는 `docs/handoffs/unit-01.md`, `docs/handoffs/unit-04.md`가 `integration/ownership.json`에 미등록이라 실패했다. 두 문서는 요청된 handoff 산출물이지만 소유권 registry는 통합 담당이 갱신해야 한다. UNIT-04는 해당 registry를 수정하지 않았다.
+- `xcodebuild -version`은 활성 개발자 디렉터리가 Command Line Tools라며 실패했다. Xcode 제품 빌드, UI XCTest, iPad simulator/Pencil/오프라인 기기 검증은 실행하지 않았다.
+
+### 제품 통합 차단
+
+- 병합된 clean server 소스에서도 `api/main.py`에는 `register_mnemosyne` state 등록만 보이고 `build_library_router` mount가 없다. `/v1/tutor/turns` 생성 operation도 없다. 그러므로 iPad의 planned `/v1/*` 호출, pairing 이후 library/sync, Tutor 생성→native `/ws` streaming은 실행 가능한 제품 API로 입증되지 않았다.
+- 계약은 `0.1.0`, registry는 `product_ready: false`, `cloud_repository_access: local_only_no_origin`이다. authenticated tutor-turn create, quiz hint, API router mounting/auth/Origin, LearningStateStore 조립은 통합 담당/계약 담당의 후속 변경이 필요하다.
+- Cloud 게시와 PR은 생성하지 않았다. 현재 결과는 UNIT-04 코드와 source/fixture 수준의 검증이며 전체 제품 완료가 아니다.

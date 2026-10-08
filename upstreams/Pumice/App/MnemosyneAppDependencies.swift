@@ -17,20 +17,126 @@ import PumiceCore
 /// Native seq includes frames without metadata.mnemosyne and must survive process restarts.
 @MainActor protocol MnemosyneTutorCheckpointStore: AnyObject {
     func lastTutorSequence(turnID: String) throws -> Int
-    func commitTutorFrame(_ nativeFrame: Data) throws
+    func commitTutorFrame(turnID: String, sequence: Int) throws
 }
 
 @MainActor struct MnemosyneAppDependencies {
+    let localStore: any MnemosyneLocalStore
     let reader: any MnemosyneReaderFacade
-    let syncWorker: any MnemosyneSyncWorker
-    let serverURL: URL
+    let readerEngine: PumiceReaderEngine
+    let readerController: PDFReaderController
+    let syncStateStore: any MnemosyneSyncStateStore
+    let tutorCheckpointStore: any MnemosyneTutorCheckpointStore
 }
 
-/// UNIT-04 connects this composition seam to PumiceApp/LaunchView.
-@MainActor func makeIPadApp(reader: any MnemosyneReaderFacade,
-                           syncWorker: any MnemosyneSyncWorker,
-                           serverURL: URL) -> MnemosyneAppDependencies {
-    MnemosyneAppDependencies(reader: reader, syncWorker: syncWorker, serverURL: serverURL)
+/// Build the durable Reader and Pencil path at the app boundary.
+@MainActor func makeIPadApp() throws -> MnemosyneAppDependencies {
+    let localStore = try FileMnemosyneLocalStore.applicationSupportStore()
+    let readerEngine = PumiceReaderEngine()
+    let reader = try makeReaderFacade(
+        factory: { store in PersistentMnemosyneReaderFacade(localStore: store, engine: readerEngine) },
+        localStore: localStore
+    )
+    return MnemosyneAppDependencies(
+        localStore: localStore,
+        reader: reader,
+        readerEngine: readerEngine,
+        readerController: PDFReaderController(),
+        syncStateStore: MnemosyneReaderSyncStateStore(reader: reader),
+        tutorCheckpointStore: MnemosyneNativeTurnCheckpointStore()
+    )
+}
+
+/// Adapts the owned Reader facade to UNIT-04's sync worker boundary. Snapshot
+/// replacement is translated to an authoritative page with missing records
+/// represented as tombstones, while the facade preserves pending local edits.
+@MainActor private final class MnemosyneReaderSyncStateStore: MnemosyneSyncStateStore {
+    private let reader: any MnemosyneReaderFacade
+
+    init(reader: any MnemosyneReaderFacade) { self.reader = reader }
+
+    func syncCursor(documentID: UUID, versionID: String) throws -> String? {
+        try reader.receivedCursor(documentID: documentID, versionID: versionID)
+    }
+
+    func applyRemoteSnapshot(_ snapshot: Data) throws {
+        guard let object = try JSONSerialization.jsonObject(with: snapshot) as? [String: Any],
+              object["contract_version"] as? String == MnemosyneContract.version,
+              let documentID = (object["document_id"] as? String).flatMap(UUID.init(uuidString:)),
+              let versionID = object["version_id"] as? String,
+              let revision = object["snapshot_revision"] as? Int, revision >= 0,
+              let cursor = object["next_cursor"] as? String, !cursor.isEmpty,
+              let annotations = object["annotations"] as? [[String: Any]] else {
+            throw MnemosyneAPIError.invalidResponse
+        }
+
+        let snapshotIDs = Set(annotations.compactMap { $0["annotation_id"] as? String })
+        var changes = annotations
+        if revision > 0 {
+            let now = ISO8601DateFormatter().string(from: Date())
+            for data in try reader.annotations(documentID: documentID, versionID: versionID) {
+                guard let previous = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+                      let annotationID = previous["annotation_id"] as? String,
+                      !snapshotIDs.contains(annotationID),
+                      let previousRevision = previous["server_revision"] as? Int,
+                      let pageIndex = previous["page_index"] as? Int,
+                      let kind = previous["kind"] as? String else { continue }
+                changes.append([
+                    "annotation_id": annotationID,
+                    "document_id": documentID.uuidString.lowercased(),
+                    "version_id": versionID,
+                    "page_index": pageIndex,
+                    "kind": kind,
+                    "server_revision": max(revision, previousRevision),
+                    "updated_at": now,
+                    "deleted": true,
+                    "deleted_at": now,
+                    "payload": NSNull()
+                ])
+            }
+        }
+
+        let page: [String: Any] = [
+            "contract_version": MnemosyneContract.version,
+            "document_id": documentID.uuidString.lowercased(),
+            "version_id": versionID,
+            "next_cursor": cursor,
+            "changes": changes
+        ]
+        try reader.applyRemotePage(JSONSerialization.data(withJSONObject: page, options: [.sortedKeys]))
+    }
+}
+
+/// Persist only turn identity and sequence. Tutor text and raw frames remain
+/// in memory, while native frames without semantic metadata still advance the
+/// reconnect cursor across app restarts.
+@MainActor private final class MnemosyneNativeTurnCheckpointStore: MnemosyneTutorCheckpointStore {
+    private let defaults: UserDefaults
+    private let keyPrefix = "mnemosyne.native-turn-sequence."
+
+    init(defaults: UserDefaults = .standard) { self.defaults = defaults }
+
+    func lastTutorSequence(turnID: String) throws -> Int {
+        defaults.integer(forKey: try key(turnID: turnID))
+    }
+
+    func commitTutorFrame(turnID: String, sequence: Int) throws {
+        let storageKey = try key(turnID: turnID)
+        guard sequence > 0 else { throw MnemosyneWireError.incompatibleFrame }
+        let previous = defaults.integer(forKey: storageKey)
+        if sequence <= previous { return }
+        guard sequence == previous + 1 else {
+            throw MnemosyneWireError.sequenceGap(expected: previous + 1, received: sequence)
+        }
+        defaults.set(sequence, forKey: storageKey)
+    }
+
+    private func key(turnID: String) throws -> String {
+        guard turnID.range(of: #"^[A-Za-z0-9_-]{1,256}$"#, options: .regularExpression) != nil else {
+            throw MnemosyneTutorTransportError.missingTurnIdentity
+        }
+        return keyPrefix + turnID
+    }
 }
 
 enum MnemosyneSection: String, CaseIterable, Identifiable {
@@ -76,9 +182,18 @@ final class MnemosyneAppModel: ObservableObject {
     @Published private(set) var downloadStates: [UUID: String] = [:]
     @Published private(set) var syncSummary = "동기화 연결 대기"
     @Published private(set) var syncConflictedMutationIds: [UUID] = []
+    @Published private(set) var readerSetupMessage: String?
+    @Published private(set) var activeReaderURL: URL?
+    @Published private(set) var activeReaderDocumentID: UUID?
+    @Published private(set) var activeReaderVersionID: String?
 
     private(set) var reader: (any MnemosyneReaderFacade)?
     private(set) var syncWorker: (any MnemosyneSyncWorker)?
+    private(set) var readerEngine: PumiceReaderEngine?
+    private(set) var readerController: PDFReaderController?
+    private var localStore: (any MnemosyneLocalStore)?
+    private var syncStateStore: (any MnemosyneSyncStateStore)?
+    private var tutorCheckpointStore: (any MnemosyneTutorCheckpointStore)?
     private var api: MnemosyneAPIClient?
     private var tutorTransport: MnemosyneTutorTransport?
     private var verifiedCitations: [UUID: MnemosyneVerifiedCitation] = [:]
@@ -89,6 +204,24 @@ final class MnemosyneAppModel: ObservableObject {
     private var cancelCommandId: UUID?
     private var pendingQuizAttempts: [String: MnemosyneAttempt] = [:]
     private var pendingMemoryReviews: [String: MnemosyneMemoryReview] = [:]
+    private var openedReaderKey: String?
+
+    init() {
+        do {
+            let dependencies = try makeIPadApp()
+            localStore = dependencies.localStore
+            reader = dependencies.reader
+            readerEngine = dependencies.readerEngine
+            readerController = dependencies.readerController
+            syncStateStore = dependencies.syncStateStore
+            tutorCheckpointStore = dependencies.tutorCheckpointStore
+            dependencies.readerEngine.onAnnotationSuggestion = { [weak self] event in
+                self?.pendingAnnotationEvent = event
+            }
+        } catch {
+            readerSetupMessage = error.localizedDescription
+        }
+    }
 
     var selectedDocument: MnemosyneDocument? {
         guard let selectedDocumentId else { return nil }
@@ -108,11 +241,6 @@ final class MnemosyneAppModel: ObservableObject {
         case .online: isPaired ? "서버 연결됨 · 기기 연결됨" : "서버 연결됨 · 기기 연결 필요"
         case let .offline(message): message
         }
-    }
-
-    func attachReader(_ reader: any MnemosyneReaderFacade, syncWorker: any MnemosyneSyncWorker) {
-        self.reader = reader
-        self.syncWorker = syncWorker
     }
 
     func connectSavedServer() async {
@@ -141,17 +269,20 @@ final class MnemosyneAppModel: ObservableObject {
             return
         }
         guard isPaired else {
+            (syncWorker as? MnemosyneAnnotationSyncWorker)?.stopForegroundWorker()
+            syncWorker = nil
             readiness = nil
             publicSettings = nil
             subjects = []
             documents = []
             return
         }
+        configureSyncWorker(using: client)
         do {
                 readiness = try await client.readiness()
                 publicSettings = try await client.settings()
                 try await refreshLibrary()
-                if currentTurnId != nil, reader is (any MnemosyneTutorCheckpointStore) {
+                if currentTurnId != nil, tutorCheckpointStore != nil {
                     tutorStatus = "이전 튜터 응답을 이어 받을 수 있습니다."
                 }
         } catch {
@@ -168,6 +299,7 @@ final class MnemosyneAppModel: ObservableObject {
         do {
             _ = try await api.pair(oneTimeCode: pairingCode, deviceName: deviceName)
             isPaired = true
+            configureSyncWorker(using: api)
             readiness = try await api.readiness()
             publicSettings = try await api.settings()
             try await refreshLibrary()
@@ -180,6 +312,8 @@ final class MnemosyneAppModel: ObservableObject {
         defer { busyMessage = nil }
         do {
             try await api.unpair()
+            (syncWorker as? MnemosyneAnnotationSyncWorker)?.stopForegroundWorker()
+            syncWorker = nil
             isPaired = false
             readiness = nil
             publicSettings = nil
@@ -216,6 +350,14 @@ final class MnemosyneAppModel: ObservableObject {
         busyMessage = "라이브러리를 새로 고치고 있습니다"
         defer { busyMessage = nil }
         do { try await refreshLibrary() } catch { alertMessage = error.localizedDescription }
+    }
+
+    private func configureSyncWorker(using api: MnemosyneAPIClient) {
+        guard let reader, let syncStateStore else { return }
+        (syncWorker as? MnemosyneAnnotationSyncWorker)?.stopForegroundWorker()
+        let worker = MnemosyneAnnotationSyncWorker(api: api, reader: reader, syncState: syncStateStore)
+        syncWorker = worker
+        worker.startForegroundWorker()
     }
 
     func selectSubject(_ subjectId: UUID?) async {
@@ -271,8 +413,8 @@ final class MnemosyneAppModel: ObservableObject {
 
     func openDocument(_ document: MnemosyneDocument) async {
         selectedDocumentId = document.documentId
-        guard let reader else {
-            alertMessage = "PDF Reader와 sidecar 저장소가 UNIT-03에서 연결되기 전입니다. 다운로드를 완료 상태로 표시하지 않았습니다."
+        guard let reader, let localStore, readerEngine != nil, readerController != nil else {
+            alertMessage = readerSetupMessage ?? "PDF Reader와 로컬 원본 저장소를 준비하지 못했습니다."
             return
         }
         busyMessage = "원본 PDF 상태를 확인하고 있습니다"
@@ -283,8 +425,6 @@ final class MnemosyneAppModel: ObservableObject {
             switch localState {
             case .cached:
                 busyMessage = "기기에 저장된 원본을 열고 있습니다"
-                try await reader.openCached(documentID: document.documentId, versionID: document.versionId)
-                downloadStates[document.documentId] = "기기에 저장됨"
             case .missing, .invalid:
                 guard document.originalAvailable, let api else {
                     throw api == nil ? MnemosyneAPIError.pairingRequired : MnemosyneAPIError.invalidPDF
@@ -295,17 +435,59 @@ final class MnemosyneAppModel: ObservableObject {
                 defer { try? FileManager.default.removeItem(at: temporaryURL) }
                 try await reader.installDownloadedOriginal(from: temporaryURL, documentID: document.documentId,
                                                              versionID: document.versionId)
-                busyMessage = "검증된 PDF를 Reader에 연결하고 있습니다"
-                try await reader.openCached(documentID: document.documentId, versionID: document.versionId)
-                downloadStates[document.documentId] = "기기에 저장됨"
             case .downloading:
                 downloadStates[document.documentId] = "다운로드 중"
+                return
             }
+            guard let cachedURL = try localStore.cachedOriginalURL(documentID: document.documentId,
+                                                                   versionID: document.versionId) else {
+                throw MnemosyneAPIError.invalidPDF
+            }
+            activeReaderDocumentID = document.documentId
+            activeReaderVersionID = document.versionId
+            activeReaderURL = cachedURL
+            openedReaderKey = nil
+            downloadStates[document.documentId] = "기기에 저장됨"
         } catch {
             downloadStates[document.documentId] = "오류 · 다시 시도"
             alertMessage = error.localizedDescription
         }
     }
+
+    func readerViewDidAppear(for document: MnemosyneDocument) async {
+        guard activeReaderDocumentID == document.documentId,
+              activeReaderVersionID == document.versionId,
+              let reader else { return }
+        let key = "\(document.documentId.uuidString.lowercased())|\(document.versionId)"
+        guard openedReaderKey != key else { return }
+        do {
+            try await reader.openCached(documentID: document.documentId, versionID: document.versionId)
+            openedReaderKey = key
+            saveReaderContext()
+        } catch {
+            activeReaderURL = nil
+            activeReaderDocumentID = nil
+            activeReaderVersionID = nil
+            alertMessage = error.localizedDescription
+        }
+    }
+
+    func readerViewDidDisappear() {
+        readerController?.saveIfNeeded()
+        saveReaderContext()
+        openedReaderKey = nil
+    }
+
+    func closeReader() {
+        readerViewDidDisappear()
+        activeReaderURL = nil
+        activeReaderDocumentID = nil
+        activeReaderVersionID = nil
+    }
+
+    func saveReaderContext() { _ = try? reader?.readerContext() }
+    func undoReader() { try? reader?.undo() }
+    func redoReader() { try? reader?.redo() }
 
     func synchronizeNow() async {
         guard let syncWorker else {
@@ -425,7 +607,7 @@ final class MnemosyneAppModel: ObservableObject {
     /// provides the documented ReaderContext-to-native mapping.
     func startTutor(startCommand: Data) {
         guard let api, let reader, let document = selectedDocument,
-              let checkpointStore = reader as? any MnemosyneTutorCheckpointStore,
+              let checkpointStore = tutorCheckpointStore,
               let url = try? MnemosyneAPIClient.validatedURL(serverURLText) else {
             tutorStatus = "튜터 스트림 또는 Reader checkpoint 연결을 기다리는 중입니다."
             return
@@ -447,8 +629,8 @@ final class MnemosyneAppModel: ObservableObject {
             do {
                 try await transport.run(startCommand: resumeId == nil ? startCommand : nil,
                     resumeTurnId: resumeId, afterSequence: resumeSequence,
-                    checkpoint: { turnId, _, rawFrame in
-                        try checkpointStore.commitTutorFrame(rawFrame)
+                    checkpoint: { turnId, sequence, _ in
+                        try checkpointStore.commitTutorFrame(turnID: turnId, sequence: sequence)
                         currentTurnId = turnId
                         UserDefaults.standard.set(turnId, forKey: "mnemosyne.lastTurnId")
                         UserDefaults.standard.set(document.documentId.uuidString, forKey: "mnemosyne.lastTurnDocumentId")
@@ -480,8 +662,8 @@ final class MnemosyneAppModel: ObservableObject {
     func approvePendingAnnotation() {
         guard let pendingAnnotationEvent, let reader else { return }
         do {
-            // Facade owns event-id idempotency and atomically adds the mutation to outbox.
-            try reader.applyReaderEvent(pendingAnnotationEvent)
+            // Approval is the only path that turns a Tutor suggestion into an outbox mutation.
+            _ = try reader.approveAnnotationSuggestion(pendingAnnotationEvent)
             self.pendingAnnotationEvent = nil
         } catch { alertMessage = error.localizedDescription }
     }

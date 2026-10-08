@@ -345,12 +345,37 @@ private struct MnemosyneDocumentWorkspace: View {
 
             if !model.hasReaderFacade {
                 ContentUnavailableView("Reader 연결 대기 중", systemImage: "doc.text.viewfinder",
-                    description: Text("PDF 캐시, 읽던 위치, Pencil sidecar를 UNIT-03 facade와 연결한 뒤 원본을 열 수 있습니다."))
+                    description: Text(model.readerSetupMessage ?? "PDF 캐시, 읽던 위치, Pencil sidecar를 Reader facade와 연결할 수 없습니다."))
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .background(.white, in: RoundedRectangle(cornerRadius: 12))
+            } else if model.activeReaderDocumentID == document.documentId,
+                      model.activeReaderVersionID == document.versionId,
+                      let url = model.activeReaderURL,
+                      let controller = model.readerController,
+                      let engine = model.readerEngine {
+                VStack(spacing: 0) {
+                    HStack(spacing: 12) {
+                        Text("검증된 원본 · 로컬 sidecar 필기")
+                            .font(.caption).foregroundStyle(.secondary)
+                        Spacer()
+                        Button { model.undoReader() } label: { Label("되돌리기", systemImage: "arrow.uturn.backward") }
+                        Button { model.redoReader() } label: { Label("다시 실행", systemImage: "arrow.uturn.forward") }
+                        Button("닫기") { model.closeReader() }
+                    }
+                    .buttonStyle(.borderless)
+                    .padding(.horizontal, 10).padding(.vertical, 8)
+                    Divider()
+                    PDFReaderView(pdfURL: url, controller: controller,
+                                  onPageChanged: { _ in model.saveReaderContext() },
+                                  mnemosyneEngine: engine)
+                        .onAppear { Task { await model.readerViewDidAppear(for: document) } }
+                        .onDisappear { model.readerViewDidDisappear() }
+                        .background(.white)
+                }
+                .clipShape(RoundedRectangle(cornerRadius: 12))
             } else {
-                ContentUnavailableView("읽기 위치를 복구합니다", systemImage: "book.pages",
-                    description: Text("검증된 durable 원본만 Reader에 전달됩니다."))
+                ContentUnavailableView("PDF를 열어 주세요", systemImage: "book.pages",
+                    description: Text("서버 원본의 전체 SHA-256을 확인한 뒤 기기에 보관합니다. 오프라인에서도 저장된 원본을 열 수 있습니다."))
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .background(.white, in: RoundedRectangle(cornerRadius: 12))
             }

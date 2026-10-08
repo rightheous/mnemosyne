@@ -1077,9 +1077,9 @@ final class MnemosyneTutorTransport {
             guard let activeTurnId else { throw MnemosyneTutorTransportError.missingTurnIdentity }
             guard try sequenceCheckpoint.isReplayOrValidateNext(sequence) else { continue }
 
+            if let semanticEvent = frame.semanticEvent { try await onEvent(semanticEvent) }
             try await checkpoint(activeTurnId, sequence, rawFrame)
             try sequenceCheckpoint.commit(sequence)
-            if let semanticEvent = frame.semanticEvent { try await onEvent(semanticEvent) }
             if object["type"] as? String == "done" { return }
         }
         throw CancellationError()
