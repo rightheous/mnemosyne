@@ -2,8 +2,9 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import path from "node:path";
+import { NextRequest } from "next/server";
 import { unstable_doesMiddlewareMatch } from "next/experimental/testing/server";
-import { config as proxyConfig } from "../proxy";
+import { config as proxyConfig, proxy } from "../proxy";
 
 // Unit tests for the pure middleware routing policy (web/lib/proxy-policy.ts).
 // The policy is deliberately decoupled from `next/server`, so it can be
@@ -18,7 +19,9 @@ import {
   isAuthExempt,
   isBackendPath,
   isCodexCallbackPath,
+  isMnemosynePagePath,
   isRetiredPagePath,
+  shouldRedirectToMnemosyne,
   isWebSocketPath,
 } from "../lib/proxy-policy";
 import { prepareBackendForwardHeaders } from "../lib/backend-forward";
@@ -86,17 +89,79 @@ test("retired pages cannot fall through to colliding dynamic routes", () => {
   assert.equal(isRetiredPagePath("/partners/group-1"), false);
 });
 
+test("the page allowlist keeps Mnemosyne routes and redirects upstream screens", () => {
+  for (const pathname of [
+    "/learning",
+    "/learning/reading",
+    "/learning/reading/document-1",
+    "/settings",
+  ]) {
+    assert.equal(isMnemosynePagePath(pathname), true, pathname);
+    assert.equal(shouldRedirectToMnemosyne(pathname), false, pathname);
+  }
+
+  for (const pathname of [
+    "/",
+    "/chat",
+    "/chat/session-1",
+    "/learning/books",
+    "/learning/reading/materials",
+    "/learning/reading/document-1/sessions",
+    "/agents",
+    "/register",
+    "/admin/users",
+  ]) {
+    assert.equal(isMnemosynePagePath(pathname), false, pathname);
+    assert.equal(shouldRedirectToMnemosyne(pathname), true, pathname);
+  }
+
+  for (const pathname of [
+    "/api/knowledge-bases/list",
+    "/v1/readiness",
+    "/ws/chat",
+    "/logo.png",
+    "/pdfjs/build/pdf.worker.mjs",
+    "/site.webmanifest",
+    "/login",
+    "/handoff",
+    "/auth/callback",
+    "/partners/groups",
+  ]) {
+    assert.equal(shouldRedirectToMnemosyne(pathname), false, pathname);
+  }
+});
+
+test("the proxy redirects old UI pages to the library and drops stale query state", () => {
+  const response = proxy(
+    new NextRequest("http://localhost/chat/session-1?legacy=chat"),
+  );
+  const location = response.headers.get("location");
+
+  assert.equal(response.status, 307);
+  assert.ok(location);
+  assert.equal(new URL(location).pathname, "/learning/reading");
+  assert.equal(new URL(location).search, "");
+});
+
+test("an explicitly retired dynamic-route collision stays unavailable", () => {
+  const response = proxy(new NextRequest("http://localhost/partners/groups"));
+  assert.equal(response.status, 404);
+});
+
 test("proxy rewrites the exact callback before backend routing and auth gating", () => {
   const source = readFileSync(path.resolve(process.cwd(), "proxy.ts"), "utf8");
   const callbackBranch = source.indexOf("if (isCodexCallbackPath(pathname))");
   const backendBranch = source.indexOf("if (isBackendPath(pathname))");
+  const productRouteBranch = source.indexOf("if (shouldRedirectToMnemosyne(pathname))");
   const authGate = source.indexOf("if (!AUTH_ENABLED");
 
   assert.notEqual(callbackBranch, -1);
   assert.notEqual(backendBranch, -1);
+  assert.notEqual(productRouteBranch, -1);
   assert.notEqual(authGate, -1);
   assert.ok(callbackBranch < backendBranch);
-  assert.ok(callbackBranch < authGate);
+  assert.ok(backendBranch < productRouteBranch);
+  assert.ok(productRouteBranch < authGate);
   assert.match(
     source,
     /NextResponse\.rewrite\(\s*new URL\(\s*CODEX_CALLBACK_API_PATH \+ search,\s*API_BASE_URL,?\s*\),?\s*\)/,
@@ -116,7 +181,7 @@ test("isAuthExempt allows public static assets through the auth gate (issue #599
 
 test("isAuthExempt allows auth pages and Next internals", () => {
   assert.equal(isAuthExempt("/login"), true);
-  assert.equal(isAuthExempt("/register"), true);
+  assert.equal(isAuthExempt("/register"), false);
   assert.equal(isAuthExempt("/_next/data/build/chat.json"), true);
   assert.equal(isAuthExempt("/favicon-32x32.png"), true);
 });

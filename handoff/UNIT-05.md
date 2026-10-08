@@ -47,7 +47,7 @@
 ## UNIT-05 구현 및 검증 기록 (2026-10-09)
 
 - 구현: `features/mnemosyne/register.ts`는 계약 API/등록 어댑터를 제공하고 화면은 새 UNIT-05 소유 경로 `features/mnemosyne/screens.tsx`에 둔다. 한국어 Library/Reader/학습/Quiz/Tutor/설정 UI를 기존 PDF.js, annotation layer, native `/ws` stream client, shared `apiFetch`/browser storage 경계에 연결했다. 외부 AI credential은 브라우저 저장소나 화면 상태에 유지하지 않는다.
-- 라우팅: 루트는 `/learning/reading`으로 보내고 개인용이 아닌 레거시 경로는 호환 redirect한다. same-origin proxy가 `/v1/*`와 `/ws/*`를 backend로 전달한다.
+- 라우팅: 루트 페이지는 `/learning/reading`으로 보내며, proxy는 `/learning`, `/learning/reading`, 문서 Reader 경로, `/settings`, 로그인·handoff·callback 및 정적 자산을 유지한다. 나머지 upstream UI 경로는 `/learning/reading`으로 보내며 기존 명시적 폐기 경로 `/partners/groups`는 404로 차단한다. same-origin proxy가 `/v1/*`와 `/ws/*`를 backend로 전달한다.
 - PASS: `npm --prefix upstreams/DeepTutor/web run contracts:check`; `typecheck`; `test:node` (1304 tests); `test:unit` (146 files, 653 tests); `build` (Next.js compile, TypeScript, 44 static pages). 처음 동시 실행에서 4개가 실패했다(2개 timeout, Task Board 1개, 이전 Practice 제목 assertion 1개). build 종료 후 timeout/Task Board 포함 영향 경로 4개 파일이 15/15 통과했고, Practice assertion을 새 Mnemosyne 학습 화면에 맞춘 뒤 전체 653개도 재실행해 통과했다.
 - 차단: `python3 checks/validate_contracts.py --require-ready`는 현재 Python runtime에 `jsonschema`가 없어 검사하지 못했고 requirements를 설치하라는 메시지를 반환했다. 최초 sandbox build는 Google Fonts 네트워크 제한으로 진행되지 않았으나 승인된 network-enabled retry는 통과했다.
 - 제품/기기 미검증: `deeptutor/api/main.py`에서 library router를 mount하지 않은 상태라 실제 `/v1` API, pairing cookie, readiness, learning/review, quiz/turn 조회, parse retry, cross-device reading position 및 실제 stream/annotation flow를 통합 서버에서 검증하지 못했다. iPad/browser device verification도 미실행이다. 이 결과로 `product_ready` 또는 cloud publication 상태를 올리지 않는다.
@@ -60,3 +60,10 @@
 - `test:unit` 기본 worker 실행은 146개 파일 중 142개 통과, 653개 중 649개 통과, 4개 실패했다. `tests/i18n-audit.spec.ts`, `tests/question-bank-picker.spec.tsx`, `tests/usage-statistics.spec.tsx`는 5초 timeout, `tests/task-board.spec.tsx`는 `Task note` textbox 조회 실패였다. 이 네 파일을 `--maxWorkers=1`로 다시 실행해 18/18 통과했고, 전체 `test:unit --maxWorkers=1 --reporter=dot`도 146/146 파일·653/653 테스트 통과했다. 따라서 병렬 worker 실행에서는 시간 민감한 기존 fixture 실패가 있었으며 직렬 전체 회귀는 통과했다.
 - 수정 TSX 두 파일의 ESLint 검사는 exit 0, 0 errors, 38 `i18n/no-literal-ui-text` warnings였다. Mnemosyne 화면의 한국어 JSX 문구가 이 규칙의 literal UI warning 대상이다.
 - 실제 브라우저 설정 round-trip은 확인하지 못했다. 현재 `deeptutor/api/main.py`는 bootstrap service만 lifespan에 등록하고 Library REST router를 mount하지 않는다. `integration/registry.json`은 `product_ready: false`, cloud access는 `local_only_no_origin` 상태다.
+
+## UNIT-05 메뉴·라우팅 후속 (2026-10-09)
+
+- 메뉴를 한국어 `라이브러리`, `학습 기록·복습`, `설정`으로 줄였다. 루트 페이지는 `/learning/reading`을 열고, proxy page allowlist는 `/learning`, `/learning/reading`, 단일 문서 Reader 경로, `/settings`를 보존한다. 기존 채팅·파트너·작업공간·가입·기타 upstream UI 페이지는 Library로 보내며 `/partners/groups`는 기존 retired-route 가드로 404를 유지한다. backend API/WebSocket, callback, 로그인·handoff, 정적 파일은 이 page redirect에서 제외했다.
+- PASS: `npm --prefix upstreams/DeepTutor/web run typecheck`; `test:node` 1,307/1,307; 변경된 `sidebar-defaults.spec.tsx`·`learner-navigation.spec.tsx` 2 files / 10 tests; production `build` (44 static pages). 빌드에서 webpack cache snapshot 경고가 있었으나 종료 코드는 0이었다.
+- 브라우저 smoke: 로컬 production server 화면에서 `/`와 `/agents`가 `/learning/reading`에 도달했고 Library 및 Settings의 한국어 UI를 렌더링했다. 서버가 없는 상태에서 Library/Settings API가 HTTP 500을 반환하는 오류 UI도 확인했다. 그러므로 실제 PDF→Tutor→Reader 이동, ink overlay, Quiz·설정 성공 round-trip은 여전히 서버 통합에 막혀 검증하지 않았다.
+- 빌드는 upstream route module들도 계속 산출물에 포함한다. 런타임 proxy가 allowlist 밖 페이지 요청을 redirect해 제품 진입 경로를 제한하지만, 물리적 route 파일 삭제는 하지 않았다.

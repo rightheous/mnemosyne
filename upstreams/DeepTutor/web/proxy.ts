@@ -11,6 +11,7 @@ import {
   isBackendPath,
   isCodexCallbackPath,
   isRetiredPagePath,
+  shouldRedirectToMnemosyne,
   isWebSocketPath,
 } from "./lib/proxy-policy";
 
@@ -75,7 +76,17 @@ export function proxy(req: NextRequest): NextResponse {
     });
   }
 
-  // 2. Auth gate — multi-user mode only. Disabled by default, and never blocks
+  // Keep the personal product surface small and predictable. Backend APIs,
+  // static assets, auth pages, and supported Mnemosyne routes are handled
+  // above or below; every remaining upstream UI route returns to the Library.
+  if (shouldRedirectToMnemosyne(pathname)) {
+    const libraryUrl = req.nextUrl.clone();
+    libraryUrl.pathname = "/learning/reading";
+    libraryUrl.search = "";
+    return NextResponse.redirect(libraryUrl);
+  }
+
+  // 3. Auth gate — multi-user mode only. Disabled by default, and never blocks
   //    auth pages, Next.js internals, or public static assets (see
   //    isAuthExempt: that exemption is what keeps the logo/banner images
   //    loading once login is enabled — issue #599).

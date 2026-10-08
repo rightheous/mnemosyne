@@ -1,10 +1,10 @@
 import { redirect } from "next/navigation";
 
 /**
- * The workspace root has one destination; sessions live under `/chat`.
- * `next.config.js` redirects `/` before routing, so this page is only a
- * fallback — it stays so links to `/` still resolve to a real page.
+ * The workspace root opens the personal study library.
+ * `next.config.js` may redirect `/` before routing, so this page is a fallback
+ * for deployments that reach the App Router directly.
  */
 export default function WorkspaceRootPage() {
-  redirect("/chat");
+  redirect("/learning/reading");
 }

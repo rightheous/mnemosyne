@@ -12,6 +12,12 @@ export const COOKIE_NAME = "dt_token";
 export const CODEX_CALLBACK_PATH = "/auth/callback";
 export const CODEX_CALLBACK_API_PATH = "/api/auth/openai-codex/callback";
 const RETIRED_PAGE_PATHS = new Set(["/partners/groups"]);
+const MNEMOSYNE_PAGE_PATHS = new Set([
+  "/learning",
+  "/learning/reading",
+  "/settings",
+]);
+const MNEMOSYNE_READER_PATH = /^\/learning\/reading\/(?!materials$|folders$)[^/]+$/;
 
 export function isCodexCallbackPath(pathname: string): boolean {
   return pathname === CODEX_CALLBACK_PATH;
@@ -20,6 +26,11 @@ export function isCodexCallbackPath(pathname: string): boolean {
 /** Exact retired pages that would otherwise collide with a dynamic route. */
 export function isRetiredPagePath(pathname: string): boolean {
   return RETIRED_PAGE_PATHS.has(pathname);
+}
+
+/** Pages that are part of the personal Mnemosyne web experience. */
+export function isMnemosynePagePath(pathname: string): boolean {
+  return MNEMOSYNE_PAGE_PATHS.has(pathname) || MNEMOSYNE_READER_PATH.test(pathname);
 }
 
 // Paths whose responses come from the backend, not the Next app. The middleware
@@ -48,18 +59,28 @@ export function isWebSocketPath(pathname: string): boolean {
 // (issue #599 — broken logo/banner after login). Public assets are
 // non-sensitive by design, so allowing them through is safe.
 const STATIC_ASSET =
-  /\.(?:png|jpe?g|gif|svg|ico|webp|avif|woff2?|ttf|otf|txt|json|map|css|js|wasm)$/i;
+  /\.(?:png|jpe?g|gif|svg|ico|webp|avif|woff2?|ttf|otf|txt|json|map|css|mjs|js|wasm|webmanifest)$/i;
 
 // Paths the auth gate must never block: the auth pages themselves, Next.js
 // internals, and public static assets (see STATIC_ASSET above).
 export function isAuthExempt(pathname: string): boolean {
   return (
     pathname.startsWith(LOGIN_PATH) ||
-    pathname.startsWith("/register") ||
     pathname === HANDOFF_PATH ||
     pathname.startsWith("/_next") ||
     pathname.startsWith("/favicon") ||
     STATIC_ASSET.test(pathname)
+  );
+}
+
+/** Old product pages converge on the Mnemosyne library entry point. */
+export function shouldRedirectToMnemosyne(pathname: string): boolean {
+  return (
+    !isCodexCallbackPath(pathname) &&
+    !isRetiredPagePath(pathname) &&
+    !isMnemosynePagePath(pathname) &&
+    !isBackendPath(pathname) &&
+    !isAuthExempt(pathname)
   );
 }
 
