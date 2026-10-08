@@ -1,0 +1,251 @@
+: heartbeat
+
+id: 00000000-0000-0000-0000-00000000001e:1
+event: turn.started
+data: {
+data:   "contract_version": "0.1.0-draft.1",
+data:   "event_id": "00000000-0000-0000-0000-00000000001e:1",
+data:   "turn_id": "00000000-0000-0000-0000-00000000001e",
+data:   "seq": 1,
+data:   "created_at": "2026-10-08T07:00:00Z",
+data:   "type": "turn.started",
+data:   "payload": {
+data:     "capability": "reading",
+data:     "response_language": "ko"
+data:   }
+data: }
+
+id: 00000000-0000-0000-0000-00000000001e:2
+event: assistant.delta
+data: {
+data:   "contract_version": "0.1.0-draft.1",
+data:   "event_id": "00000000-0000-0000-0000-00000000001e:2",
+data:   "turn_id": "00000000-0000-0000-0000-00000000001e",
+data:   "seq": 2,
+data:   "created_at": "2026-10-08T07:00:00Z",
+data:   "type": "assistant.delta",
+data:   "payload": {
+data:     "text": "전압이 두 배가 되면 저장 에너지는 네 배입니다. "
+data:   }
+data: }
+
+id: 00000000-0000-0000-0000-00000000001e:3
+event: citation.verified
+data: {
+data:   "contract_version": "0.1.0-draft.1",
+data:   "event_id": "00000000-0000-0000-0000-00000000001e:3",
+data:   "turn_id": "00000000-0000-0000-0000-00000000001e",
+data:   "seq": 3,
+data:   "created_at": "2026-10-08T07:00:00Z",
+data:   "type": "citation.verified",
+data:   "payload": {
+data:     "citation": {
+data:       "citation_id": "00000000-0000-0000-0000-000000000032",
+data:       "verification_id": "00000000-0000-0000-0000-000000000033",
+data:       "verified": true,
+data:       "anchor": {
+data:         "document_id": "00000000-0000-0000-0000-000000000001",
+data:         "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
+data:         "page_index": 1,
+data:         "parse_revision": "fixture-parser-1",
+data:         "text_sha256": "47dc1aed27fbabb5785b499cdc0f86c8a9e5385d6f9907739bd8a74694d2be89",
+data:         "start_scalar": 0,
+data:         "end_scalar": 31,
+data:         "quote": "커패시터는 에너지를 저장한다. E = 1/2 C V^2.",
+data:         "rects": [
+data:           [
+data:             47,
+data:             100,
+data:             18,
+data:             303.982
+data:           ]
+data:         ]
+data:       }
+data:     }
+data:   }
+data: }
+
+id: 00000000-0000-0000-0000-00000000001e:4
+event: reader.goto
+data: {
+data:   "contract_version": "0.1.0-draft.1",
+data:   "event_id": "00000000-0000-0000-0000-00000000001e:4",
+data:   "turn_id": "00000000-0000-0000-0000-00000000001e",
+data:   "seq": 4,
+data:   "created_at": "2026-10-08T07:00:00Z",
+data:   "type": "reader.goto",
+data:   "payload": {
+data:     "target": {
+data:       "document_id": "00000000-0000-0000-0000-000000000001",
+data:       "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
+data:       "page_index": 1
+data:     },
+data:     "position": [
+data:       60,
+data:       100
+data:     ],
+data:     "citation_id": "00000000-0000-0000-0000-000000000032"
+data:   }
+data: }
+
+id: 00000000-0000-0000-0000-00000000001e:5
+event: reader.highlight
+data: {
+data:   "contract_version": "0.1.0-draft.1",
+data:   "event_id": "00000000-0000-0000-0000-00000000001e:5",
+data:   "turn_id": "00000000-0000-0000-0000-00000000001e",
+data:   "seq": 5,
+data:   "created_at": "2026-10-08T07:00:00Z",
+data:   "type": "reader.highlight",
+data:   "payload": {
+data:     "target": {
+data:       "document_id": "00000000-0000-0000-0000-000000000001",
+data:       "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
+data:       "page_index": 1
+data:     },
+data:     "rects": [
+data:       [
+data:         47,
+data:         100,
+data:         18,
+data:         303.982
+data:       ]
+data:     ],
+data:     "citation_id": "00000000-0000-0000-0000-000000000032",
+data:     "ttl_ms": 1800,
+data:     "persistent": false
+data:   }
+data: }
+
+id: 00000000-0000-0000-0000-00000000001e:6
+event: reader.flash
+data: {
+data:   "contract_version": "0.1.0-draft.1",
+data:   "event_id": "00000000-0000-0000-0000-00000000001e:6",
+data:   "turn_id": "00000000-0000-0000-0000-00000000001e",
+data:   "seq": 6,
+data:   "created_at": "2026-10-08T07:00:00Z",
+data:   "type": "reader.flash",
+data:   "payload": {
+data:     "target": {
+data:       "document_id": "00000000-0000-0000-0000-000000000001",
+data:       "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
+data:       "page_index": 1
+data:     },
+data:     "rects": [
+data:       [
+data:         47,
+data:         100,
+data:         18,
+data:         303.982
+data:       ]
+data:     ],
+data:     "citation_id": "00000000-0000-0000-0000-000000000032",
+data:     "ttl_ms": 800,
+data:     "persistent": false
+data:   }
+data: }
+
+id: 00000000-0000-0000-0000-00000000001e:7
+event: reader.annotate
+data: {
+data:   "contract_version": "0.1.0-draft.1",
+data:   "event_id": "00000000-0000-0000-0000-00000000001e:7",
+data:   "turn_id": "00000000-0000-0000-0000-00000000001e",
+data:   "seq": 7,
+data:   "created_at": "2026-10-08T07:00:00Z",
+data:   "type": "reader.annotate",
+data:   "payload": {
+data:     "annotation": {
+data:       "annotation_id": "00000000-0000-0000-0000-00000000000a",
+data:       "document_id": "00000000-0000-0000-0000-000000000001",
+data:       "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
+data:       "page_index": 1,
+data:       "kind": "highlight",
+data:       "payload": {
+data:         "anchor": {
+data:           "document_id": "00000000-0000-0000-0000-000000000001",
+data:           "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
+data:           "page_index": 1,
+data:           "parse_revision": "fixture-parser-1",
+data:           "text_sha256": "47dc1aed27fbabb5785b499cdc0f86c8a9e5385d6f9907739bd8a74694d2be89",
+data:           "start_scalar": 0,
+data:           "end_scalar": 31,
+data:           "quote": "커패시터는 에너지를 저장한다. E = 1/2 C V^2.",
+data:           "rects": [
+data:             [
+data:               47,
+data:               100,
+data:               18,
+data:               303.982
+data:             ]
+data:           ]
+data:         },
+data:         "color": "#FFE08280"
+data:       }
+data:     },
+data:     "citation_id": "00000000-0000-0000-0000-000000000032",
+data:     "requires_confirmation": true,
+data:     "suggested_mutation_id": "00000000-0000-0000-0000-00000000006b"
+data:   }
+data: }
+
+id: 00000000-0000-0000-0000-00000000001e:8
+event: quiz.show
+data: {
+data:   "contract_version": "0.1.0-draft.1",
+data:   "event_id": "00000000-0000-0000-0000-00000000001e:8",
+data:   "turn_id": "00000000-0000-0000-0000-00000000001e",
+data:   "seq": 8,
+data:   "created_at": "2026-10-08T07:00:00Z",
+data:   "type": "quiz.show",
+data:   "payload": {
+data:     "quiz_id": "00000000-0000-0000-0000-000000000028"
+data:   }
+data: }
+
+id: 00000000-0000-0000-0000-00000000001e:9
+event: question.show
+data: {
+data:   "contract_version": "0.1.0-draft.1",
+data:   "event_id": "00000000-0000-0000-0000-00000000001e:9",
+data:   "turn_id": "00000000-0000-0000-0000-00000000001e",
+data:   "seq": 9,
+data:   "created_at": "2026-10-08T07:00:00Z",
+data:   "type": "question.show",
+data:   "payload": {
+data:     "quiz_id": "00000000-0000-0000-0000-000000000028",
+data:     "question_id": "00000000-0000-0000-0000-000000000029"
+data:   }
+data: }
+
+id: 00000000-0000-0000-0000-00000000001e:10
+event: learning.updated
+data: {
+data:   "contract_version": "0.1.0-draft.1",
+data:   "event_id": "00000000-0000-0000-0000-00000000001e:10",
+data:   "turn_id": "00000000-0000-0000-0000-00000000001e",
+data:   "seq": 10,
+data:   "created_at": "2026-10-08T07:00:00Z",
+data:   "type": "learning.updated",
+data:   "payload": {
+data:     "document_id": "00000000-0000-0000-0000-000000000001",
+data:     "learning_revision": 2
+data:   }
+data: }
+
+id: 00000000-0000-0000-0000-00000000001e:11
+event: turn.done
+data: {
+data:   "contract_version": "0.1.0-draft.1",
+data:   "event_id": "00000000-0000-0000-0000-00000000001e:11",
+data:   "turn_id": "00000000-0000-0000-0000-00000000001e",
+data:   "seq": 11,
+data:   "created_at": "2026-10-08T07:00:00Z",
+data:   "type": "turn.done",
+data:   "payload": {
+data:     "summary_ko": "문서 근거와 퀴즈를 저장했습니다.",
+data:     "learning_revision": 2
+data:   }
+data: }
+

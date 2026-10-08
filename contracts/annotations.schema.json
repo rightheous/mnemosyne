@@ -1,0 +1,797 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "annotations.schema.json",
+  "title": "Mnemosyne annotation and sync candidates",
+  "x-contract-version": "0.1.0-draft.1",
+  "$defs": {
+    "HighlightPayload": {
+      "type": "object",
+      "properties": {
+        "anchor": {
+          "$ref": "models.schema.json#/$defs/TextAnchor"
+        },
+        "color": {
+          "type": "string",
+          "pattern": "^#[A-Fa-f0-9]{8}$"
+        }
+      },
+      "required": [
+        "anchor",
+        "color"
+      ],
+      "additionalProperties": false
+    },
+    "NotePayload": {
+      "type": "object",
+      "properties": {
+        "position": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          },
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "body": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 20000
+        },
+        "anchor": {
+          "anyOf": [
+            {
+              "$ref": "models.schema.json#/$defs/TextAnchor"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "position",
+        "body",
+        "anchor"
+      ],
+      "additionalProperties": false
+    },
+    "BookmarkPayload": {
+      "type": "object",
+      "properties": {
+        "label": {
+          "type": "string",
+          "maxLength": 240
+        }
+      },
+      "required": [
+        "label"
+      ],
+      "additionalProperties": false
+    },
+    "InkPayload": {
+      "type": "object",
+      "properties": {
+        "strokes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "stroke_id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "tool": {
+                "type": "string",
+                "enum": [
+                  "pen",
+                  "highlighter"
+                ]
+              },
+              "color": {
+                "type": "string",
+                "pattern": "^#[A-Fa-f0-9]{8}$"
+              },
+              "width_pt": {
+                "type": "number",
+                "exclusiveMinimum": 0,
+                "maximum": 100
+              },
+              "points": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "x": {
+                      "type": "number"
+                    },
+                    "y": {
+                      "type": "number"
+                    },
+                    "pressure": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "t_ms": {
+                      "type": "integer",
+                      "maximum": 9007199254740991,
+                      "minimum": 0
+                    }
+                  },
+                  "required": [
+                    "x",
+                    "y",
+                    "pressure",
+                    "t_ms"
+                  ],
+                  "additionalProperties": false
+                },
+                "minItems": 1
+              }
+            },
+            "required": [
+              "stroke_id",
+              "tool",
+              "color",
+              "width_pt",
+              "points"
+            ],
+            "additionalProperties": false
+          },
+          "minItems": 1
+        }
+      },
+      "required": [
+        "strokes"
+      ],
+      "additionalProperties": false
+    },
+    "AnnotationDraft": {
+      "type": "object",
+      "properties": {
+        "annotation_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "document_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "version_id": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        },
+        "page_index": {
+          "type": "integer",
+          "maximum": 9007199254740991,
+          "minimum": 0
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "highlight",
+            "note",
+            "bookmark",
+            "ink"
+          ]
+        },
+        "payload": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/HighlightPayload"
+            },
+            {
+              "$ref": "#/$defs/NotePayload"
+            },
+            {
+              "$ref": "#/$defs/BookmarkPayload"
+            },
+            {
+              "$ref": "#/$defs/InkPayload"
+            }
+          ]
+        }
+      },
+      "required": [
+        "annotation_id",
+        "document_id",
+        "version_id",
+        "page_index",
+        "kind",
+        "payload"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "highlight"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "payload": {
+                "$ref": "#/$defs/HighlightPayload"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "note"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "payload": {
+                "$ref": "#/$defs/NotePayload"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "bookmark"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "payload": {
+                "$ref": "#/$defs/BookmarkPayload"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "ink"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "payload": {
+                "$ref": "#/$defs/InkPayload"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "AnnotationRecord": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "annotation_id": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "document_id": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "version_id": {
+              "type": "string",
+              "pattern": "^sha256:[a-f0-9]{64}$"
+            },
+            "page_index": {
+              "type": "integer",
+              "maximum": 9007199254740991,
+              "minimum": 0
+            },
+            "kind": {
+              "type": "string",
+              "enum": [
+                "highlight",
+                "note",
+                "bookmark",
+                "ink"
+              ]
+            },
+            "server_revision": {
+              "type": "integer",
+              "maximum": 9007199254740991,
+              "minimum": 1
+            },
+            "updated_at": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "deleted": {
+              "const": false
+            },
+            "deleted_at": {
+              "type": "null"
+            },
+            "payload": {
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/HighlightPayload"
+                },
+                {
+                  "$ref": "#/$defs/NotePayload"
+                },
+                {
+                  "$ref": "#/$defs/BookmarkPayload"
+                },
+                {
+                  "$ref": "#/$defs/InkPayload"
+                }
+              ]
+            }
+          },
+          "required": [
+            "annotation_id",
+            "document_id",
+            "version_id",
+            "page_index",
+            "kind",
+            "server_revision",
+            "updated_at",
+            "deleted",
+            "deleted_at",
+            "payload"
+          ],
+          "additionalProperties": false,
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "kind": {
+                    "const": "highlight"
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "payload": {
+                    "$ref": "#/$defs/HighlightPayload"
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "kind": {
+                    "const": "note"
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "payload": {
+                    "$ref": "#/$defs/NotePayload"
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "kind": {
+                    "const": "bookmark"
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "payload": {
+                    "$ref": "#/$defs/BookmarkPayload"
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "kind": {
+                    "const": "ink"
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "payload": {
+                    "$ref": "#/$defs/InkPayload"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "annotation_id": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "document_id": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "version_id": {
+              "type": "string",
+              "pattern": "^sha256:[a-f0-9]{64}$"
+            },
+            "page_index": {
+              "type": "integer",
+              "maximum": 9007199254740991,
+              "minimum": 0
+            },
+            "kind": {
+              "type": "string",
+              "enum": [
+                "highlight",
+                "note",
+                "bookmark",
+                "ink"
+              ]
+            },
+            "server_revision": {
+              "type": "integer",
+              "maximum": 9007199254740991,
+              "minimum": 1
+            },
+            "updated_at": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "deleted": {
+              "const": true
+            },
+            "deleted_at": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "payload": {
+              "type": "null"
+            }
+          },
+          "required": [
+            "annotation_id",
+            "document_id",
+            "version_id",
+            "page_index",
+            "kind",
+            "server_revision",
+            "updated_at",
+            "deleted",
+            "deleted_at",
+            "payload"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "Mutation": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "client_mutation_id": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "client_id": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "document_id": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "version_id": {
+              "type": "string",
+              "pattern": "^sha256:[a-f0-9]{64}$"
+            },
+            "annotation_id": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "base_revision": {
+              "type": "integer",
+              "maximum": 9007199254740991,
+              "minimum": 0
+            },
+            "created_at": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "operation": {
+              "const": "upsert"
+            },
+            "annotation": {
+              "$ref": "#/$defs/AnnotationDraft"
+            }
+          },
+          "required": [
+            "client_mutation_id",
+            "client_id",
+            "document_id",
+            "version_id",
+            "annotation_id",
+            "base_revision",
+            "created_at",
+            "operation",
+            "annotation"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "client_mutation_id": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "client_id": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "document_id": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "version_id": {
+              "type": "string",
+              "pattern": "^sha256:[a-f0-9]{64}$"
+            },
+            "annotation_id": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "base_revision": {
+              "type": "integer",
+              "maximum": 9007199254740991,
+              "minimum": 0
+            },
+            "created_at": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "operation": {
+              "const": "delete"
+            }
+          },
+          "required": [
+            "client_mutation_id",
+            "client_id",
+            "document_id",
+            "version_id",
+            "annotation_id",
+            "base_revision",
+            "created_at",
+            "operation"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "MutationBatch": {
+      "type": "object",
+      "properties": {
+        "contract_version": {
+          "const": "0.1.0-draft.1"
+        },
+        "document_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "version_id": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        },
+        "mutations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Mutation"
+          },
+          "minItems": 1,
+          "maxItems": 100
+        }
+      },
+      "required": [
+        "contract_version",
+        "document_id",
+        "version_id",
+        "mutations"
+      ],
+      "additionalProperties": false
+    },
+    "MutationResult": {
+      "type": "object",
+      "properties": {
+        "client_mutation_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "applied",
+            "conflict",
+            "rejected"
+          ]
+        },
+        "code": {
+          "type": "string",
+          "enum": [
+            "ok",
+            "conflict",
+            "idempotency_mismatch",
+            "invalid_request",
+            "document_deleted"
+          ]
+        },
+        "server_revision": {
+          "type": "integer",
+          "maximum": 9007199254740991,
+          "minimum": 0
+        },
+        "current": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AnnotationRecord"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "client_mutation_id",
+        "status",
+        "code",
+        "server_revision",
+        "current"
+      ],
+      "additionalProperties": false
+    },
+    "SyncReceipt": {
+      "type": "object",
+      "properties": {
+        "contract_version": {
+          "const": "0.1.0-draft.1"
+        },
+        "document_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "version_id": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        },
+        "results": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/MutationResult"
+          },
+          "minItems": 1,
+          "maxItems": 100
+        }
+      },
+      "required": [
+        "contract_version",
+        "document_id",
+        "version_id",
+        "results"
+      ],
+      "additionalProperties": false
+    },
+    "Snapshot": {
+      "type": "object",
+      "properties": {
+        "contract_version": {
+          "const": "0.1.0-draft.1"
+        },
+        "document_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "version_id": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        },
+        "snapshot_revision": {
+          "type": "integer",
+          "maximum": 9007199254740991,
+          "minimum": 0
+        },
+        "annotations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AnnotationRecord"
+          }
+        },
+        "next_cursor": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "contract_version",
+        "document_id",
+        "version_id",
+        "snapshot_revision",
+        "annotations",
+        "next_cursor"
+      ],
+      "additionalProperties": false
+    },
+    "ChangePage": {
+      "type": "object",
+      "properties": {
+        "contract_version": {
+          "const": "0.1.0-draft.1"
+        },
+        "document_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "version_id": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        },
+        "changes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AnnotationRecord"
+          }
+        },
+        "next_cursor": {
+          "type": "string",
+          "minLength": 1
+        },
+        "has_more": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "contract_version",
+        "document_id",
+        "version_id",
+        "changes",
+        "next_cursor",
+        "has_more"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "oneOf": [
+    {
+      "$ref": "#/$defs/AnnotationRecord"
+    },
+    {
+      "$ref": "#/$defs/AnnotationDraft"
+    },
+    {
+      "$ref": "#/$defs/Mutation"
+    },
+    {
+      "$ref": "#/$defs/MutationBatch"
+    },
+    {
+      "$ref": "#/$defs/SyncReceipt"
+    },
+    {
+      "$ref": "#/$defs/Snapshot"
+    },
+    {
+      "$ref": "#/$defs/ChangePage"
+    }
+  ]
+}

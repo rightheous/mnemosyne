@@ -1,0 +1,1817 @@
+{
+  "contract_version": "0.1.0-draft.1",
+  "subject": {
+    "subject_id": "00000000-0000-0000-0000-000000000002",
+    "name": "회로이론",
+    "server_revision": 1
+  },
+  "document": {
+    "document_id": "00000000-0000-0000-0000-000000000001",
+    "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
+    "source_sha256": "937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
+    "title": "커패시터 에너지 · English / 한국어",
+    "subject_id": "00000000-0000-0000-0000-000000000002",
+    "content_language": "mul",
+    "page_count": 2,
+    "server_revision": 1,
+    "original_available": true,
+    "parse_state": "ready",
+    "index_state": "ready",
+    "created_at": "2026-10-08T07:00:00Z"
+  },
+  "original_file": "bilingual-geometry.pdf",
+  "pages": [
+    {
+      "document_id": "00000000-0000-0000-0000-000000000001",
+      "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
+      "page_index": 0,
+      "display_page_number": 1,
+      "display_label": "1",
+      "parse_revision": "fixture-parser-1",
+      "text_basis": "parser:nfc-lf-v1",
+      "text": "A capacitor stores energy: E = 1/2 C V^2.\n",
+      "text_sha256": "b8fe2c0d26b8f40de2184dd8d06388e6ca74bcf154cee0228c591c8f5a1b6553",
+      "geometry": {
+        "media_box": [
+          0,
+          0,
+          600,
+          800
+        ],
+        "crop_box": [
+          20,
+          30,
+          580,
+          760
+        ],
+        "rotation_degrees": 0,
+        "user_unit": 1
+      },
+      "segments": [
+        {
+          "start_scalar": 0,
+          "end_scalar": 41,
+          "rect": [
+            60,
+            697,
+            256.746,
+            18
+          ]
+        }
+      ]
+    },
+    {
+      "document_id": "00000000-0000-0000-0000-000000000001",
+      "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
+      "page_index": 1,
+      "display_page_number": 2,
+      "display_label": "ii",
+      "parse_revision": "fixture-parser-1",
+      "text_basis": "parser:nfc-lf-v1",
+      "text": "커패시터는 에너지를 저장한다. E = 1/2 C V^2.\n",
+      "text_sha256": "47dc1aed27fbabb5785b499cdc0f86c8a9e5385d6f9907739bd8a74694d2be89",
+      "geometry": {
+        "media_box": [
+          0,
+          0,
+          600,
+          800
+        ],
+        "crop_box": [
+          10,
+          20,
+          590,
+          770
+        ],
+        "rotation_degrees": 90,
+        "user_unit": 1
+      },
+      "segments": [
+        {
+          "start_scalar": 0,
+          "end_scalar": 31,
+          "rect": [
+            47,
+            100,
+            18,
+            303.982
+          ]
+        }
+      ]
+    }
+  ],
+  "reader_context": {
+    "document_id": "00000000-0000-0000-0000-000000000001",
+    "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
+    "page_index": 1,
+    "viewport_rect": [
+      10,
+      20,
+      580,
+      750
+    ],
+    "selection": {
+      "document_id": "00000000-0000-0000-0000-000000000001",
+      "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
+      "page_index": 1,
+      "parse_revision": "fixture-parser-1",
+      "text_sha256": "47dc1aed27fbabb5785b499cdc0f86c8a9e5385d6f9907739bd8a74694d2be89",
+      "start_scalar": 0,
+      "end_scalar": 31,
+      "quote": "커패시터는 에너지를 저장한다. E = 1/2 C V^2.",
+      "rects": [
+        [
+          47,
+          100,
+          18,
+          303.982
+        ]
+      ]
+    },
+    "content_language": "ko",
+    "response_language": "ko"
+  },
+  "citations": [
+    {
+      "citation_id": "00000000-0000-0000-0000-000000000032",
+      "verification_id": "00000000-0000-0000-0000-000000000033",
+      "verified": true,
+      "anchor": {
+        "document_id": "00000000-0000-0000-0000-000000000001",
+        "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
+        "page_index": 1,
+        "parse_revision": "fixture-parser-1",
+        "text_sha256": "47dc1aed27fbabb5785b499cdc0f86c8a9e5385d6f9907739bd8a74694d2be89",
+        "start_scalar": 0,
+        "end_scalar": 31,
+        "quote": "커패시터는 에너지를 저장한다. E = 1/2 C V^2.",
+        "rects": [
+          [
+            47,
+            100,
+            18,
+            303.982
+          ]
+        ]
+      }
+    }
+  ],
+  "annotation_snapshot": {
+    "contract_version": "0.1.0-draft.1",
+    "document_id": "00000000-0000-0000-0000-000000000001",
+    "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
+    "snapshot_revision": 4,
+    "annotations": [
+      {
+        "annotation_id": "00000000-0000-0000-0000-00000000000a",
+        "document_id": "00000000-0000-0000-0000-000000000001",
+        "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
+        "page_index": 1,
+        "kind": "highlight",
+        "payload": {
+          "anchor": {
+            "document_id": "00000000-0000-0000-0000-000000000001",
+            "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
+            "page_index": 1,
+            "parse_revision": "fixture-parser-1",
+            "text_sha256": "47dc1aed27fbabb5785b499cdc0f86c8a9e5385d6f9907739bd8a74694d2be89",
+            "start_scalar": 0,
+            "end_scalar": 31,
+            "quote": "커패시터는 에너지를 저장한다. E = 1/2 C V^2.",
+            "rects": [
+              [
+                47,
+                100,
+                18,
+                303.982
+              ]
+            ]
+          },
+          "color": "#FFE08280"
+        },
+        "server_revision": 1,
+        "deleted": false,
+        "updated_at": "2026-10-08T07:00:00Z",
+        "deleted_at": null
+      },
+      {
+        "annotation_id": "00000000-0000-0000-0000-00000000000b",
+        "document_id": "00000000-0000-0000-0000-000000000001",
+        "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
+        "page_index": 1,
+        "kind": "ink",
+        "payload": {
+          "strokes": [
+            {
+              "stroke_id": "00000000-0000-0000-0000-00000000000f",
+              "tool": "pen",
+              "color": "#315DA8FF",
+              "width_pt": 2,
+              "points": [
+                {
+                  "x": 100,
+                  "y": 220,
+                  "pressure": 0.5,
+                  "t_ms": 0
+                },
+                {
+                  "x": 115,
+                  "y": 236,
+                  "pressure": 0.8,
+                  "t_ms": 16
+                },
+                {
+                  "x": 135,
+                  "y": 230,
+                  "pressure": 0.6,
+                  "t_ms": 32
+                }
+              ]
+            }
+          ]
+        },
+        "server_revision": 2,
+        "deleted": false,
+        "updated_at": "2026-10-08T07:00:00Z",
+        "deleted_at": null
+      },
+      {
+        "annotation_id": "00000000-0000-0000-0000-00000000000c",
+        "document_id": "00000000-0000-0000-0000-000000000001",
+        "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
+        "page_index": 0,
+        "kind": "bookmark",
+        "payload": {
+          "label": "에너지 식 다시 보기"
+        },
+        "server_revision": 3,
+        "deleted": false,
+        "updated_at": "2026-10-08T07:00:00Z",
+        "deleted_at": null
+      },
+      {
+        "annotation_id": "00000000-0000-0000-0000-00000000000d",
+        "document_id": "00000000-0000-0000-0000-000000000001",
+        "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
+        "page_index": 1,
+        "kind": "note",
+        "payload": {
+          "position": [
+            90,
+            360
+          ],
+          "body": "복습 🧠: 전압이 두 배면 저장 에너지는 네 배.",
+          "anchor": {
+            "document_id": "00000000-0000-0000-0000-000000000001",
+            "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
+            "page_index": 1,
+            "parse_revision": "fixture-parser-1",
+            "text_sha256": "47dc1aed27fbabb5785b499cdc0f86c8a9e5385d6f9907739bd8a74694d2be89",
+            "start_scalar": 0,
+            "end_scalar": 31,
+            "quote": "커패시터는 에너지를 저장한다. E = 1/2 C V^2.",
+            "rects": [
+              [
+                47,
+                100,
+                18,
+                303.982
+              ]
+            ]
+          }
+        },
+        "server_revision": 4,
+        "deleted": false,
+        "updated_at": "2026-10-08T07:00:00Z",
+        "deleted_at": null
+      }
+    ],
+    "next_cursor": "fixture:revision:4"
+  },
+  "sync_steps": [
+    {
+      "name": "A edit",
+      "mutation": {
+        "client_mutation_id": "00000000-0000-0000-0000-000000000064",
+        "client_id": "00000000-0000-0000-0000-000000000003",
+        "document_id": "00000000-0000-0000-0000-000000000001",
+        "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
+        "annotation_id": "00000000-0000-0000-0000-00000000000d",
+        "base_revision": 4,
+        "created_at": "2026-10-08T07:00:00Z",
+        "operation": "upsert",
+        "annotation": {
+          "annotation_id": "00000000-0000-0000-0000-00000000000d",
+          "document_id": "00000000-0000-0000-0000-000000000001",
+          "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
+          "page_index": 1,
+          "kind": "note",
+          "payload": {
+            "position": [
+              90,
+              360
+            ],
+            "body": "복습 🧠: 전압 두 배 → 에너지 네 배.",
+            "anchor": {
+              "document_id": "00000000-0000-0000-0000-000000000001",
+              "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
+              "page_index": 1,
+              "parse_revision": "fixture-parser-1",
+              "text_sha256": "47dc1aed27fbabb5785b499cdc0f86c8a9e5385d6f9907739bd8a74694d2be89",
+              "start_scalar": 0,
+              "end_scalar": 31,
+              "quote": "커패시터는 에너지를 저장한다. E = 1/2 C V^2.",
+              "rects": [
+                [
+                  47,
+                  100,
+                  18,
+                  303.982
+                ]
+              ]
+            }
+          }
+        }
+      },
+      "expected": {
+        "client_mutation_id": "00000000-0000-0000-0000-000000000064",
+        "status": "applied",
+        "code": "ok",
+        "server_revision": 5,
+        "current": {
+          "annotation_id": "00000000-0000-0000-0000-00000000000d",
+          "document_id": "00000000-0000-0000-0000-000000000001",
+          "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
+          "page_index": 1,
+          "kind": "note",
+          "payload": {
+            "position": [
+              90,
+              360
+            ],
+            "body": "복습 🧠: 전압 두 배 → 에너지 네 배.",
+            "anchor": {
+              "document_id": "00000000-0000-0000-0000-000000000001",
+              "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
+              "page_index": 1,
+              "parse_revision": "fixture-parser-1",
+              "text_sha256": "47dc1aed27fbabb5785b499cdc0f86c8a9e5385d6f9907739bd8a74694d2be89",
+              "start_scalar": 0,
+              "end_scalar": 31,
+              "quote": "커패시터는 에너지를 저장한다. E = 1/2 C V^2.",
+              "rects": [
+                [
+                  47,
+                  100,
+                  18,
+                  303.982
+                ]
+              ]
+            }
+          },
+          "server_revision": 5,
+          "deleted": false,
+          "updated_at": "2026-10-08T07:00:00Z",
+          "deleted_at": null
+        }
+      }
+    },
+    {
+      "name": "A identical retry",
+      "mutation": {
+        "client_mutation_id": "00000000-0000-0000-0000-000000000064",
+        "client_id": "00000000-0000-0000-0000-000000000003",
+        "document_id": "00000000-0000-0000-0000-000000000001",
+        "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
+        "annotation_id": "00000000-0000-0000-0000-00000000000d",
+        "base_revision": 4,
+        "created_at": "2026-10-08T07:00:00Z",
+        "operation": "upsert",
+        "annotation": {
+          "annotation_id": "00000000-0000-0000-0000-00000000000d",
+          "document_id": "00000000-0000-0000-0000-000000000001",
+          "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
+          "page_index": 1,
+          "kind": "note",
+          "payload": {
+            "position": [
+              90,
+              360
+            ],
+            "body": "복습 🧠: 전압 두 배 → 에너지 네 배.",
+            "anchor": {
+              "document_id": "00000000-0000-0000-0000-000000000001",
+              "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
+              "page_index": 1,
+              "parse_revision": "fixture-parser-1",
+              "text_sha256": "47dc1aed27fbabb5785b499cdc0f86c8a9e5385d6f9907739bd8a74694d2be89",
+              "start_scalar": 0,
+              "end_scalar": 31,
+              "quote": "커패시터는 에너지를 저장한다. E = 1/2 C V^2.",
+              "rects": [
+                [
+                  47,
+                  100,
+                  18,
+                  303.982
+                ]
+              ]
+            }
+          }
+        }
+      },
+      "expected": {
+        "client_mutation_id": "00000000-0000-0000-0000-000000000064",
+        "status": "applied",
+        "code": "ok",
+        "server_revision": 5,
+        "current": {
+          "annotation_id": "00000000-0000-0000-0000-00000000000d",
+          "document_id": "00000000-0000-0000-0000-000000000001",
+          "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
+          "page_index": 1,
+          "kind": "note",
+          "payload": {
+            "position": [
+              90,
+              360
+            ],
+            "body": "복습 🧠: 전압 두 배 → 에너지 네 배.",
+            "anchor": {
+              "document_id": "00000000-0000-0000-0000-000000000001",
+              "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
+              "page_index": 1,
+              "parse_revision": "fixture-parser-1",
+              "text_sha256": "47dc1aed27fbabb5785b499cdc0f86c8a9e5385d6f9907739bd8a74694d2be89",
+              "start_scalar": 0,
+              "end_scalar": 31,
+              "quote": "커패시터는 에너지를 저장한다. E = 1/2 C V^2.",
+              "rects": [
+                [
+                  47,
+                  100,
+                  18,
+                  303.982
+                ]
+              ]
+            }
+          },
+          "server_revision": 5,
+          "deleted": false,
+          "updated_at": "2026-10-08T07:00:00Z",
+          "deleted_at": null
+        }
+      }
+    },
+    {
+      "name": "B stale edit",
+      "mutation": {
+        "client_mutation_id": "00000000-0000-0000-0000-000000000065",
+        "client_id": "00000000-0000-0000-0000-000000000004",
+        "document_id": "00000000-0000-0000-0000-000000000001",
+        "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
+        "annotation_id": "00000000-0000-0000-0000-00000000000d",
+        "base_revision": 4,
+        "created_at": "2026-10-08T07:00:00Z",
+        "operation": "upsert",
+        "annotation": {
+          "annotation_id": "00000000-0000-0000-0000-00000000000d",
+          "document_id": "00000000-0000-0000-0000-000000000001",
+          "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
+          "page_index": 1,
+          "kind": "note",
+          "payload": {
+            "position": [
+              90,
+              360
+            ],
+            "body": "복습 🧠: 전압이 두 배면 저장 에너지는 네 배.",
+            "anchor": {
+              "document_id": "00000000-0000-0000-0000-000000000001",
+              "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
+              "page_index": 1,
+              "parse_revision": "fixture-parser-1",
+              "text_sha256": "47dc1aed27fbabb5785b499cdc0f86c8a9e5385d6f9907739bd8a74694d2be89",
+              "start_scalar": 0,
+              "end_scalar": 31,
+              "quote": "커패시터는 에너지를 저장한다. E = 1/2 C V^2.",
+              "rects": [
+                [
+                  47,
+                  100,
+                  18,
+                  303.982
+                ]
+              ]
+            }
+          }
+        }
+      },
+      "expected": {
+        "client_mutation_id": "00000000-0000-0000-0000-000000000065",
+        "status": "conflict",
+        "code": "conflict",
+        "server_revision": 5,
+        "current": {
+          "annotation_id": "00000000-0000-0000-0000-00000000000d",
+          "document_id": "00000000-0000-0000-0000-000000000001",
+          "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
+          "page_index": 1,
+          "kind": "note",
+          "payload": {
+            "position": [
+              90,
+              360
+            ],
+            "body": "복습 🧠: 전압 두 배 → 에너지 네 배.",
+            "anchor": {
+              "document_id": "00000000-0000-0000-0000-000000000001",
+              "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
+              "page_index": 1,
+              "parse_revision": "fixture-parser-1",
+              "text_sha256": "47dc1aed27fbabb5785b499cdc0f86c8a9e5385d6f9907739bd8a74694d2be89",
+              "start_scalar": 0,
+              "end_scalar": 31,
+              "quote": "커패시터는 에너지를 저장한다. E = 1/2 C V^2.",
+              "rects": [
+                [
+                  47,
+                  100,
+                  18,
+                  303.982
+                ]
+              ]
+            }
+          },
+          "server_revision": 5,
+          "deleted": false,
+          "updated_at": "2026-10-08T07:00:00Z",
+          "deleted_at": null
+        }
+      }
+    },
+    {
+      "name": "B stale delete",
+      "mutation": {
+        "client_mutation_id": "00000000-0000-0000-0000-000000000066",
+        "client_id": "00000000-0000-0000-0000-000000000004",
+        "document_id": "00000000-0000-0000-0000-000000000001",
+        "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
+        "annotation_id": "00000000-0000-0000-0000-00000000000d",
+        "base_revision": 4,
+        "created_at": "2026-10-08T07:00:00Z",
+        "operation": "delete"
+      },
+      "expected": {
+        "client_mutation_id": "00000000-0000-0000-0000-000000000066",
+        "status": "conflict",
+        "code": "conflict",
+        "server_revision": 5,
+        "current": {
+          "annotation_id": "00000000-0000-0000-0000-00000000000d",
+          "document_id": "00000000-0000-0000-0000-000000000001",
+          "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
+          "page_index": 1,
+          "kind": "note",
+          "payload": {
+            "position": [
+              90,
+              360
+            ],
+            "body": "복습 🧠: 전압 두 배 → 에너지 네 배.",
+            "anchor": {
+              "document_id": "00000000-0000-0000-0000-000000000001",
+              "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
+              "page_index": 1,
+              "parse_revision": "fixture-parser-1",
+              "text_sha256": "47dc1aed27fbabb5785b499cdc0f86c8a9e5385d6f9907739bd8a74694d2be89",
+              "start_scalar": 0,
+              "end_scalar": 31,
+              "quote": "커패시터는 에너지를 저장한다. E = 1/2 C V^2.",
+              "rects": [
+                [
+                  47,
+                  100,
+                  18,
+                  303.982
+                ]
+              ]
+            }
+          },
+          "server_revision": 5,
+          "deleted": false,
+          "updated_at": "2026-10-08T07:00:00Z",
+          "deleted_at": null
+        }
+      }
+    },
+    {
+      "name": "B delete latest",
+      "mutation": {
+        "client_mutation_id": "00000000-0000-0000-0000-000000000067",
+        "client_id": "00000000-0000-0000-0000-000000000004",
+        "document_id": "00000000-0000-0000-0000-000000000001",
+        "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
+        "annotation_id": "00000000-0000-0000-0000-00000000000d",
+        "base_revision": 5,
+        "created_at": "2026-10-08T07:00:00Z",
+        "operation": "delete"
+      },
+      "expected": {
+        "client_mutation_id": "00000000-0000-0000-0000-000000000067",
+        "status": "applied",
+        "code": "ok",
+        "server_revision": 6,
+        "current": {
+          "annotation_id": "00000000-0000-0000-0000-00000000000d",
+          "document_id": "00000000-0000-0000-0000-000000000001",
+          "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
+          "page_index": 1,
+          "kind": "note",
+          "payload": null,
+          "server_revision": 6,
+          "deleted": true,
+          "updated_at": "2026-10-08T07:00:00Z",
+          "deleted_at": "2026-10-08T07:00:00Z"
+        }
+      }
+    },
+    {
+      "name": "A edit after deletion",
+      "mutation": {
+        "client_mutation_id": "00000000-0000-0000-0000-000000000068",
+        "client_id": "00000000-0000-0000-0000-000000000003",
+        "document_id": "00000000-0000-0000-0000-000000000001",
+        "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
+        "annotation_id": "00000000-0000-0000-0000-00000000000d",
+        "base_revision": 5,
+        "created_at": "2026-10-08T07:00:00Z",
+        "operation": "upsert",
+        "annotation": {
+          "annotation_id": "00000000-0000-0000-0000-00000000000d",
+          "document_id": "00000000-0000-0000-0000-000000000001",
+          "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
+          "page_index": 1,
+          "kind": "note",
+          "payload": {
+            "position": [
+              90,
+              360
+            ],
+            "body": "복습 🧠: 전압 두 배 → 에너지 네 배.",
+            "anchor": {
+              "document_id": "00000000-0000-0000-0000-000000000001",
+              "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
+              "page_index": 1,
+              "parse_revision": "fixture-parser-1",
+              "text_sha256": "47dc1aed27fbabb5785b499cdc0f86c8a9e5385d6f9907739bd8a74694d2be89",
+              "start_scalar": 0,
+              "end_scalar": 31,
+              "quote": "커패시터는 에너지를 저장한다. E = 1/2 C V^2.",
+              "rects": [
+                [
+                  47,
+                  100,
+                  18,
+                  303.982
+                ]
+              ]
+            }
+          }
+        }
+      },
+      "expected": {
+        "client_mutation_id": "00000000-0000-0000-0000-000000000068",
+        "status": "conflict",
+        "code": "conflict",
+        "server_revision": 6,
+        "current": {
+          "annotation_id": "00000000-0000-0000-0000-00000000000d",
+          "document_id": "00000000-0000-0000-0000-000000000001",
+          "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
+          "page_index": 1,
+          "kind": "note",
+          "payload": null,
+          "server_revision": 6,
+          "deleted": true,
+          "updated_at": "2026-10-08T07:00:00Z",
+          "deleted_at": "2026-10-08T07:00:00Z"
+        }
+      }
+    },
+    {
+      "name": "A same-ID resurrection forbidden",
+      "mutation": {
+        "client_mutation_id": "00000000-0000-0000-0000-000000000069",
+        "client_id": "00000000-0000-0000-0000-000000000003",
+        "document_id": "00000000-0000-0000-0000-000000000001",
+        "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
+        "annotation_id": "00000000-0000-0000-0000-00000000000d",
+        "base_revision": 6,
+        "created_at": "2026-10-08T07:00:00Z",
+        "operation": "upsert",
+        "annotation": {
+          "annotation_id": "00000000-0000-0000-0000-00000000000d",
+          "document_id": "00000000-0000-0000-0000-000000000001",
+          "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
+          "page_index": 1,
+          "kind": "note",
+          "payload": {
+            "position": [
+              90,
+              360
+            ],
+            "body": "복습 🧠: 전압 두 배 → 에너지 네 배.",
+            "anchor": {
+              "document_id": "00000000-0000-0000-0000-000000000001",
+              "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
+              "page_index": 1,
+              "parse_revision": "fixture-parser-1",
+              "text_sha256": "47dc1aed27fbabb5785b499cdc0f86c8a9e5385d6f9907739bd8a74694d2be89",
+              "start_scalar": 0,
+              "end_scalar": 31,
+              "quote": "커패시터는 에너지를 저장한다. E = 1/2 C V^2.",
+              "rects": [
+                [
+                  47,
+                  100,
+                  18,
+                  303.982
+                ]
+              ]
+            }
+          }
+        }
+      },
+      "expected": {
+        "client_mutation_id": "00000000-0000-0000-0000-000000000069",
+        "status": "conflict",
+        "code": "conflict",
+        "server_revision": 6,
+        "current": {
+          "annotation_id": "00000000-0000-0000-0000-00000000000d",
+          "document_id": "00000000-0000-0000-0000-000000000001",
+          "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
+          "page_index": 1,
+          "kind": "note",
+          "payload": null,
+          "server_revision": 6,
+          "deleted": true,
+          "updated_at": "2026-10-08T07:00:00Z",
+          "deleted_at": "2026-10-08T07:00:00Z"
+        }
+      }
+    },
+    {
+      "name": "A new-ID recovery",
+      "mutation": {
+        "client_mutation_id": "00000000-0000-0000-0000-00000000006a",
+        "client_id": "00000000-0000-0000-0000-000000000003",
+        "document_id": "00000000-0000-0000-0000-000000000001",
+        "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
+        "annotation_id": "00000000-0000-0000-0000-00000000000e",
+        "base_revision": 0,
+        "created_at": "2026-10-08T07:00:00Z",
+        "operation": "upsert",
+        "annotation": {
+          "annotation_id": "00000000-0000-0000-0000-00000000000e",
+          "document_id": "00000000-0000-0000-0000-000000000001",
+          "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
+          "page_index": 1,
+          "kind": "note",
+          "payload": {
+            "position": [
+              90,
+              360
+            ],
+            "body": "복습 🧠: 전압 두 배 → 에너지 네 배.",
+            "anchor": {
+              "document_id": "00000000-0000-0000-0000-000000000001",
+              "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
+              "page_index": 1,
+              "parse_revision": "fixture-parser-1",
+              "text_sha256": "47dc1aed27fbabb5785b499cdc0f86c8a9e5385d6f9907739bd8a74694d2be89",
+              "start_scalar": 0,
+              "end_scalar": 31,
+              "quote": "커패시터는 에너지를 저장한다. E = 1/2 C V^2.",
+              "rects": [
+                [
+                  47,
+                  100,
+                  18,
+                  303.982
+                ]
+              ]
+            }
+          }
+        }
+      },
+      "expected": {
+        "client_mutation_id": "00000000-0000-0000-0000-00000000006a",
+        "status": "applied",
+        "code": "ok",
+        "server_revision": 7,
+        "current": {
+          "annotation_id": "00000000-0000-0000-0000-00000000000e",
+          "document_id": "00000000-0000-0000-0000-000000000001",
+          "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
+          "page_index": 1,
+          "kind": "note",
+          "payload": {
+            "position": [
+              90,
+              360
+            ],
+            "body": "복습 🧠: 전압 두 배 → 에너지 네 배.",
+            "anchor": {
+              "document_id": "00000000-0000-0000-0000-000000000001",
+              "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
+              "page_index": 1,
+              "parse_revision": "fixture-parser-1",
+              "text_sha256": "47dc1aed27fbabb5785b499cdc0f86c8a9e5385d6f9907739bd8a74694d2be89",
+              "start_scalar": 0,
+              "end_scalar": 31,
+              "quote": "커패시터는 에너지를 저장한다. E = 1/2 C V^2.",
+              "rects": [
+                [
+                  47,
+                  100,
+                  18,
+                  303.982
+                ]
+              ]
+            }
+          },
+          "server_revision": 7,
+          "deleted": false,
+          "updated_at": "2026-10-08T07:00:00Z",
+          "deleted_at": null
+        }
+      }
+    },
+    {
+      "name": "late original edit retry returns original receipt",
+      "mutation": {
+        "client_mutation_id": "00000000-0000-0000-0000-000000000064",
+        "client_id": "00000000-0000-0000-0000-000000000003",
+        "document_id": "00000000-0000-0000-0000-000000000001",
+        "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
+        "annotation_id": "00000000-0000-0000-0000-00000000000d",
+        "base_revision": 4,
+        "created_at": "2026-10-08T07:00:00Z",
+        "operation": "upsert",
+        "annotation": {
+          "annotation_id": "00000000-0000-0000-0000-00000000000d",
+          "document_id": "00000000-0000-0000-0000-000000000001",
+          "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
+          "page_index": 1,
+          "kind": "note",
+          "payload": {
+            "position": [
+              90,
+              360
+            ],
+            "body": "복습 🧠: 전압 두 배 → 에너지 네 배.",
+            "anchor": {
+              "document_id": "00000000-0000-0000-0000-000000000001",
+              "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
+              "page_index": 1,
+              "parse_revision": "fixture-parser-1",
+              "text_sha256": "47dc1aed27fbabb5785b499cdc0f86c8a9e5385d6f9907739bd8a74694d2be89",
+              "start_scalar": 0,
+              "end_scalar": 31,
+              "quote": "커패시터는 에너지를 저장한다. E = 1/2 C V^2.",
+              "rects": [
+                [
+                  47,
+                  100,
+                  18,
+                  303.982
+                ]
+              ]
+            }
+          }
+        }
+      },
+      "expected": {
+        "client_mutation_id": "00000000-0000-0000-0000-000000000064",
+        "status": "applied",
+        "code": "ok",
+        "server_revision": 5,
+        "current": {
+          "annotation_id": "00000000-0000-0000-0000-00000000000d",
+          "document_id": "00000000-0000-0000-0000-000000000001",
+          "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
+          "page_index": 1,
+          "kind": "note",
+          "payload": {
+            "position": [
+              90,
+              360
+            ],
+            "body": "복습 🧠: 전압 두 배 → 에너지 네 배.",
+            "anchor": {
+              "document_id": "00000000-0000-0000-0000-000000000001",
+              "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
+              "page_index": 1,
+              "parse_revision": "fixture-parser-1",
+              "text_sha256": "47dc1aed27fbabb5785b499cdc0f86c8a9e5385d6f9907739bd8a74694d2be89",
+              "start_scalar": 0,
+              "end_scalar": 31,
+              "quote": "커패시터는 에너지를 저장한다. E = 1/2 C V^2.",
+              "rects": [
+                [
+                  47,
+                  100,
+                  18,
+                  303.982
+                ]
+              ]
+            }
+          },
+          "server_revision": 5,
+          "deleted": false,
+          "updated_at": "2026-10-08T07:00:00Z",
+          "deleted_at": null
+        }
+      }
+    },
+    {
+      "name": "same mutation ID different payload",
+      "mutation": {
+        "client_mutation_id": "00000000-0000-0000-0000-000000000064",
+        "client_id": "00000000-0000-0000-0000-000000000003",
+        "document_id": "00000000-0000-0000-0000-000000000001",
+        "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
+        "annotation_id": "00000000-0000-0000-0000-00000000000d",
+        "base_revision": 4,
+        "created_at": "2026-10-08T07:00:00Z",
+        "operation": "upsert",
+        "annotation": {
+          "annotation_id": "00000000-0000-0000-0000-00000000000d",
+          "document_id": "00000000-0000-0000-0000-000000000001",
+          "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
+          "page_index": 1,
+          "kind": "note",
+          "payload": {
+            "position": [
+              90,
+              360
+            ],
+            "body": "different payload",
+            "anchor": {
+              "document_id": "00000000-0000-0000-0000-000000000001",
+              "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
+              "page_index": 1,
+              "parse_revision": "fixture-parser-1",
+              "text_sha256": "47dc1aed27fbabb5785b499cdc0f86c8a9e5385d6f9907739bd8a74694d2be89",
+              "start_scalar": 0,
+              "end_scalar": 31,
+              "quote": "커패시터는 에너지를 저장한다. E = 1/2 C V^2.",
+              "rects": [
+                [
+                  47,
+                  100,
+                  18,
+                  303.982
+                ]
+              ]
+            }
+          }
+        }
+      },
+      "expected": {
+        "client_mutation_id": "00000000-0000-0000-0000-000000000064",
+        "status": "rejected",
+        "code": "idempotency_mismatch",
+        "server_revision": 7,
+        "current": null
+      }
+    }
+  ],
+  "change_page": {
+    "contract_version": "0.1.0-draft.1",
+    "document_id": "00000000-0000-0000-0000-000000000001",
+    "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
+    "changes": [
+      {
+        "annotation_id": "00000000-0000-0000-0000-00000000000d",
+        "document_id": "00000000-0000-0000-0000-000000000001",
+        "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
+        "page_index": 1,
+        "kind": "note",
+        "payload": {
+          "position": [
+            90,
+            360
+          ],
+          "body": "복습 🧠: 전압 두 배 → 에너지 네 배.",
+          "anchor": {
+            "document_id": "00000000-0000-0000-0000-000000000001",
+            "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
+            "page_index": 1,
+            "parse_revision": "fixture-parser-1",
+            "text_sha256": "47dc1aed27fbabb5785b499cdc0f86c8a9e5385d6f9907739bd8a74694d2be89",
+            "start_scalar": 0,
+            "end_scalar": 31,
+            "quote": "커패시터는 에너지를 저장한다. E = 1/2 C V^2.",
+            "rects": [
+              [
+                47,
+                100,
+                18,
+                303.982
+              ]
+            ]
+          }
+        },
+        "server_revision": 5,
+        "deleted": false,
+        "updated_at": "2026-10-08T07:00:00Z",
+        "deleted_at": null
+      },
+      {
+        "annotation_id": "00000000-0000-0000-0000-00000000000d",
+        "document_id": "00000000-0000-0000-0000-000000000001",
+        "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
+        "page_index": 1,
+        "kind": "note",
+        "payload": null,
+        "server_revision": 6,
+        "deleted": true,
+        "updated_at": "2026-10-08T07:00:00Z",
+        "deleted_at": "2026-10-08T07:00:00Z"
+      },
+      {
+        "annotation_id": "00000000-0000-0000-0000-00000000000e",
+        "document_id": "00000000-0000-0000-0000-000000000001",
+        "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
+        "page_index": 1,
+        "kind": "note",
+        "payload": {
+          "position": [
+            90,
+            360
+          ],
+          "body": "복습 🧠: 전압 두 배 → 에너지 네 배.",
+          "anchor": {
+            "document_id": "00000000-0000-0000-0000-000000000001",
+            "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
+            "page_index": 1,
+            "parse_revision": "fixture-parser-1",
+            "text_sha256": "47dc1aed27fbabb5785b499cdc0f86c8a9e5385d6f9907739bd8a74694d2be89",
+            "start_scalar": 0,
+            "end_scalar": 31,
+            "quote": "커패시터는 에너지를 저장한다. E = 1/2 C V^2.",
+            "rects": [
+              [
+                47,
+                100,
+                18,
+                303.982
+              ]
+            ]
+          }
+        },
+        "server_revision": 7,
+        "deleted": false,
+        "updated_at": "2026-10-08T07:00:00Z",
+        "deleted_at": null
+      }
+    ],
+    "next_cursor": "fixture:revision:7",
+    "has_more": false
+  },
+  "events": [
+    {
+      "contract_version": "0.1.0-draft.1",
+      "event_id": "00000000-0000-0000-0000-00000000001e:1",
+      "turn_id": "00000000-0000-0000-0000-00000000001e",
+      "seq": 1,
+      "created_at": "2026-10-08T07:00:00Z",
+      "type": "turn.started",
+      "payload": {
+        "capability": "reading",
+        "response_language": "ko"
+      }
+    },
+    {
+      "contract_version": "0.1.0-draft.1",
+      "event_id": "00000000-0000-0000-0000-00000000001e:2",
+      "turn_id": "00000000-0000-0000-0000-00000000001e",
+      "seq": 2,
+      "created_at": "2026-10-08T07:00:00Z",
+      "type": "assistant.delta",
+      "payload": {
+        "text": "전압이 두 배가 되면 저장 에너지는 네 배입니다. "
+      }
+    },
+    {
+      "contract_version": "0.1.0-draft.1",
+      "event_id": "00000000-0000-0000-0000-00000000001e:3",
+      "turn_id": "00000000-0000-0000-0000-00000000001e",
+      "seq": 3,
+      "created_at": "2026-10-08T07:00:00Z",
+      "type": "citation.verified",
+      "payload": {
+        "citation": {
+          "citation_id": "00000000-0000-0000-0000-000000000032",
+          "verification_id": "00000000-0000-0000-0000-000000000033",
+          "verified": true,
+          "anchor": {
+            "document_id": "00000000-0000-0000-0000-000000000001",
+            "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
+            "page_index": 1,
+            "parse_revision": "fixture-parser-1",
+            "text_sha256": "47dc1aed27fbabb5785b499cdc0f86c8a9e5385d6f9907739bd8a74694d2be89",
+            "start_scalar": 0,
+            "end_scalar": 31,
+            "quote": "커패시터는 에너지를 저장한다. E = 1/2 C V^2.",
+            "rects": [
+              [
+                47,
+                100,
+                18,
+                303.982
+              ]
+            ]
+          }
+        }
+      }
+    },
+    {
+      "contract_version": "0.1.0-draft.1",
+      "event_id": "00000000-0000-0000-0000-00000000001e:4",
+      "turn_id": "00000000-0000-0000-0000-00000000001e",
+      "seq": 4,
+      "created_at": "2026-10-08T07:00:00Z",
+      "type": "reader.goto",
+      "payload": {
+        "target": {
+          "document_id": "00000000-0000-0000-0000-000000000001",
+          "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
+          "page_index": 1
+        },
+        "position": [
+          60,
+          100
+        ],
+        "citation_id": "00000000-0000-0000-0000-000000000032"
+      }
+    },
+    {
+      "contract_version": "0.1.0-draft.1",
+      "event_id": "00000000-0000-0000-0000-00000000001e:5",
+      "turn_id": "00000000-0000-0000-0000-00000000001e",
+      "seq": 5,
+      "created_at": "2026-10-08T07:00:00Z",
+      "type": "reader.highlight",
+      "payload": {
+        "target": {
+          "document_id": "00000000-0000-0000-0000-000000000001",
+          "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
+          "page_index": 1
+        },
+        "rects": [
+          [
+            47,
+            100,
+            18,
+            303.982
+          ]
+        ],
+        "citation_id": "00000000-0000-0000-0000-000000000032",
+        "ttl_ms": 1800,
+        "persistent": false
+      }
+    },
+    {
+      "contract_version": "0.1.0-draft.1",
+      "event_id": "00000000-0000-0000-0000-00000000001e:6",
+      "turn_id": "00000000-0000-0000-0000-00000000001e",
+      "seq": 6,
+      "created_at": "2026-10-08T07:00:00Z",
+      "type": "reader.flash",
+      "payload": {
+        "target": {
+          "document_id": "00000000-0000-0000-0000-000000000001",
+          "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
+          "page_index": 1
+        },
+        "rects": [
+          [
+            47,
+            100,
+            18,
+            303.982
+          ]
+        ],
+        "citation_id": "00000000-0000-0000-0000-000000000032",
+        "ttl_ms": 800,
+        "persistent": false
+      }
+    },
+    {
+      "contract_version": "0.1.0-draft.1",
+      "event_id": "00000000-0000-0000-0000-00000000001e:7",
+      "turn_id": "00000000-0000-0000-0000-00000000001e",
+      "seq": 7,
+      "created_at": "2026-10-08T07:00:00Z",
+      "type": "reader.annotate",
+      "payload": {
+        "annotation": {
+          "annotation_id": "00000000-0000-0000-0000-00000000000a",
+          "document_id": "00000000-0000-0000-0000-000000000001",
+          "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
+          "page_index": 1,
+          "kind": "highlight",
+          "payload": {
+            "anchor": {
+              "document_id": "00000000-0000-0000-0000-000000000001",
+              "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
+              "page_index": 1,
+              "parse_revision": "fixture-parser-1",
+              "text_sha256": "47dc1aed27fbabb5785b499cdc0f86c8a9e5385d6f9907739bd8a74694d2be89",
+              "start_scalar": 0,
+              "end_scalar": 31,
+              "quote": "커패시터는 에너지를 저장한다. E = 1/2 C V^2.",
+              "rects": [
+                [
+                  47,
+                  100,
+                  18,
+                  303.982
+                ]
+              ]
+            },
+            "color": "#FFE08280"
+          }
+        },
+        "citation_id": "00000000-0000-0000-0000-000000000032",
+        "requires_confirmation": true,
+        "suggested_mutation_id": "00000000-0000-0000-0000-00000000006b"
+      }
+    },
+    {
+      "contract_version": "0.1.0-draft.1",
+      "event_id": "00000000-0000-0000-0000-00000000001e:8",
+      "turn_id": "00000000-0000-0000-0000-00000000001e",
+      "seq": 8,
+      "created_at": "2026-10-08T07:00:00Z",
+      "type": "quiz.show",
+      "payload": {
+        "quiz_id": "00000000-0000-0000-0000-000000000028"
+      }
+    },
+    {
+      "contract_version": "0.1.0-draft.1",
+      "event_id": "00000000-0000-0000-0000-00000000001e:9",
+      "turn_id": "00000000-0000-0000-0000-00000000001e",
+      "seq": 9,
+      "created_at": "2026-10-08T07:00:00Z",
+      "type": "question.show",
+      "payload": {
+        "quiz_id": "00000000-0000-0000-0000-000000000028",
+        "question_id": "00000000-0000-0000-0000-000000000029"
+      }
+    },
+    {
+      "contract_version": "0.1.0-draft.1",
+      "event_id": "00000000-0000-0000-0000-00000000001e:10",
+      "turn_id": "00000000-0000-0000-0000-00000000001e",
+      "seq": 10,
+      "created_at": "2026-10-08T07:00:00Z",
+      "type": "learning.updated",
+      "payload": {
+        "document_id": "00000000-0000-0000-0000-000000000001",
+        "learning_revision": 2
+      }
+    },
+    {
+      "contract_version": "0.1.0-draft.1",
+      "event_id": "00000000-0000-0000-0000-00000000001e:11",
+      "turn_id": "00000000-0000-0000-0000-00000000001e",
+      "seq": 11,
+      "created_at": "2026-10-08T07:00:00Z",
+      "type": "turn.done",
+      "payload": {
+        "summary_ko": "문서 근거와 퀴즈를 저장했습니다.",
+        "learning_revision": 2
+      }
+    }
+  ],
+  "reconnect": {
+    "last_event_id": "00000000-0000-0000-0000-00000000001e:5",
+    "replayed_events": [
+      {
+        "contract_version": "0.1.0-draft.1",
+        "event_id": "00000000-0000-0000-0000-00000000001e:6",
+        "turn_id": "00000000-0000-0000-0000-00000000001e",
+        "seq": 6,
+        "created_at": "2026-10-08T07:00:00Z",
+        "type": "reader.flash",
+        "payload": {
+          "target": {
+            "document_id": "00000000-0000-0000-0000-000000000001",
+            "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
+            "page_index": 1
+          },
+          "rects": [
+            [
+              47,
+              100,
+              18,
+              303.982
+            ]
+          ],
+          "citation_id": "00000000-0000-0000-0000-000000000032",
+          "ttl_ms": 800,
+          "persistent": false
+        }
+      },
+      {
+        "contract_version": "0.1.0-draft.1",
+        "event_id": "00000000-0000-0000-0000-00000000001e:7",
+        "turn_id": "00000000-0000-0000-0000-00000000001e",
+        "seq": 7,
+        "created_at": "2026-10-08T07:00:00Z",
+        "type": "reader.annotate",
+        "payload": {
+          "annotation": {
+            "annotation_id": "00000000-0000-0000-0000-00000000000a",
+            "document_id": "00000000-0000-0000-0000-000000000001",
+            "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
+            "page_index": 1,
+            "kind": "highlight",
+            "payload": {
+              "anchor": {
+                "document_id": "00000000-0000-0000-0000-000000000001",
+                "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
+                "page_index": 1,
+                "parse_revision": "fixture-parser-1",
+                "text_sha256": "47dc1aed27fbabb5785b499cdc0f86c8a9e5385d6f9907739bd8a74694d2be89",
+                "start_scalar": 0,
+                "end_scalar": 31,
+                "quote": "커패시터는 에너지를 저장한다. E = 1/2 C V^2.",
+                "rects": [
+                  [
+                    47,
+                    100,
+                    18,
+                    303.982
+                  ]
+                ]
+              },
+              "color": "#FFE08280"
+            }
+          },
+          "citation_id": "00000000-0000-0000-0000-000000000032",
+          "requires_confirmation": true,
+          "suggested_mutation_id": "00000000-0000-0000-0000-00000000006b"
+        }
+      },
+      {
+        "contract_version": "0.1.0-draft.1",
+        "event_id": "00000000-0000-0000-0000-00000000001e:8",
+        "turn_id": "00000000-0000-0000-0000-00000000001e",
+        "seq": 8,
+        "created_at": "2026-10-08T07:00:00Z",
+        "type": "quiz.show",
+        "payload": {
+          "quiz_id": "00000000-0000-0000-0000-000000000028"
+        }
+      },
+      {
+        "contract_version": "0.1.0-draft.1",
+        "event_id": "00000000-0000-0000-0000-00000000001e:9",
+        "turn_id": "00000000-0000-0000-0000-00000000001e",
+        "seq": 9,
+        "created_at": "2026-10-08T07:00:00Z",
+        "type": "question.show",
+        "payload": {
+          "quiz_id": "00000000-0000-0000-0000-000000000028",
+          "question_id": "00000000-0000-0000-0000-000000000029"
+        }
+      },
+      {
+        "contract_version": "0.1.0-draft.1",
+        "event_id": "00000000-0000-0000-0000-00000000001e:10",
+        "turn_id": "00000000-0000-0000-0000-00000000001e",
+        "seq": 10,
+        "created_at": "2026-10-08T07:00:00Z",
+        "type": "learning.updated",
+        "payload": {
+          "document_id": "00000000-0000-0000-0000-000000000001",
+          "learning_revision": 2
+        }
+      },
+      {
+        "contract_version": "0.1.0-draft.1",
+        "event_id": "00000000-0000-0000-0000-00000000001e:11",
+        "turn_id": "00000000-0000-0000-0000-00000000001e",
+        "seq": 11,
+        "created_at": "2026-10-08T07:00:00Z",
+        "type": "turn.done",
+        "payload": {
+          "summary_ko": "문서 근거와 퀴즈를 저장했습니다.",
+          "learning_revision": 2
+        }
+      }
+    ],
+    "duplicate_delivery": {
+      "contract_version": "0.1.0-draft.1",
+      "event_id": "00000000-0000-0000-0000-00000000001e:5",
+      "turn_id": "00000000-0000-0000-0000-00000000001e",
+      "seq": 5,
+      "created_at": "2026-10-08T07:00:00Z",
+      "type": "reader.highlight",
+      "payload": {
+        "target": {
+          "document_id": "00000000-0000-0000-0000-000000000001",
+          "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
+          "page_index": 1
+        },
+        "rects": [
+          [
+            47,
+            100,
+            18,
+            303.982
+          ]
+        ],
+        "citation_id": "00000000-0000-0000-0000-000000000032",
+        "ttl_ms": 1800,
+        "persistent": false
+      }
+    }
+  },
+  "cancelled_events": [
+    {
+      "contract_version": "0.1.0-draft.1",
+      "event_id": "00000000-0000-0000-0000-00000000001f:1",
+      "turn_id": "00000000-0000-0000-0000-00000000001f",
+      "seq": 1,
+      "created_at": "2026-10-08T07:00:00Z",
+      "type": "turn.started",
+      "payload": {
+        "capability": "reading",
+        "response_language": "ko"
+      }
+    },
+    {
+      "contract_version": "0.1.0-draft.1",
+      "event_id": "00000000-0000-0000-0000-00000000001f:2",
+      "turn_id": "00000000-0000-0000-0000-00000000001f",
+      "seq": 2,
+      "created_at": "2026-10-08T07:00:00Z",
+      "type": "turn.cancelled",
+      "payload": {
+        "reason": "user_cancelled"
+      }
+    }
+  ],
+  "error_events": [
+    {
+      "contract_version": "0.1.0-draft.1",
+      "event_id": "00000000-0000-0000-0000-000000000020:1",
+      "turn_id": "00000000-0000-0000-0000-000000000020",
+      "seq": 1,
+      "created_at": "2026-10-08T07:00:00Z",
+      "type": "turn.started",
+      "payload": {
+        "capability": "reading",
+        "response_language": "ko"
+      }
+    },
+    {
+      "contract_version": "0.1.0-draft.1",
+      "event_id": "00000000-0000-0000-0000-000000000020:2",
+      "turn_id": "00000000-0000-0000-0000-000000000020",
+      "seq": 2,
+      "created_at": "2026-10-08T07:00:00Z",
+      "type": "turn.error",
+      "payload": {
+        "error": {
+          "contract_version": "0.1.0-draft.1",
+          "code": "provider_error",
+          "message_ko": "모델 응답을 완료하지 못했습니다.",
+          "request_id": "00000000-0000-0000-0000-00000000005a",
+          "retryable": true,
+          "details": {}
+        }
+      }
+    }
+  ],
+  "quiz": {
+    "quiz_id": "00000000-0000-0000-0000-000000000028",
+    "document_id": "00000000-0000-0000-0000-000000000001",
+    "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
+    "title": "커패시터 에너지",
+    "questions": [
+      {
+        "question_id": "00000000-0000-0000-0000-000000000029",
+        "prompt": "C가 일정할 때 V가 두 배가 되면 E는 몇 배인가요?",
+        "kind": "single_choice",
+        "choices": [
+          {
+            "choice_id": "a",
+            "text": "2배"
+          },
+          {
+            "choice_id": "b",
+            "text": "4배"
+          }
+        ],
+        "citations": [
+          {
+            "citation_id": "00000000-0000-0000-0000-000000000032",
+            "verification_id": "00000000-0000-0000-0000-000000000033",
+            "verified": true,
+            "anchor": {
+              "document_id": "00000000-0000-0000-0000-000000000001",
+              "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
+              "page_index": 1,
+              "parse_revision": "fixture-parser-1",
+              "text_sha256": "47dc1aed27fbabb5785b499cdc0f86c8a9e5385d6f9907739bd8a74694d2be89",
+              "start_scalar": 0,
+              "end_scalar": 31,
+              "quote": "커패시터는 에너지를 저장한다. E = 1/2 C V^2.",
+              "rects": [
+                [
+                  47,
+                  100,
+                  18,
+                  303.982
+                ]
+              ]
+            }
+          }
+        ]
+      }
+    ],
+    "response_language": "ko"
+  },
+  "attempt": {
+    "attempt_id": "00000000-0000-0000-0000-00000000002a",
+    "client_mutation_id": "00000000-0000-0000-0000-00000000006c",
+    "quiz_id": "00000000-0000-0000-0000-000000000028",
+    "document_id": "00000000-0000-0000-0000-000000000001",
+    "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
+    "base_learning_revision": 1,
+    "submitted_at": "2026-10-08T07:00:00Z",
+    "answers": [
+      {
+        "question_id": "00000000-0000-0000-0000-000000000029",
+        "answer": "b"
+      }
+    ]
+  },
+  "assessment": {
+    "attempt_id": "00000000-0000-0000-0000-00000000002a",
+    "score": 1,
+    "feedback_ko": "맞습니다. 원문의 E = 1/2 C V^2에서 확인할 수 있습니다.",
+    "learning_revision": 2,
+    "citations": [
+      {
+        "citation_id": "00000000-0000-0000-0000-000000000032",
+        "verification_id": "00000000-0000-0000-0000-000000000033",
+        "verified": true,
+        "anchor": {
+          "document_id": "00000000-0000-0000-0000-000000000001",
+          "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
+          "page_index": 1,
+          "parse_revision": "fixture-parser-1",
+          "text_sha256": "47dc1aed27fbabb5785b499cdc0f86c8a9e5385d6f9907739bd8a74694d2be89",
+          "start_scalar": 0,
+          "end_scalar": 31,
+          "quote": "커패시터는 에너지를 저장한다. E = 1/2 C V^2.",
+          "rects": [
+            [
+              47,
+              100,
+              18,
+              303.982
+            ]
+          ]
+        }
+      }
+    ]
+  },
+  "learning_state": {
+    "document_id": "00000000-0000-0000-0000-000000000001",
+    "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
+    "learning_revision": 2,
+    "quiz_attempts": [
+      {
+        "attempt_id": "00000000-0000-0000-0000-00000000002a",
+        "quiz_id": "00000000-0000-0000-0000-000000000028",
+        "score": 1
+      }
+    ],
+    "mastery": [
+      {
+        "concept_id": "capacitor-energy",
+        "label_ko": "커패시터 에너지",
+        "score": 0.8,
+        "evidence_attempt_ids": [
+          "00000000-0000-0000-0000-00000000002a"
+        ]
+      }
+    ],
+    "memory": [
+      {
+        "memory_id": "00000000-0000-0000-0000-00000000003c",
+        "front_ko": "전압 두 배일 때 에너지 변화는?",
+        "back_ko": "네 배. E = 1/2 C V^2.",
+        "due_at": "2026-10-09T07:00:00Z",
+        "review_count": 0,
+        "citations": [
+          {
+            "citation_id": "00000000-0000-0000-0000-000000000032",
+            "verification_id": "00000000-0000-0000-0000-000000000033",
+            "verified": true,
+            "anchor": {
+              "document_id": "00000000-0000-0000-0000-000000000001",
+              "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
+              "page_index": 1,
+              "parse_revision": "fixture-parser-1",
+              "text_sha256": "47dc1aed27fbabb5785b499cdc0f86c8a9e5385d6f9907739bd8a74694d2be89",
+              "start_scalar": 0,
+              "end_scalar": 31,
+              "quote": "커패시터는 에너지를 저장한다. E = 1/2 C V^2.",
+              "rects": [
+                [
+                  47,
+                  100,
+                  18,
+                  303.982
+                ]
+              ]
+            }
+          }
+        ]
+      }
+    ],
+    "progress": {
+      "last_page_index": 1,
+      "pages_read": [
+        0,
+        1
+      ],
+      "reading_seconds": 180,
+      "next_review_at": "2026-10-09T07:00:00Z"
+    },
+    "activities": [
+      {
+        "activity_id": "00000000-0000-0000-0000-000000000046",
+        "kind": "reading",
+        "turn_id": "00000000-0000-0000-0000-00000000001e",
+        "summary_ko": "문서의 에너지 식 확인",
+        "created_at": "2026-10-08T07:00:00Z"
+      },
+      {
+        "activity_id": "00000000-0000-0000-0000-000000000047",
+        "kind": "solve",
+        "turn_id": null,
+        "summary_ko": "E(2V) / E(V) = 4",
+        "created_at": "2026-10-08T07:00:00Z"
+      }
+    ]
+  },
+  "geometry_cases": [
+    {
+      "name": "rotate-0",
+      "geometry": {
+        "media_box": [
+          0,
+          0,
+          600,
+          800
+        ],
+        "crop_box": [
+          10,
+          20,
+          590,
+          770
+        ],
+        "rotation_degrees": 0,
+        "user_unit": 1
+      },
+      "point_pdf": [
+        130,
+        240
+      ],
+      "scale": 0.75,
+      "offset": [
+        16,
+        24
+      ],
+      "expected_viewport": [
+        106.0,
+        421.5
+      ]
+    },
+    {
+      "name": "rotate-90",
+      "geometry": {
+        "media_box": [
+          0,
+          0,
+          600,
+          800
+        ],
+        "crop_box": [
+          10,
+          20,
+          590,
+          770
+        ],
+        "rotation_degrees": 90,
+        "user_unit": 1
+      },
+      "point_pdf": [
+        130,
+        240
+      ],
+      "scale": 0.75,
+      "offset": [
+        16,
+        24
+      ],
+      "expected_viewport": [
+        181.0,
+        114.0
+      ]
+    },
+    {
+      "name": "rotate-180",
+      "geometry": {
+        "media_box": [
+          0,
+          0,
+          600,
+          800
+        ],
+        "crop_box": [
+          10,
+          20,
+          590,
+          770
+        ],
+        "rotation_degrees": 180,
+        "user_unit": 1
+      },
+      "point_pdf": [
+        130,
+        240
+      ],
+      "scale": 0.75,
+      "offset": [
+        16,
+        24
+      ],
+      "expected_viewport": [
+        361.0,
+        189.0
+      ]
+    },
+    {
+      "name": "rotate-270",
+      "geometry": {
+        "media_box": [
+          0,
+          0,
+          600,
+          800
+        ],
+        "crop_box": [
+          10,
+          20,
+          590,
+          770
+        ],
+        "rotation_degrees": 270,
+        "user_unit": 2
+      },
+      "point_pdf": [
+        130,
+        240
+      ],
+      "scale": 0.75,
+      "offset": [
+        16,
+        24
+      ],
+      "expected_viewport": [
+        811.0,
+        714.0
+      ]
+    }
+  ],
+  "unicode_probe": {
+    "text": "읽기 🧠: V²",
+    "start_scalar": 3,
+    "end_scalar": 4,
+    "quote": "🧠"
+  }
+}

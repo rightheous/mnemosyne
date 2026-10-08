@@ -1,0 +1,52 @@
+{
+  "contract_version": "0.1.0-draft.1",
+  "owners": {
+    "UNIT-01": [
+      "handoff/UNIT-01.md"
+    ],
+    "UNIT-02": [
+      "handoff/UNIT-02.md"
+    ],
+    "UNIT-03": [
+      "handoff/UNIT-03.md"
+    ],
+    "UNIT-04": [
+      "handoff/UNIT-04.md"
+    ],
+    "UNIT-05": [
+      "handoff/UNIT-05.md",
+      "checks/web-consumer.mjs"
+    ],
+    "UNIT-06": [
+      "handoff/UNIT-06.md",
+      "checks/requirements.txt",
+      "checks/validate_contracts.py",
+      "checks/ipad-consumer.swift"
+    ],
+  "INTEGRATOR": [
+      ".gitattributes",
+      ".gitignore",
+      "AGENTS.md",
+      "README.md",
+      "contracts/README.md",
+      "contracts/annotations.schema.json",
+      "contracts/events.schema.json",
+      "contracts/fixtures/README.md",
+      "contracts/fixtures/bilingual-geometry.pdf",
+      "contracts/fixtures/study-session.json",
+      "contracts/fixtures/tutor.sse",
+      "contracts/manifest.json",
+      "contracts/models.schema.json",
+      "contracts/openapi.yaml",
+      "docs/INTEGRATION.md",
+      "docs/OWNERSHIP.md",
+      "docs/REQUIREMENTS.md",
+      "docs/REVIEW.md",
+      "docs/UI-DIRECTION.md",
+      "docs/UPSTREAM-AUDIT.md",
+      "docs/VALIDATION.md",
+      "integration/ownership.json",
+      "integration/registry.json"
+    ]
+  }
+}

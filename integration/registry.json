@@ -1,0 +1,22 @@
+{
+  "contract_version": "0.1.0-draft.1",
+  "status": "awaiting_upstream_sources",
+  "ready_for_parallel_implementation": false,
+  "external_transport": null,
+  "candidate_transport": "sse",
+  "upstreams": {
+    "pumice": {"url": null, "local_path": null, "commit": null, "license": null, "build_command": null, "test_command": null},
+    "deeptutor": {"url": null, "local_path": null, "commit": null, "license": null, "build_command": null, "test_command": null, "observed_transport": null}
+  },
+  "units": {
+    "UNIT-01": {"source_paths": [], "registration_symbol": null, "candidate": "register_library"},
+    "UNIT-02": {"source_paths": [], "registration_symbol": null, "candidate": "register_tutor"},
+    "UNIT-03": {"source_paths": [], "registration_symbol": null, "candidate": "make_reader_facade"},
+    "UNIT-04": {"source_paths": [], "registration_symbol": null, "candidate": "make_ipad_app"},
+    "UNIT-05": {"source_paths": [], "registration_symbol": null, "candidate": "mount_mnemosyne_web"},
+    "UNIT-06": {"source_paths": [], "registration_symbol": null, "candidate": "run_integration_checks"}
+  },
+  "assembly_path": null,
+  "assembly_symbol": null,
+  "source_gate_notes": "No upstream source was supplied. Candidate interfaces are not observed implementation symbols."
+}

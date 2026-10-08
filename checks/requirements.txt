@@ -1,0 +1,4 @@
+# Contract validation only; not the product backend manifest.
+jsonschema==4.23.0
+openapi-spec-validator==0.7.2
+PyYAML==6.0.2

@@ -1,0 +1,2 @@
+# SSE dispatch requires a final blank line; preserve this wire fixture.
+contracts/fixtures/*.sse whitespace=-blank-at-eof
