@@ -34,5 +34,6 @@ struct PDFReaderView: UIViewControllerRepresentable {
         vc.onPageChanged = onPageChanged
         mnemosyneEngine?.attach(to: vc)
         controller.attach(vc)
+        vc.loadIfNeeded(url: pdfURL, restorePageIndex: restorePageIndex)
     }
 }

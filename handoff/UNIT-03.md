@@ -1,5 +1,7 @@
 # UNIT-03 인수: iPad PDF·Pencil·로컬 Reader
 
+이 파일이 소유권 manifest의 canonical handoff 경로다. 요청에 적힌 docs/handoffs/unit-03.md는 현재 UNIT-03 소유 경로에 없어 여기에서 만들거나 수정하지 않았다.
+
 담당 범위는 `integration/ownership.json`의 `owners.UNIT-03`에 맞춘다. 계약은 `0.1.0`이며 계약 원본/복사본, `Package.swift`, Xcode 설정은 수정하지 않았다. 기존 Pumice 소스 파일만 확장했으므로 새 XcodeGen 등록은 없다. `makeReaderFacade(factory, localStore)` 등록 경로와 빈 no-op 대체 금지 원칙을 유지한다.
 
 ## 구현
@@ -29,6 +31,29 @@ let facade = try makeReaderFacade(
 // 승인 UI에서: try facade.approveAnnotationSuggestion(event)
 ```
 
+## Mac/Xcode 및 iPad 수동 검증 절차
+
+Pumice 디렉터리에서 Xcode가 설치된 Mac에 아래 명령을 실행한다.
+
+    xcodegen generate
+    xcodebuild -project Pumice.xcodeproj -scheme Pumice -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
+    swift test --package-path Packages/PumiceCore
+
+그다음 Xcode에서 Pumice.xcodeproj의 Pumice scheme을 iPad Simulator와 실제 iPad에 실행하고 아래를 확인한다.
+
+1. PDF를 한 번 내려받아 캐시에 둔 뒤 네트워크를 끄고 다시 연다. 캐시된 원본이 열리고 검색, 목차, 페이지 이동이 동작하는지 본다.
+2. Apple Pencil로 여러 획을 쓰고 저장한 뒤 앱을 강제 종료하고 재실행한다. 획의 위치·색·두께가 복구되는지 본다.
+3. 페이지 zoom과 기기 화면 방향을 바꾸며 획이 PDF의 같은 위치와 physical width를 유지하는지, CropBox 밖으로 저장되는 획이 없는지 확인한다.
+4. undo/redo와 eraser로 한 획 및 여러 획 annotation의 일부를 지운 뒤 sidecar와 sync outbox가 같은 상태인지 확인한다.
+5. Text Note와 Bookmark를 만들고 검색 결과, outline 이동, 현재 페이지 context를 확인한다. 서버 검증 TextAnchor가 주어지지 않은 selection은 null로 유지되는지 본다.
+6. 원본 PDF의 SHA-256을 실행 전후 비교한다. 별도 목적지로 annotated copy를 export한 뒤 원본 해시가 그대로인지, export가 열리는지 확인한다.
+7. UNIT-04 sync 연결 후 네트워크를 복구해 mutation receipt/cursor를 적용하고 앱을 재실행한다. 중복 mutation이 생기지 않고 실패 항목을 retry할 수 있는지 본다.
+8. 실제 iPad에서 Pencil 입력 지연, 손바닥 거부, 장시간 필기 중 메모리 사용을 기록한다. Simulator 결과는 이 기기 항목의 대체가 아니다.
+
+## 통합 담당 후속 사항
+
+docs/INTEGRATION.md의 UNIT-03 등록 표에는 아직 concrete Reader facade 구현이 없다고 적혀 있다. 현재 구현과 충돌하므로 통합 담당이 연결 시 해당 표와 구현 상태를 갱신해야 한다. UNIT-03은 통합 소유 문서를 직접 수정하지 않았다.
+
 ## 검증과 미검증
 
 - 통과: Core `ReaderFacade.swift`와 `MnemosyneGeometry.swift` 직접 Swift 타입검사.
@@ -37,6 +62,7 @@ let facade = try makeReaderFacade(
 - 통과: UNIT-03 변경 경로의 `git diff --check`.
 - 차단: SwiftPM 전체 테스트와 iPad 제품 빌드. 로컬은 full Xcode가 아닌 Command Line Tools만 선택되어 있고 `xcodebuild`/iOS Simulator SDK를 사용할 수 없다. 사용 가능한 Swift 6.3.3 compiler와 Command Line Tools SDK(6.3.2 build)의 차이 및 기본 SwiftPM cache 쓰기 제한 때문에 SwiftPM이 테스트 target까지 실행되지 않았다. 파일 단위 직접 타입검사/harness는 Package 테스트를 대체하지 않는다.
 - 미검증: 실제 iPad Pencil, 화면 회전/zoom, 앱 강제 종료 후 복구, export PDF 렌더, 기기에서의 sidecar 보호 권한. Cloud 실행 환경의 Apple SDK 상태도 이 로컬 세션에서는 확인되지 않았다.
+- Cloud Apple SDK 점검: 이 세션에서 사용할 수 있는 Cloud Xcode 실행/SDK 점검 도구가 없어 상태는 미확인이다. SDK가 없다고 단정하지 않는다.
 - remote 목록은 비어 있다. 따라서 Cloud dispatch/PR 게시 여부는 미확인이다. 공통 registry의 `product_ready=false`를 유지하며 제품 완료로 보고하지 않는다.
 
 UNIT-03 변경은 `codex/unit-03-reader` 격리 브랜치에 고정한다. 정확한 commit SHA는 작업 종료 보고에 기록한다.

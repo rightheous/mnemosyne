@@ -95,7 +95,7 @@ final class PumiceOverlayProvider: NSObject, @unchecked Sendable {
     private var canvasByPage: [PDFPage: PumiceCanvasView] = [:]
     private var canvasSizeForPage: [PDFPage: CGSize] = [:]
 
-    @MainActor var onCanvasReady: ((PDFPage, PumiceCanvasView, CGSize) -> Void)?
+    @MainActor var onCanvasReady: ((PDFPage, PumiceCanvasView, CGSize, CGSize?) -> Void)?
 
     /// Current tool settings. Applied to every new canvas as it is
     /// created, and pushed onto live canvases via the setters below
@@ -299,11 +299,12 @@ extension PumiceOverlayProvider: @preconcurrency PDFPageOverlayViewProvider {
         canvas.onBoundsChanged = { [weak self, weak page, weak canvas] size in
             guard let self, let page, let canvas else { return }
             self.lock.lock()
+            let previousSize = self.canvasSizeForPage[page]
             self.canvasSizeForPage[page] = size
             self.lock.unlock()
             Task { @MainActor [weak self, weak page, weak canvas] in
                 guard let self, let page, let canvas else { return }
-                self.onCanvasReady?(page, canvas, size)
+                self.onCanvasReady?(page, canvas, size, previousSize)
             }
         }
 
@@ -362,7 +363,7 @@ final class PDFReaderViewController: UIViewController {
     private var highlightIDs: [ObjectIdentifier: UUID] = [:]
     private var sidecarOnlyHighlightIDs: Set<UUID> = []
     private var contractAnnotationDrafts: [UUID: Data] = [:]
-    private var restoredCanvases: Set<ObjectIdentifier> = []
+    private var handledCanvasSizes: [ObjectIdentifier: CGSize] = [:]
     private var managedAnnotationIDs: Set<ObjectIdentifier> = []
     private var currentPageIndex = 0
     private var documentIdentifier: UUID?
@@ -428,8 +429,8 @@ final class PDFReaderViewController: UIViewController {
             guard let self else { return }
             self.handleHighlightStrokeFinished(first: first, last: last, on: page)
         }
-        overlayProvider.onCanvasReady = { [weak self] page, canvas, size in
-            self?.restoreSidecarStrokes(on: page, canvas: canvas, size: size)
+        overlayProvider.onCanvasReady = { [weak self] page, canvas, size, previousSize in
+            self?.restoreSidecarStrokes(on: page, canvas: canvas, size: size, previousSize: previousSize)
         }
 
         installUndoRedoGestures()
@@ -479,7 +480,7 @@ final class PDFReaderViewController: UIViewController {
         sidecarOnlyHighlightIDs.removeAll()
         contractAnnotationDrafts.removeAll()
         managedAnnotationIDs.removeAll()
-        restoredCanvases.removeAll()
+        handledCanvasSizes.removeAll()
         currentPageIndex = 0
         let restoreIndex = restorePageIndex ?? sidecar?.last_page_index
         pendingRestorePage = restoreIndex
@@ -514,6 +515,11 @@ final class PDFReaderViewController: UIViewController {
             guard let page = document.page(at: i) else { continue }
             restoreSidecarHighlights(on: page, pageIndex: i)
         }
+    }
+
+    func loadIfNeeded(url: URL, restorePageIndex: Int? = nil) {
+        guard pdfURL?.standardizedFileURL != url.standardizedFileURL else { return }
+        load(url: url, restorePageIndex: restorePageIndex)
     }
 
     func saveIfNeeded() {
@@ -561,12 +567,18 @@ final class PDFReaderViewController: UIViewController {
         let index = document.index(for: page)
         guard index >= 0, index < document.pageCount else { throw MnemosyneReaderError.documentMismatch }
         let cropBox = page.bounds(for: .cropBox)
+        let pageRectInView = pdfView.convert(cropBox, from: page)
+        let visibleRectInView = pdfView.bounds.intersection(pageRectInView)
+        let convertedViewport = visibleRectInView.isNull || visibleRectInView.isEmpty
+            ? cropBox
+            : pdfView.convert(visibleRectInView, to: page).intersection(cropBox)
+        let viewport = convertedViewport.isNull || convertedViewport.isEmpty ? cropBox : convertedViewport
         let context: [String: Any] = [
             "document_id": documentIdentifier.uuidString.lowercased(),
             "version_id": documentVersionID,
             "page_index": index,
-            "viewport_rect": [Double(cropBox.minX), Double(cropBox.minY),
-                              Double(cropBox.width), Double(cropBox.height)],
+            "viewport_rect": [Double(viewport.minX), Double(viewport.minY),
+                              Double(viewport.width), Double(viewport.height)],
             "selection": NSNull(),
             "content_language": "und",
             "response_language": "ko"
@@ -846,7 +858,7 @@ final class PDFReaderViewController: UIViewController {
             guard let page = document.page(at: index) else { continue }
             overlayProvider.setStrokes([], for: page)
             if let canvas = overlayProvider.activeCanvas(for: page) {
-                restoredCanvases.remove(ObjectIdentifier(canvas))
+                handledCanvasSizes.removeValue(forKey: ObjectIdentifier(canvas))
                 canvas.setStrokes([])
             }
         }
@@ -866,8 +878,8 @@ final class PDFReaderViewController: UIViewController {
             restoreSidecarHighlights(on: page, pageIndex: index)
             if let canvas = overlayProvider.activeCanvas(for: page),
                let size = overlayProvider.canvasSize(for: page) {
-                restoredCanvases.remove(ObjectIdentifier(canvas))
-                restoreSidecarStrokes(on: page, canvas: canvas, size: size)
+                handledCanvasSizes.removeValue(forKey: ObjectIdentifier(canvas))
+                restoreSidecarStrokes(on: page, canvas: canvas, size: size, previousSize: nil)
             }
         }
         for index in 0..<document.pageCount {
@@ -1221,15 +1233,64 @@ final class PDFReaderViewController: UIViewController {
         }
     }
 
-    private func restoreSidecarStrokes(on page: PDFPage, canvas: PumiceCanvasView, size: CGSize) {
+    private func restoreSidecarStrokes(on page: PDFPage, canvas: PumiceCanvasView,
+                                       size: CGSize, previousSize: CGSize?) {
         let canvasID = ObjectIdentifier(canvas)
-        guard !restoredCanvases.contains(canvasID),
-              let document = pdfView.document else { return }
-        restoredCanvases.insert(canvasID)
+        guard let document = pdfView.document else { return }
         let pageIndex = document.index(for: page)
-        guard pageIndex != NSNotFound,
-              let savedPage = sidecar?.ink_pages.first(where: { $0.page_index == pageIndex }),
-              let (geometry, scale) = Self.geometry(for: page, canvasSize: size) else { return }
+        guard pageIndex != NSNotFound else { return }
+        if let handledSize = handledCanvasSizes[canvasID], handledSize == size { return }
+        let oldSize = handledCanvasSizes[canvasID] ?? previousSize
+
+        if !canvas.strokes.isEmpty {
+            if let oldSize,
+               let (oldGeometry, oldScale) = Self.geometry(for: page, canvasSize: oldSize),
+               let (newGeometry, newScale) = Self.geometry(for: page, canvasSize: size) {
+                let resized = canvas.strokes.map { stroke -> StrokeRecord in
+                    let samples = stroke.samples.map { sample -> PencilStrokeSample in
+                        let pdfPoint = oldGeometry.pdfPoint(fromViewport: sample.location,
+                                                            scale: oldScale, offset: .zero)
+                        return PencilStrokeSample(
+                            location: newGeometry.viewportPoint(fromPDF: pdfPoint,
+                                                                scale: newScale, offset: .zero),
+                            pressure: sample.pressure,
+                            timeMilliseconds: sample.timeMilliseconds
+                        )
+                    }
+                    let path = UIBezierPath()
+                    if let first = samples.first {
+                        path.move(to: first.location)
+                        for sample in samples.dropFirst() { path.addLine(to: sample.location) }
+                    } else {
+                        let transform = CGAffineTransform(scaleX: size.width / oldSize.width,
+                                                          y: size.height / oldSize.height)
+                        let copiedPath = (stroke.path.copy() as? UIBezierPath) ?? UIBezierPath()
+                        copiedPath.apply(transform)
+                        path.append(copiedPath)
+                    }
+                    let physicalWidth = oldGeometry.physicalWidth(fromViewportWidth: stroke.width,
+                                                                  scale: oldScale)
+                    return StrokeRecord(
+                        id: stroke.id,
+                        annotationID: stroke.annotationID,
+                        path: path,
+                        color: stroke.color,
+                        width: newGeometry.viewportWidth(fromPhysicalPoints: physicalWidth,
+                                                         scale: newScale),
+                        samples: samples
+                    )
+                }
+                overlayProvider.setStrokes(resized, for: page)
+            }
+            handledCanvasSizes[canvasID] = size
+            return
+        }
+
+        guard let savedPage = sidecar?.ink_pages.first(where: { $0.page_index == pageIndex }),
+              let (geometry, scale) = Self.geometry(for: page, canvasSize: size) else {
+            handledCanvasSizes[canvasID] = size
+            return
+        }
 
         let restored = savedPage.strokes.compactMap { saved -> StrokeRecord? in
             guard let id = UUID(uuidString: saved.stroke_id), !saved.points.isEmpty else { return nil }
@@ -1253,6 +1314,7 @@ final class PDFReaderViewController: UIViewController {
         }
         overlayProvider.setStrokes(restored, for: page)
         canvas.setStrokes(restored)
+        handledCanvasSizes[canvasID] = size
     }
 
     private static func geometry(for page: PDFPage, canvasSize: CGSize) -> (MnemosyneGeometry, CGFloat)? {
