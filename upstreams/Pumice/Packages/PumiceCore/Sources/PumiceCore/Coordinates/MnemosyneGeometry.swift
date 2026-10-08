@@ -56,6 +56,24 @@ public struct MnemosyneGeometry: Sendable {
         width / scale
     }
 
+    /// Computes the PDFKit scale needed to show a saved page-space viewport
+    /// rectangle in the supplied view size. `viewport_rect` is unrotated PDF
+    /// CropBox space, so its displayed width and height swap for quarter turns.
+    public func scaleToFitPDFRect(_ pdfRect: CGRect, in viewportSize: CGSize) -> CGFloat? {
+        guard [pdfRect.minX, pdfRect.minY, pdfRect.maxX, pdfRect.maxY,
+               viewportSize.width, viewportSize.height].allSatisfy({ $0.isFinite }),
+              pdfRect.width > 0, pdfRect.height > 0,
+              viewportSize.width > 0, viewportSize.height > 0 else { return nil }
+        let visibleRect = pdfRect.standardized.intersection(cropBox)
+        guard !visibleRect.isNull, !visibleRect.isEmpty,
+              visibleRect.width > 0, visibleRect.height > 0 else { return nil }
+        let rotated = rotation == 90 || rotation == 270
+        let displayWidth = (rotated ? visibleRect.height : visibleRect.width) * userUnit
+        let displayHeight = (rotated ? visibleRect.width : visibleRect.height) * userUnit
+        let scale = min(viewportSize.width / displayWidth, viewportSize.height / displayHeight)
+        return scale.isFinite && scale > 0 ? scale : nil
+    }
+
     /// Clips a raw, unrotated PDF-space polyline to the page CropBox. A path
     /// that leaves and re-enters the crop becomes separate polylines, keeping
     /// serialized web strokes inside the same canonical page boundary.

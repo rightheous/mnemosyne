@@ -398,6 +398,9 @@ final class PDFReaderViewController: UIViewController {
     /// Optional restore target: when set in `load(url:restorePageIndex:)`,
     /// the document is scrolled to this page after parsing.
     private var pendingRestorePage: Int?
+    private var pendingRestoreViewport: (pageIndex: Int, rect: CGRect)?
+    private var documentLoadGeneration = 0
+    private var viewportRestoreScheduledGeneration: Int?
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -461,7 +464,12 @@ final class PDFReaderViewController: UIViewController {
         saveIfNeeded()
     }
 
-    func load(url: URL, restorePageIndex: Int? = nil) {
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        schedulePendingViewportRestore()
+    }
+
+    func load(url: URL, restorePageIndex: Int? = nil, restoreViewportRect: CGRect? = nil) {
         // Force viewDidLoad to run BEFORE we set the document.
         // SwiftUI's PDFReaderView calls load(url:) inside
         // makeUIViewController, before the view is in a hierarchy —
@@ -490,7 +498,11 @@ final class PDFReaderViewController: UIViewController {
         handledCanvasSizes.removeAll()
         currentPageIndex = 0
         let restoreIndex = restorePageIndex ?? sidecar?.last_page_index
-        pendingRestorePage = restoreIndex
+        pendingRestorePage = nil
+        documentLoadGeneration &+= 1
+        let generation = documentLoadGeneration
+        viewportRestoreScheduledGeneration = nil
+        pendingRestoreViewport = nil
         _undoManager.removeAllActions()
         overlayProvider.reset()
         controller?.refreshState()
@@ -499,17 +511,30 @@ final class PDFReaderViewController: UIViewController {
 
         guard let document = PDFDocument(url: url) else { return }
         document.delegate = documentDelegate
+        let validRestoreIndex = restoreIndex.flatMap { index in
+            index >= 0 && index < document.pageCount ? index : nil
+        }
+        pendingRestorePage = validRestoreIndex
+        pendingRestoreViewport = restoreViewportRect.flatMap { rect in
+            guard let validRestoreIndex else { return nil }
+            return (pageIndex: validRestoreIndex, rect: rect)
+        }
+        pdfView.autoScales = true
         pdfView.document = document
 
-        // Scroll to the remembered page, if any. Defer to the next
-        // run-loop turn so PDFKit has finished laying out the document
-        // — calling `go(to:)` inside `pdfView.document =` doesn't
-        // settle on iOS 26.
-        if let index = restoreIndex, index > 0,
-           index < document.pageCount,
+        if pendingRestoreViewport != nil {
+            schedulePendingViewportRestore()
+        } else if let index = validRestoreIndex, index > 0,
            let page = document.page(at: index) {
+            // Scroll to the remembered page, if any. Defer to the next
+            // run-loop turn so PDFKit has finished laying out the document
+            // — calling `go(to:)` inside `pdfView.document =` doesn't
+            // settle on iOS 26.
             DispatchQueue.main.async { [weak self] in
-                self?.pdfView.go(to: page)
+                guard let self,
+                      self.documentLoadGeneration == generation,
+                      self.pdfView.document === document else { return }
+                self.pdfView.go(to: page)
             }
         }
 
@@ -560,8 +585,71 @@ final class PDFReaderViewController: UIViewController {
     func load(url: URL, restoring context: Data?, annotations: [Data]) throws {
         let contextObject = context.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }
         let restoreIndex = contextObject?["page_index"] as? Int
-        load(url: url, restorePageIndex: restoreIndex)
+        let restoreViewportRect: CGRect? = {
+            guard let values = contextObject?["viewport_rect"] as? [NSNumber], values.count == 4 else {
+                return nil
+            }
+            let components = values.map(\.doubleValue)
+            guard components.allSatisfy({ $0.isFinite }), components[2] > 0, components[3] > 0 else {
+                return nil
+            }
+            return CGRect(x: CGFloat(components[0]), y: CGFloat(components[1]),
+                          width: CGFloat(components[2]), height: CGFloat(components[3]))
+        }()
+        load(url: url, restorePageIndex: restoreIndex, restoreViewportRect: restoreViewportRect)
         try replaceAnnotations(annotations)
+    }
+
+    private func schedulePendingViewportRestore() {
+        guard let pending = pendingRestoreViewport,
+              let document = pdfView.document,
+              pending.pageIndex >= 0, pending.pageIndex < document.pageCount,
+              pdfView.bounds.width > 0, pdfView.bounds.height > 0,
+              viewportRestoreScheduledGeneration != documentLoadGeneration else { return }
+
+        let generation = documentLoadGeneration
+        viewportRestoreScheduledGeneration = generation
+        DispatchQueue.main.async { [weak self] in
+            guard let self,
+                  self.documentLoadGeneration == generation,
+                  self.pdfView.document === document,
+                  let current = self.pendingRestoreViewport,
+                  current.pageIndex == pending.pageIndex else { return }
+            self.viewportRestoreScheduledGeneration = nil
+            guard self.restoreViewport(current, in: document) else {
+                self.pendingRestoreViewport = nil
+                if current.pageIndex > 0,
+                   let page = document.page(at: current.pageIndex) {
+                    self.pdfView.go(to: page)
+                }
+                return
+            }
+            self.pendingRestoreViewport = nil
+        }
+    }
+
+    private func restoreViewport(_ pending: (pageIndex: Int, rect: CGRect), in document: PDFDocument) -> Bool {
+        guard let page = document.page(at: pending.pageIndex),
+              pdfView.bounds.width > 0, pdfView.bounds.height > 0 else { return false }
+        let cropBox = page.bounds(for: .cropBox)
+        let rect = pending.rect.standardized.intersection(cropBox)
+        guard !rect.isNull, !rect.isEmpty,
+              let geometry = try? MnemosyneGeometry(
+                cropBox: cropBox,
+                rotation: ((page.rotation % 360) + 360) % 360,
+                userUnit: Self.pageUserUnit(page)
+              ),
+              let requestedScale = geometry.scaleToFitPDFRect(rect, in: pdfView.bounds.size) else { return false }
+
+        let scale = min(max(requestedScale, pdfView.minScaleFactor), pdfView.maxScaleFactor)
+        guard scale.isFinite, scale > 0 else { return false }
+        let destination = PDFDestination(page: page, at: CGPoint(x: rect.midX, y: rect.midY))
+        destination.zoom = scale
+        pdfView.autoScales = false
+        pdfView.go(to: destination)
+        currentPageIndex = pending.pageIndex
+        positionNeedsSave = false
+        return true
     }
 
     func readerContextData() throws -> Data {

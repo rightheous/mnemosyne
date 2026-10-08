@@ -120,6 +120,25 @@ struct MnemosyneGeometryTests {
         #expect(viewportWidth == 4.5)
         #expect(geometry.physicalWidth(fromViewportWidth: viewportWidth, scale: 1.5) == 3)
     }
+
+    @Test("Saved viewport scale respects page rotation, CropBox, and UserUnit",
+          arguments: [0, 90, 180, 270])
+    func viewportScale(rotation: Int) throws {
+        let geometry = try MnemosyneGeometry(
+            cropBox: CGRect(x: 10, y: 20, width: 580, height: 750),
+            rotation: rotation,
+            userUnit: 2
+        )
+        let scale = try #require(geometry.scaleToFitPDFRect(
+            CGRect(x: 100, y: 100, width: 200, height: 300),
+            in: CGSize(width: 600, height: 400)
+        ))
+        #expect(abs(scale - ((rotation == 90 || rotation == 270) ? 1 : 2.0 / 3.0)) < 1e-8)
+        #expect(geometry.scaleToFitPDFRect(
+            CGRect(x: 700, y: 900, width: 10, height: 10),
+            in: CGSize(width: 600, height: 400)
+        ) == nil)
+    }
 }
 
 @MainActor
