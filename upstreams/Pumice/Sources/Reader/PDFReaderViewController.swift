@@ -456,6 +456,12 @@ final class PDFReaderViewController: UIViewController {
             name: .PDFViewSelectionChanged,
             object: pdfView
         )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleApplicationWillResignActive(_:)),
+            name: UIApplication.willResignActiveNotification,
+            object: nil
+        )
     }
 
     override func viewWillDisappear(_ animated: Bool) {
@@ -683,6 +689,13 @@ final class PDFReaderViewController: UIViewController {
 
     @objc private func handlePDFViewSelectionChanged(_ notification: Notification) {
         onTextSelectionChanged?()
+    }
+
+    @objc private func handleApplicationWillResignActive(_ notification: Notification) {
+        // A debounced save may still be pending when iPadOS backgrounds or
+        // interrupts the app. Flush the local sidecar before suspension so
+        // local-only highlights and the last viewport survive termination.
+        saveIfNeeded()
     }
 
     func selectedText() throws -> String? {
