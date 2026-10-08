@@ -854,3 +854,271 @@ async def test_media_ingestion_failure_is_logged_and_persisted(
     assert failed is not None
     assert failed.status is IngestionStatus.FAILED
     assert "Reading media ingestion failed" in caplog.text
+
+
+def test_mnemosyne_pdf_upload_annotation_sync_restart_and_export(tmp_path: Path) -> None:
+    """Exercise the real PDF fixture through UNIT-01's persistent service boundary."""
+    import asyncio
+    import copy
+    import hashlib
+    import uuid
+
+    import pymupdf
+
+    from deeptutor.mnemosyne.library import LibraryAdapter, LibraryError, viewport_point
+
+    repository_root = Path(__file__).resolve().parents[4]
+    source = repository_root / "contracts" / "fixtures" / "bilingual-geometry.pdf"
+    source_bytes = source.read_bytes()
+    source_sha = hashlib.sha256(source_bytes).hexdigest()
+    data_root = tmp_path / "user" / "workspace" / "reading"
+    adapter = LibraryAdapter(ReadingStore(data_root))
+
+    document = adapter.upload_pdf(source_bytes, "bilingual-geometry.pdf", title="Geometry fixture")
+    document_id, version_id = document["document_id"], document["version_id"]
+    assert document["source_sha256"] == source_sha
+    assert version_id == f"sha256:{source_sha}"
+    assert document["parse_state"] == "ready"
+    assert document["page_count"] == 2
+    assert document["index_state"] == "failed"
+    assert document["index_error_code"] == "embedding_provider_unavailable"
+    assert adapter.download_original(document_id, version_id) == source_bytes
+
+    page0 = adapter.get_page(document_id, version_id, 0)
+    page1 = adapter.get_page(document_id, version_id, 1)
+    assert page0["geometry"]["rotation_degrees"] == 0
+    assert page1["geometry"]["rotation_degrees"] == 90
+    assert page0["geometry"]["crop_box"] == [20.0, 30.0, 580.0, 760.0]
+    assert page1["geometry"]["crop_box"] == [10.0, 20.0, 590.0, 770.0]
+    search_anchors = adapter.search_anchors(document_id, version_id, "CAPACITOR")
+    assert search_anchors
+    search_anchor = search_anchors[0]
+    assert search_anchor["quote"].casefold() == "capacitor"
+    assert page0["text"][search_anchor["start_scalar"]:search_anchor["end_scalar"]] == search_anchor["quote"]
+    probe_point = [80.0, 120.0]
+    assert all(
+        abs(a - b) < 1e-6
+        for a, b in zip(
+            viewport_point(viewport_point(probe_point, page1["geometry"]), page1["geometry"], inverse=True),
+            probe_point,
+        )
+    )
+
+    def uid() -> str:
+        return str(uuid.uuid4())
+
+    def mutation(operation: str, annotation_id: str, base_revision: int, annotation=None, client_id=None):
+        row = {
+            "client_mutation_id": uid(),
+            "client_id": client_id or uid(),
+            "document_id": document_id,
+            "version_id": version_id,
+            "annotation_id": annotation_id,
+            "base_revision": base_revision,
+            "created_at": "2026-10-09T01:00:00Z",
+            "operation": operation,
+        }
+        if operation == "upsert":
+            row["annotation"] = annotation
+        return row
+
+    first_segment = page0["segments"][0]
+    anchor = {
+        "document_id": document_id,
+        "version_id": version_id,
+        "page_index": 0,
+        "parse_revision": page0["parse_revision"],
+        "text_sha256": page0["text_sha256"],
+        "start_scalar": first_segment["start_scalar"],
+        "end_scalar": first_segment["end_scalar"],
+        "quote": page0["text"][first_segment["start_scalar"]:first_segment["end_scalar"]],
+        "rects": [first_segment["rect"]],
+    }
+    highlight_id, note_id, bookmark_id, ink_id = uid(), uid(), uid(), uid()
+    client_a, client_b = uid(), uid()
+    initial = [
+        mutation("upsert", highlight_id, 0, {
+            "annotation_id": highlight_id, "document_id": document_id, "version_id": version_id,
+            "page_index": 0, "kind": "highlight",
+            "payload": {"anchor": anchor, "color": "#FFDD4480"},
+        }, client_a),
+        mutation("upsert", note_id, 0, {
+            "annotation_id": note_id, "document_id": document_id, "version_id": version_id,
+            "page_index": 1, "kind": "note",
+            "payload": {"position": [30.0, 30.0], "body": "회전 페이지 메모", "anchor": None},
+        }, client_a),
+        mutation("upsert", bookmark_id, 0, {
+            "annotation_id": bookmark_id, "document_id": document_id, "version_id": version_id,
+            "page_index": 1, "kind": "bookmark", "payload": {"label": "둘째 페이지"},
+        }, client_a),
+        mutation("upsert", ink_id, 0, {
+            "annotation_id": ink_id, "document_id": document_id, "version_id": version_id,
+            "page_index": 1, "kind": "ink", "payload": {"strokes": [{
+                "stroke_id": uid(), "tool": "pen", "color": "#2040C0FF", "width_pt": 2,
+                "points": [
+                    {"x": 40.0, "y": 100.0, "pressure": 1, "t_ms": 0},
+                    {"x": 80.0, "y": 120.0, "pressure": 1.0, "t_ms": 15},
+                ],
+            }]},
+        }, client_a),
+    ]
+    batch = {"contract_version": "0.1.0", "document_id": document_id,
+             "version_id": version_id, "mutations": initial}
+    receipt = asyncio.run(adapter.apply_mutations(batch))
+    assert [row["status"] for row in receipt["results"]] == ["applied"] * 4
+    assert [row["server_revision"] for row in receipt["results"]] == [1, 2, 3, 4]
+    replay = asyncio.run(adapter.apply_mutations(copy.deepcopy(batch)))
+    assert replay == receipt
+
+    # JSON key order and mathematical equality of finite numbers are ignored
+    # for an idempotency replay; the original receipt and watermark are stable.
+    numeric_replay = copy.deepcopy(batch)
+    numeric_replay["mutations"][3]["annotation"]["payload"]["strokes"][0]["width_pt"] = 2.0
+    assert asyncio.run(adapter.apply_mutations(numeric_replay)) == receipt
+
+    snapshot_a = asyncio.run(adapter.snapshot(document_id, version_id))
+    assert snapshot_a["snapshot_revision"] == 4
+    assert {row["kind"] for row in snapshot_a["annotations"]} == {"highlight", "note", "bookmark", "ink"}
+    cursor = snapshot_a["next_cursor"]
+
+    note = next(row for row in snapshot_a["annotations"] if row["annotation_id"] == note_id)
+    edit = mutation("upsert", note_id, note["server_revision"], {
+        "annotation_id": note_id, "document_id": document_id, "version_id": version_id,
+        "page_index": 1, "kind": "note",
+        "payload": {"position": [35.0, 35.0], "body": "기기 B 수정", "anchor": None},
+    }, client_b)
+    edit_batch = {**batch, "mutations": [edit]}
+    applied_edit = asyncio.run(adapter.apply_mutations(edit_batch))["results"][0]
+    assert applied_edit["status"] == "applied" and applied_edit["server_revision"] == 5
+
+    stale_edit = mutation("upsert", note_id, note["server_revision"], {
+        "annotation_id": note_id, "document_id": document_id, "version_id": version_id,
+        "page_index": 1, "kind": "note",
+        "payload": {"position": [40.0, 40.0], "body": "기기 A 오래된 수정", "anchor": None},
+    }, client_a)
+    conflict_batch = {**batch, "mutations": [stale_edit]}
+    conflict = asyncio.run(adapter.apply_mutations(conflict_batch))["results"][0]
+    assert conflict["status"] == "conflict" and conflict["current"]["server_revision"] == 5
+    assert asyncio.run(adapter.apply_mutations(copy.deepcopy(conflict_batch)))["results"][0] == conflict
+
+    change_page = asyncio.run(adapter.changes(cursor, limit=1))
+    assert len(change_page["changes"]) == 1 and change_page["changes"][0]["server_revision"] == 5
+    assert change_page["changes"][0]["payload"]["body"] == "기기 B 수정"
+    assert change_page["has_more"] is False
+
+    export = adapter.export_annotated_pdf(document_id, version_id, 5, include_ink=True)
+    exported = adapter.download_export(export["export_id"])
+    assert export["original_sha256"] == source_sha
+    assert export["export_sha256"] == hashlib.sha256(exported).hexdigest()
+    assert exported != source_bytes
+    with pymupdf.open(stream=exported, filetype="pdf") as exported_pdf:
+        assert any(row[1] == "둘째 페이지" for row in exported_pdf.get_toc())
+        assert list(exported_pdf[0].annots() or [])
+        assert list(exported_pdf[1].annots() or [])
+        assert exported_pdf.page_count == 2
+
+    # Restart from the same on-disk state: source, cursors, tombstones, and log
+    # remain durable. A stale delete cannot erase the newer edit.
+    restarted = LibraryAdapter(ReadingStore(data_root))
+    assert restarted.download_original(document_id, version_id) == source_bytes
+    restarted_snapshot = asyncio.run(restarted.snapshot(document_id, version_id))
+    assert restarted_snapshot["snapshot_revision"] == 5
+    current_note = next(row for row in restarted_snapshot["annotations"] if row["annotation_id"] == note_id)
+    delete = mutation("delete", note_id, current_note["server_revision"], client_id=client_b)
+    deleted = asyncio.run(restarted.apply_mutations({**batch, "mutations": [delete]}))["results"][0]
+    assert deleted["status"] == "applied" and deleted["current"]["deleted"] is True
+
+    revive = mutation("upsert", note_id, deleted["current"]["server_revision"], {
+        "annotation_id": note_id, "document_id": document_id, "version_id": version_id,
+        "page_index": 1, "kind": "note",
+        "payload": {"position": [35.0, 35.0], "body": "되살리기 시도", "anchor": None},
+    }, client_a)
+    tombstone_conflict = asyncio.run(restarted.apply_mutations({**batch, "mutations": [revive]}))["results"][0]
+    assert tombstone_conflict["status"] == "conflict" and tombstone_conflict["current"]["deleted"] is True
+
+    assert hashlib.sha256(restarted.download_original(document_id, version_id)).hexdigest() == source_sha
+    with pytest.raises(LibraryError, match="UUID"):
+        restarted.get_document("../../etc/passwd")
+    with pytest.raises(LibraryError, match="page_index"):
+        restarted.get_page(document_id, version_id, -1)
+    invalid_anchor = copy.deepcopy(anchor)
+    invalid_anchor["quote"] = "not the source quote"
+    with pytest.raises(LibraryError, match="citation text"):
+        restarted.verify_anchor(invalid_anchor, page0)
+
+
+def test_library_http_router_settings_and_pdf_round_trip(tmp_path: Path) -> None:
+    """Verify the UNIT-01 router contract without mounting shared auth/middleware."""
+    import hashlib
+    import sqlite3
+
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    from deeptutor.mnemosyne.library import LibraryAdapter, build_library_router
+
+    repository_root = Path(__file__).resolve().parents[4]
+    source = repository_root / "contracts" / "fixtures" / "bilingual-geometry.pdf"
+    source_bytes = source.read_bytes()
+    secret_store: dict[str, str] = {}
+    data_root = tmp_path / "router" / "workspace" / "reading"
+    library = LibraryAdapter(
+        ReadingStore(data_root),
+        settings_defaults_provider=lambda: {
+            "provider": {
+                "adapter": "openai-compatible",
+                "base_url": "https://llm.example.test/v1",
+                "model": "fixture-model",
+            },
+            "response_language": "ko",
+        },
+        settings_secret_writer=lambda value: secret_store.__setitem__("api_key", value),
+        settings_credential_reader=lambda: "api_key" in secret_store,
+    )
+    app = FastAPI()
+    app.include_router(build_library_router(library))
+    headers = {"X-Mnemosyne-Contract-Version": "0.1.0"}
+
+    with TestClient(app) as client:
+        settings = client.get("/v1/settings", headers=headers)
+        assert settings.status_code == 200, settings.text
+        assert settings.headers["ETag"] == '"1"'
+        updated = client.put(
+            "/v1/settings",
+            headers={**headers, "If-Match": '"1"', "X-Confirm-Action": "settings.update"},
+            json={
+                "provider": {
+                    "adapter": "openai-compatible",
+                    "base_url": "https://llm.example.test/v1",
+                    "model": "fixture-model-v2",
+                    "api_key": "unit-test-secret-must-not-enter-sqlite",
+                },
+                "response_language": "ko",
+            },
+        )
+        assert updated.status_code == 200
+        assert updated.headers["ETag"] == '"2"'
+        assert updated.json()["provider"]["credential_configured"] is True
+        assert "api_key" not in updated.text
+        assert secret_store["api_key"] == "unit-test-secret-must-not-enter-sqlite"
+        with sqlite3.connect(data_root / "_mnemosyne.sqlite3") as db:
+            serialized = " ".join(str(row) for row in db.execute("SELECT public_json FROM mnemosyne_public_settings"))
+        assert "unit-test-secret-must-not-enter-sqlite" not in serialized
+
+        upload = client.post(
+            "/v1/documents",
+            headers=headers,
+            files={"file": ("bilingual-geometry.pdf", source_bytes, "application/pdf")},
+            data={"title": "Router fixture"},
+        )
+        assert upload.status_code == 201, upload.text
+        document = upload.json()
+        assert document["source_sha256"] == hashlib.sha256(source_bytes).hexdigest()
+        assert document["parse_state"] == "ready"
+        original = client.get(
+            f"/v1/documents/{document['document_id']}/file",
+            params={"version_id": document["version_id"]},
+            headers=headers,
+        )
+        assert original.status_code == 200
+        assert original.content == source_bytes
