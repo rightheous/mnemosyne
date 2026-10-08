@@ -1,4 +1,6 @@
 import Foundation
+import PDFKit
+import PumiceCore
 
 /// SwiftUI <-> UIKit bridge for the reader. Owns the @Published toolbar
 /// state and forwards user actions to the underlying view controller.
@@ -147,5 +149,84 @@ extension PDFReaderController {
         Task { @MainActor [weak self] in
             self?.refreshState()
         }
+    }
+}
+
+/// Adapter that connects the reusable PDFKit/Pencil controller to the
+/// dependency-free Mnemosyne facade. UNIT-04 retains this object and passes
+/// it to PDFReaderView so the view can attach its live controller.
+@MainActor final class PumiceReaderEngine: MnemosyneReaderEngine {
+    private weak var reader: PDFReaderViewController?
+    private var localEditHandler: (@MainActor (MnemosyneLocalAnnotationEdit) throws -> Void)?
+    var onAnnotationSuggestion: ((Data) -> Void)?
+
+    func attach(to reader: PDFReaderViewController) {
+        self.reader = reader
+        reader.onLocalAnnotationEdit = { [weak self] edit in
+            try self?.localEditHandler?(edit)
+        }
+        reader.onAnnotationSuggestion = { [weak self] event in
+            self?.onAnnotationSuggestion?(event)
+        }
+    }
+
+    func setLocalEditHandler(
+        _ handler: (@MainActor (MnemosyneLocalAnnotationEdit) throws -> Void)?
+    ) {
+        localEditHandler = handler
+    }
+
+    func openDocument(at url: URL, documentID: UUID, versionID: String,
+                      restoring context: Data?, annotations: [Data]) async throws {
+        guard let reader else { throw MnemosyneReaderError.cacheMissing }
+        reader.setMnemosyneIdentity(documentID: documentID, versionID: versionID)
+        try reader.load(url: url, restoring: context, annotations: annotations)
+    }
+
+    func currentReaderContext() throws -> Data {
+        guard let reader else { throw MnemosyneReaderError.cacheMissing }
+        return try reader.readerContextData()
+    }
+
+    func search(text: String) throws -> [Data] {
+        guard let reader else { throw MnemosyneReaderError.cacheMissing }
+        return try reader.search(text: text)
+    }
+
+    func tableOfContents() throws -> Data {
+        guard let reader else { throw MnemosyneReaderError.cacheMissing }
+        return try reader.tableOfContentsData()
+    }
+
+    func goToPage(index: Int) throws {
+        guard let reader else { throw MnemosyneReaderError.cacheMissing }
+        try reader.goToPage(index: index)
+    }
+
+    func applyReaderEvent(_ event: Data) throws {
+        guard let reader else { throw MnemosyneReaderError.cacheMissing }
+        try reader.applyReaderEvent(event)
+    }
+
+    func replaceAnnotations(_ annotations: [Data]) throws {
+        guard let reader else { throw MnemosyneReaderError.cacheMissing }
+        try reader.replaceAnnotations(annotations)
+    }
+
+    func undo() throws {
+        guard let reader else { throw MnemosyneReaderError.cacheMissing }
+        reader.undoLastChange()
+    }
+
+    func redo() throws {
+        guard let reader else { throw MnemosyneReaderError.cacheMissing }
+        reader.redoLastChange()
+    }
+
+    func exportAnnotatedCopy(originalURL: URL, annotations: [Data],
+                             to destination: URL) async throws {
+        try PDFReaderViewController.exportAnnotatedCopy(from: originalURL,
+                                                       annotations: annotations,
+                                                       to: destination)
     }
 }

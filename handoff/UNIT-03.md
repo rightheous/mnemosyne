@@ -1,15 +1,42 @@
-# UNIT-03 인수 경계
+# UNIT-03 인수: iPad PDF·Pencil·로컬 Reader
 
-담당: iPad PDF/Pencil·canonical geometry·sidecar local store/outbox·Reader facade. 공통 시작 tag `mnemosyne-bootstrap-v0.1.0`, 계약 `0.1.0`.
+담당 범위는 `integration/ownership.json`의 `owners.UNIT-03`에 맞춘다. 계약은 `0.1.0`이며 계약 원본/복사본, `Package.swift`, Xcode 설정은 수정하지 않았다. 기존 Pumice 소스 파일만 확장했으므로 새 XcodeGen 등록은 없다. `makeReaderFacade(factory, localStore)` 등록 경로와 빈 no-op 대체 금지 원칙을 유지한다.
 
-실제 등록 경로: `upstreams/Pumice/Packages/PumiceCore/Sources/PumiceCore/Mnemosyne/ReaderFacade.swift` · `makeReaderFacade`. docs/INTEGRATION.md의 signature와 callers를 읽는다.
+## 구현
 
-Pumice saveIfNeeded의 original write를 반드시 제거. 읽기 cache hash, input+outbox, receipt/cursor, 승인 event ID를 atomic durable 저장. PDFKit/Pencil 실제 render/undo/redo 유지. export는 파생 copy. 검색·목차·읽던 위치·하이라이트·노트·학습 bookmark, 오프라인 읽기/필기/재시작을 포함. 네트워크/Xcode 편집 금지.
+- `FileMnemosyneLocalStore`는 원본 PDF를 `sha256:<64자리>` 전체 해시로 확인한 뒤 주소화된 파일로 설치하고, 읽기 때도 해시를 다시 확인한다. 원본은 변경하지 않는다. context, annotation projection, mutation outbox, 승인 이벤트 ID, sync receipt, cursor는 하나의 원자 교체 JSON 상태 파일에 보관한다. 편집/outbox와 remote change/cursor가 각각 같은 저장 transaction에 들어간다.
+- `PersistentMnemosyneReaderFacade`는 실제 `MnemosyneReaderEngine`을 주입받는다. 다운로드한 파일 설치, cached open, 읽기 위치, 검색, 목차, 페이지 이동, 임시 reader event, annotation 편집/삭제, pending/failed/retry, receipt/remote merge, 파생 PDF export를 연결한다. 네트워크 요청이나 성공 no-op은 넣지 않았다.
+- `reader.annotate`는 `approveAnnotationSuggestion(_:)`가 명시적으로 불릴 때만 승인된다. `suggested_mutation_id`를 mutation ID로 사용하고 native `event_id`와 mutation outbox를 원자 저장한다. 동일 이벤트 재생은 저장된 mutation을 반환하고 내용이 바뀌면 거부한다.
+- annotation draft의 문서/version/page, 색상·Ink geometry·TextAnchor 필드를 계약 구조에 맞춰 확인한다. highlight anchor는 `parse_revision`, 소문자 SHA-256, scalar 범위, quote, rect 배열과 문서/version/page 일치를 요구한다. 실제 인용 문자열이 PDF의 parser 텍스트와 일치하는지는 서버 UNIT-01의 검증 결과가 권위 경계다. PDFKit에서 검증할 수 없는 `text_sha256`을 만들어내지 않는다.
+- Pumice Pencil 입력은 안정된 stroke ID, coalesced sample 위치, pressure, 경과 ms를 수집한다. canonical 좌표는 회전 전 raw PDF CropBox 좌표이며 CropBox 밖 획은 잘라 분할한다. `width_pt`는 화면 zoom과 독립된 physical point로 변환한다. Ink upsert/delete는 Core facade callback을 통해 로컬 outbox에 들어가며, 여러 획을 가진 annotation에서 일부 획만 지울 때 남은 획을 다시 저장한다.
+- `PDFReaderViewController.saveIfNeeded()`는 원본 PDF에 쓰지 않고 SHA-256별 Application Support sidecar에 ink, 로컬 전용 PDFKit highlight, 마지막 page를 원자 저장한다. 재시작 시 복구한다. 원본 하이라이트/PDF 데이터는 직접 수정하지 않는다. export는 목적지와 원본 경로가 다름을 확인하고 임시 파생 PDF를 만든 뒤 목적지로 옮긴다.
+- PDFKit 검색, outline 목차, 페이지 이동과 context 저장을 연결했다. PDFKit selection은 서버 검증 anchor로 가장하지 않아 `selection: null`이다. 한국어 응답 언어는 `ko`다. verified TextAnchor가 없는 사용자의 Pumice highlighter 결과는 로컬 sidecar에만 남고 서버 annotation sync로 보내지 않는다.
+- 로컬 annotation을 Reader UI로 복원하고, server `reader.goto`, `reader.flash`, `reader.highlight` event를 대상 문서/version/page와 CropBox 범위로 확인한다. `reader.annotate` suggestion은 callback으로 전달하며 승인 UI는 UNIT-04에서 연결한다.
 
-현재 common seam/fixture가 있다는 것은 제품 구현 완료가 아니다. 빈 port를 success/no-op으로 채우지 않는다. 필수 기능은 모두 이번 범위다.
+## UNIT-04 연결
 
-정확한 수정 가능 파일 42개는 integration/ownership.json의 owners.UNIT-03 배열이다. 주요 directory는 OWNERSHIP.md 참조. 다른 소유자의 공통 startup/계약/DB/manifest 파일을 편집하지 않는다.
+`PDFReaderView`에 facade와 같은 `PumiceReaderEngine` 인스턴스를 넘긴다. `PersistentMnemosyneReaderFacade`를 만든 뒤 실제 cached URL로 Reader를 열고, Reader 생명주기에서 `readerContext()`를 저장한다. 애플리케이션은 `engine.onAnnotationSuggestion`을 사용자 확인 UI에 연결하고 확인 후 `facade.approveAnnotationSuggestion(event)`을 호출한다. UNIT-04 sync worker는 facade의 `pendingMutations`, `applySyncReceipts`, `applyRemotePage`, `failedMutations`, `retryMutation`만 사용한다.
 
-새 계약 변경은 소비자 영향·version·fixture·검증 변경을 포함해 통합 담당에게 제안한다. DB 요구는 schema/migration/transaction/검증 명세로 01에 전달한다. 사용자 지시 없이 다른 채팅에 메시지를 보내지 않는다.
+```swift
+let localStore = try FileMnemosyneLocalStore.applicationSupportStore()
+let engine = PumiceReaderEngine()
+let facade = try makeReaderFacade(
+    factory: { store in PersistentMnemosyneReaderFacade(localStore: store, engine: engine) },
+    localStore: localStore
+)
+// PDFReaderView(..., mnemosyneEngine: engine)
+// Reader가 연결된 뒤: try await facade.openCached(documentID: id, versionID: version)
+// 승인 UI에서: try facade.approveAnnotationSuggestion(event)
+```
 
-인수 결과는 실행한 명령·실제 source/service/build/device 종류·실패/차단을 구별하고 기록한다. 공통 fixture PASS를 제품 오프라인/LLM/기기 검증으로 대체하지 않는다. 원본 hash, 잘못된 인용 거부, replay/cancel/error와 재시작 저장을 실제 경계에서 확인한다.
+## 검증과 미검증
+
+- 통과: Core `ReaderFacade.swift`와 `MnemosyneGeometry.swift` 직접 Swift 타입검사.
+- 통과: 변경된 Pumice Reader 소스와 Core geometry 테스트 파일의 Swift 구문 파싱.
+- 통과: 임시 실행 harness에서 해시 캐시 설치/읽기 검증, context 재시작 복구, pending/failure/retry, receipt 적용, idempotency, cursor 원자 적용, 승인 이벤트 재생, 0/90/180/270 회전 역변환, CropBox clipping을 실행했다.
+- 통과: UNIT-03 변경 경로의 `git diff --check`.
+- 차단: SwiftPM 전체 테스트와 iPad 제품 빌드. 로컬은 full Xcode가 아닌 Command Line Tools만 선택되어 있고 `xcodebuild`/iOS Simulator SDK를 사용할 수 없다. 사용 가능한 Swift 6.3.3 compiler와 Command Line Tools SDK(6.3.2 build)의 차이 및 기본 SwiftPM cache 쓰기 제한 때문에 SwiftPM이 테스트 target까지 실행되지 않았다. 파일 단위 직접 타입검사/harness는 Package 테스트를 대체하지 않는다.
+- 미검증: 실제 iPad Pencil, 화면 회전/zoom, 앱 강제 종료 후 복구, export PDF 렌더, 기기에서의 sidecar 보호 권한. Cloud 실행 환경의 Apple SDK 상태도 이 로컬 세션에서는 확인되지 않았다.
+- remote 목록은 비어 있다. 따라서 Cloud dispatch/PR 게시 여부는 미확인이다. 공통 registry의 `product_ready=false`를 유지하며 제품 완료로 보고하지 않는다.
+
+UNIT-03 변경은 `codex/unit-03-reader` 격리 브랜치에 고정한다. 정확한 commit SHA는 작업 종료 보고에 기록한다.
