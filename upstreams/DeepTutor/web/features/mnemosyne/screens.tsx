@@ -70,28 +70,48 @@ function saveBlob(blob: Blob, filename: string): void {
   window.setTimeout(() => URL.revokeObjectURL(objectURL), 1000);
 }
 
-function MnemosyneNav({ active }: { active: "library" | "learning" | "settings" }) {
+function MnemosyneNav({
+  active,
+  subjects,
+  selectedSubjectID,
+  onSelectSubject,
+  onAddSubject,
+}: {
+  active: "library" | "learning" | "settings";
+  subjects?: MnemosyneSubject[];
+  selectedSubjectID?: string;
+  onSelectSubject?: (subjectID: string) => void;
+  onAddSubject?: () => void;
+}) {
   const items = [
     { id: "library", href: "/learning/reading", label: "라이브러리", icon: BookOpen },
     { id: "learning", href: "/learning", label: "학습 기록·복습", icon: Check },
     { id: "settings", href: "/settings", label: "설정", icon: Settings2 },
   ] as const;
   return (
-    <header className="sticky top-0 z-30 border-b border-[#E4E7EC] bg-white/95 backdrop-blur">
-      <div className="mx-auto flex h-16 max-w-[1500px] items-center justify-between px-5 lg:px-8">
-        <Link href="/learning/reading" className="flex items-center gap-3 text-[#1F2937] no-underline">
+    <aside className="sticky top-0 z-30 w-full shrink-0 border-b border-[#E4E7EC] bg-white/95 backdrop-blur lg:h-screen lg:w-64 lg:border-b-0 lg:border-r">
+      <div className="flex min-h-16 items-center justify-between gap-3 px-5 py-3 lg:h-full lg:flex lg:flex-col lg:items-stretch lg:px-4 lg:py-6">
+        <Link href="/learning/reading" className="flex shrink-0 items-center gap-3 text-[#1F2937] no-underline">
           <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#315DA8] text-white"><BookOpen size={19} /></span>
           <span><span className="block text-[15px] font-semibold tracking-tight">므네모시네</span><span className="block text-[11px] text-[#667085]">개인 학습 공간</span></span>
         </Link>
-        <nav aria-label="주요 메뉴" className="flex items-center gap-1">
+        <nav aria-label="주요 메뉴" className="flex items-center gap-1 lg:mt-8 lg:flex-col lg:items-stretch">
           {items.map(({ id, href, label, icon: Icon }) => (
-            <Link key={id} href={href} aria-current={active === id ? "page" : undefined} className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-[13px] no-underline transition ${active === id ? "bg-[#EDF3FC] font-semibold text-[#315DA8]" : "text-[#667085] hover:bg-[#F2F4F7] hover:text-[#1F2937]"}`}>
+            <Link key={id} href={href} aria-current={active === id ? "page" : undefined} className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-[13px] no-underline transition lg:w-full ${active === id ? "bg-[#EDF3FC] font-semibold text-[#315DA8]" : "text-[#667085] hover:bg-[#F2F4F7] hover:text-[#1F2937]"}`}>
               <Icon size={16} aria-hidden="true" /><span className="hidden sm:inline">{label}</span>
             </Link>
           ))}
         </nav>
+        {subjects && <section aria-label="과목 목록" className="mt-7 hidden min-h-0 border-t border-[#EAECF0] pt-5 lg:flex lg:flex-1 lg:flex-col">
+          <div className="flex items-center justify-between px-2"><h2 className="text-xs font-semibold text-[#475467]">과목</h2><button type="button" onClick={onAddSubject} aria-label="과목 추가" className="rounded-md p-1.5 text-[#667085] hover:bg-[#F2F4F7] hover:text-[#315DA8]"><Plus size={15} /></button></div>
+          <div className="mt-2 min-h-0 flex-1 space-y-1 overflow-y-auto">
+            <button type="button" onClick={() => onSelectSubject?.("")} aria-pressed={!selectedSubjectID} className={`w-full rounded-lg px-3 py-2 text-left text-xs transition ${!selectedSubjectID ? "bg-[#EDF3FC] font-medium text-[#315DA8]" : "text-[#667085] hover:bg-[#F2F4F7]"}`}>모든 과목</button>
+            {subjects.map((subject) => <button key={subject.subject_id} type="button" onClick={() => onSelectSubject?.(subject.subject_id)} aria-pressed={selectedSubjectID === subject.subject_id} className={`w-full truncate rounded-lg px-3 py-2 text-left text-xs transition ${selectedSubjectID === subject.subject_id ? "bg-[#EDF3FC] font-medium text-[#315DA8]" : "text-[#667085] hover:bg-[#F2F4F7]"}`}>{subject.name}</button>)}
+            {subjects.length === 0 && <p className="px-3 py-2 text-[11px] leading-5 text-[#98A2B3]">과목을 만들면 여기에 표시됩니다.</p>}
+          </div>
+        </section>}
       </div>
-    </header>
+    </aside>
   );
 }
 
@@ -280,9 +300,9 @@ export function MnemosyneLibrary() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F5F6F8] text-[#1F2937]">
-      <MnemosyneNav active="library" />
-      <main className="mx-auto max-w-[1500px] px-5 py-8 lg:px-8">
+    <div className="min-h-screen bg-[#F5F6F8] text-[#1F2937] lg:flex">
+      <MnemosyneNav active="library" subjects={subjects} selectedSubjectID={subjectID} onSelectSubject={setSubjectID} onAddSubject={() => void addSubject()} />
+      <main className="mx-auto w-full max-w-[1500px] px-5 py-8 lg:min-w-0 lg:flex-1 lg:px-8">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div><div className="flex items-center gap-3"><h1 className="text-2xl font-semibold tracking-tight">라이브러리</h1><ReadinessLine readiness={readiness} checking={loading} /></div><p className="mt-2 text-sm text-[#667085]">원본 PDF와 분석 준비 상태를 관리합니다.</p></div>
           <div className="flex flex-wrap items-center gap-2">
@@ -684,8 +704,8 @@ export function MnemosyneReader({ documentID }: { documentID: string }) {
     setPendingSuggestion(null);
   };
 
-  if (loading && !document) return <div className="min-h-screen bg-[#F5F6F8]"><MnemosyneNav active="library" /><div className="flex min-h-[60vh] items-center justify-center gap-2 text-sm text-[#667085]"><LoaderCircle size={17} className="animate-spin" />문서를 여는 중</div></div>;
-  if (documentError) return <div className="min-h-screen bg-[#F5F6F8]"><MnemosyneNav active="library" /><main className="mx-auto max-w-3xl px-5 py-10"><ErrorPanel error={documentError} onRetry={() => void reload()} api={api} /></main></div>;
+  if (loading && !document) return <div className="flex min-h-screen flex-col bg-[#F5F6F8] lg:flex-row"><MnemosyneNav active="library" /><div className="flex min-h-[60vh] flex-1 items-center justify-center gap-2 text-sm text-[#667085]"><LoaderCircle size={17} className="animate-spin" />문서를 여는 중</div></div>;
+  if (documentError) return <div className="flex min-h-screen flex-col bg-[#F5F6F8] lg:flex-row"><MnemosyneNav active="library" /><main className="mx-auto w-full max-w-3xl flex-1 px-5 py-10"><ErrorPanel error={documentError} onRetry={() => void reload()} api={api} /></main></div>;
   if (!document) return null;
 
   const pageItems = snapshot?.annotations.filter((item) => !item.deleted) ?? [];
@@ -693,9 +713,9 @@ export function MnemosyneReader({ documentID }: { documentID: string }) {
   const pageTitle = `p. ${currentPage + 1}`;
 
   return (
-    <div className="flex h-screen min-h-[680px] flex-col bg-[#F5F6F8] text-[#1F2937]">
+    <div className="flex h-screen min-h-[680px] flex-col bg-[#F5F6F8] text-[#1F2937] lg:flex-row">
       <MnemosyneNav active="library" />
-      <div className="flex min-h-0 flex-1 flex-col">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <header className="flex flex-wrap items-center justify-between gap-3 border-b border-[#E4E7EC] bg-white px-4 py-3 lg:px-6">
           <div className="flex min-w-0 items-center gap-3"><Link href="/learning/reading" className="rounded-lg p-2 text-[#667085] hover:bg-[#F2F4F7]" aria-label="라이브러리로 돌아가기"><ArrowLeft size={17} /></Link><div className="min-w-0"><h1 className="truncate text-sm font-semibold">{document.title}</h1><div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-[#667085]"><span>{document.page_count}쪽</span><span>·</span><span>{document.original_available ? "읽기 가능" : "원본 없음"}</span><span>·</span><span>{document.parse_state === "ready" ? "분석 완료" : document.parse_state === "failed" ? "분석 실패" : "분석 중"}</span></div></div></div>
           <div className="flex flex-wrap items-center gap-2">
@@ -1200,8 +1220,8 @@ export function MnemosyneLearning() {
   const dueMemory = learning?.memory.filter((memory) => Date.parse(memory.due_at) <= Date.now()) ?? [];
 
   return (
-    <div className="min-h-screen bg-[#F5F6F8] text-[#1F2937]"><MnemosyneNav active="learning" />
-      <main className="mx-auto max-w-[1320px] px-5 py-8 lg:px-8">
+    <div className="min-h-screen bg-[#F5F6F8] text-[#1F2937] lg:flex"><MnemosyneNav active="learning" />
+      <main className="mx-auto w-full max-w-[1320px] px-5 py-8 lg:min-w-0 lg:flex-1 lg:px-8">
         <div className="flex flex-wrap items-end justify-between gap-4"><div><h1 className="text-2xl font-semibold tracking-tight">학습 기록·복습</h1><p className="mt-2 text-sm text-[#667085]">서버에 저장된 읽기, 평가, 숙련도와 기억 카드를 확인합니다.</p></div><label className="relative"><span className="sr-only">학습 문서 선택</span><select value={documentID} onChange={(event) => { setDocumentID(event.target.value); setRevealedMemory(""); }} className="min-w-[240px] appearance-none rounded-lg border border-[#D0D5DD] bg-white px-3 py-2.5 pr-9 text-sm"><option value="">문서 선택</option>{documents.map((item) => <option key={item.document_id} value={item.document_id}>{item.title}</option>)}</select><ChevronDown size={15} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[#667085]" /></label></div>
         {notice && <p role="status" className="mt-5 rounded-lg border border-[#B7E4C7] bg-[#ECFDF3] px-4 py-3 text-sm text-[#027A48]">{notice}</p>}
         {error && <div className="mt-5"><ErrorPanel error={error} onRetry={() => { if (activeDocument) { void api.learningState(activeDocument).then(setLearning).catch(setError); } else void loadDocuments(); }} api={api} /></div>}
@@ -1420,8 +1440,8 @@ function MnemosyneSettingsContent() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F5F6F8] text-[#1F2937]"><MnemosyneNav active="settings" />
-      <main className="mx-auto max-w-[1000px] px-5 py-8 lg:px-8">
+    <div className="min-h-screen bg-[#F5F6F8] text-[#1F2937] lg:flex"><MnemosyneNav active="settings" />
+      <main className="mx-auto w-full max-w-[1000px] px-5 py-8 lg:min-w-0 lg:flex-1 lg:px-8">
         <div><h1 className="text-2xl font-semibold tracking-tight">서버·모델 설정</h1><p className="mt-2 text-sm text-[#667085]">자격증명은 서버에 전송해 저장하며, 조회할 때는 설정 여부만 표시합니다.</p></div>
         {notice && <p role="status" className="mt-5 rounded-lg border border-[#B7E4C7] bg-[#ECFDF3] px-4 py-3 text-sm text-[#027A48]">{notice}</p>}
         {error !== null && <div className="mt-5"><ErrorPanel error={error} onRetry={() => void load()} api={api} /></div>}

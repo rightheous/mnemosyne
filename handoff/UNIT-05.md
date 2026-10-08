@@ -65,5 +65,11 @@
 
 - 메뉴를 한국어 `라이브러리`, `학습 기록·복습`, `설정`으로 줄였다. 루트 페이지는 `/learning/reading`을 열고, proxy page allowlist는 `/learning`, `/learning/reading`, 단일 문서 Reader 경로, `/settings`를 보존한다. 기존 채팅·파트너·작업공간·가입·기타 upstream UI 페이지는 Library로 보내며 `/partners/groups`는 기존 retired-route 가드로 404를 유지한다. backend API/WebSocket, callback, 로그인·handoff, 정적 파일은 이 page redirect에서 제외했다.
 - PASS: `npm --prefix upstreams/DeepTutor/web run typecheck`; `test:node` 1,307/1,307; 변경된 `sidebar-defaults.spec.tsx`·`learner-navigation.spec.tsx` 2 files / 10 tests; production `build` (44 static pages). 빌드에서 webpack cache snapshot 경고가 있었으나 종료 코드는 0이었다.
-- 브라우저 smoke: 로컬 production server 화면에서 `/`와 `/agents`가 `/learning/reading`에 도달했고 Library 및 Settings의 한국어 UI를 렌더링했다. 서버가 없는 상태에서 Library/Settings API가 HTTP 500을 반환하는 오류 UI도 확인했다. 그러므로 실제 PDF→Tutor→Reader 이동, ink overlay, Quiz·설정 성공 round-trip은 여전히 서버 통합에 막혀 검증하지 않았다.
+- 브라우저 smoke (좌측 rail 변경 전): 로컬 production server 화면에서 `/`와 `/agents`가 `/learning/reading`에 도달했고 Library 및 Settings의 한국어 UI를 렌더링했다. 서버가 없는 상태에서 Library/Settings API가 HTTP 500을 반환하는 오류 UI도 확인했다. 그러므로 실제 PDF→Tutor→Reader 이동, ink overlay, Quiz·설정 성공 round-trip은 여전히 서버 통합에 막혀 검증하지 않았다.
 - 빌드는 upstream route module들도 계속 산출물에 포함한다. 런타임 proxy가 allowlist 밖 페이지 요청을 redirect해 제품 진입 경로를 제한하지만, 물리적 route 파일 삭제는 하지 않았다.
+
+## UNIT-05 좌측 탐색 반영 (2026-10-09)
+
+- 공통 Mnemosyne header를 반응형 좌측 rail로 변경했다. 데스크톱 Library에서는 과목을 rail에서 선택하고 과목 추가를 시작할 수 있으며, 작은 화면은 상단 가로 탐색을 유지한다.
+- PASS: 변경 후 `typecheck`; `test:node` 1,307/1,307; `sidebar-defaults.spec.tsx`·`learner-navigation.spec.tsx` 2 files / 10 tests; production `build` (44 static pages); `screens.tsx` ESLint 0 errors, 38 `i18n/no-literal-ui-text` warnings. webpack cache snapshot 경고는 있었으나 build 종료 코드는 0이었다.
+- 최종 좌측 rail의 브라우저 재확인은 브라우저 접근이 거절되어 실행하지 않았다. 화면 시각 검증은 미완료이며, 위의 이전 smoke는 rail 변경 전 화면에 한정된다.
