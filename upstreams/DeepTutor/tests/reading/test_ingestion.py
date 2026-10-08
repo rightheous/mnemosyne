@@ -1043,6 +1043,12 @@ def test_mnemosyne_pdf_upload_annotation_sync_restart_and_export(tmp_path: Path)
     numeric_replay["mutations"][3]["annotation"]["payload"]["strokes"][0]["width_pt"] = 2.0
     assert asyncio.run(adapter.apply_mutations(numeric_replay)) == receipt
 
+    mismatched_replay = copy.deepcopy(batch)
+    mismatched_replay["mutations"][1]["annotation"]["payload"]["body"] = "different payload"
+    mismatch_results = asyncio.run(adapter.apply_mutations(mismatched_replay))["results"]
+    assert [row["status"] for row in mismatch_results] == ["applied", "rejected", "applied", "applied"]
+    assert mismatch_results[1]["code"] == "idempotency_mismatch"
+
     snapshot_a = asyncio.run(adapter.snapshot(document_id, version_id))
     assert snapshot_a["snapshot_revision"] == 4
     assert {row["kind"] for row in snapshot_a["annotations"]} == {"highlight", "note", "bookmark", "ink"}
@@ -1057,6 +1063,13 @@ def test_mnemosyne_pdf_upload_annotation_sync_restart_and_export(tmp_path: Path)
     edit_batch = {**batch, "mutations": [edit]}
     applied_edit = asyncio.run(adapter.apply_mutations(edit_batch))["results"][0]
     assert applied_edit["status"] == "applied" and applied_edit["server_revision"] == 5
+
+    stale_delete = mutation("delete", note_id, note["server_revision"], client_id=client_a)
+    stale_delete_result = asyncio.run(
+        adapter.apply_mutations({**batch, "mutations": [stale_delete]})
+    )["results"][0]
+    assert stale_delete_result["status"] == "conflict"
+    assert stale_delete_result["current"]["server_revision"] == 5
 
     stale_edit = mutation("upsert", note_id, note["server_revision"], {
         "annotation_id": note_id, "document_id": document_id, "version_id": version_id,
@@ -1102,6 +1115,17 @@ def test_mnemosyne_pdf_upload_annotation_sync_restart_and_export(tmp_path: Path)
     }, client_a)
     tombstone_conflict = asyncio.run(restarted.apply_mutations({**batch, "mutations": [revive]}))["results"][0]
     assert tombstone_conflict["status"] == "conflict" and tombstone_conflict["current"]["deleted"] is True
+
+    stale_edit_after_delete = mutation("upsert", note_id, current_note["server_revision"], {
+        "annotation_id": note_id, "document_id": document_id, "version_id": version_id,
+        "page_index": 1, "kind": "note",
+        "payload": {"position": [35.0, 35.0], "body": "오래된 기기 수정", "anchor": None},
+    }, client_a)
+    deleted_edit_conflict = asyncio.run(
+        restarted.apply_mutations({**batch, "mutations": [stale_edit_after_delete]})
+    )["results"][0]
+    assert deleted_edit_conflict["status"] == "conflict"
+    assert deleted_edit_conflict["current"]["deleted"] is True
 
     expired_cursor = asyncio.run(restarted.snapshot(document_id, version_id))["next_cursor"]
     with restarted.db.connect(write=True) as conn:
@@ -1261,6 +1285,35 @@ def test_library_http_router_settings_and_pdf_round_trip(tmp_path: Path) -> None
         )
         assert verified_citation.status_code == 200, verified_citation.text
         assert verified_citation.json()["verified"] is True
+
+
+def test_library_parser_unavailable_preserves_original_pdf(tmp_path: Path, monkeypatch) -> None:
+    """Keep the immutable source available when the parser cannot run."""
+    import hashlib
+
+    from deeptutor.mnemosyne.library import LibraryAdapter, LibraryError
+
+    repository_root = Path(__file__).resolve().parents[4]
+    source = repository_root / "contracts" / "fixtures" / "bilingual-geometry.pdf"
+    source_bytes = source.read_bytes()
+    source_sha = hashlib.sha256(source_bytes).hexdigest()
+    store = ReadingStore(tmp_path / "parser-unavailable" / "reading")
+
+    def parser_unavailable(_source, *, filename: str):
+        raise ImportError("PyMuPDF parser is unavailable")
+
+    monkeypatch.setattr(store, "ingest", parser_unavailable)
+    library = LibraryAdapter(store)
+    document = library.upload_pdf(source_bytes, "bilingual-geometry.pdf", title="Parser unavailable")
+
+    assert document["parse_state"] == "failed"
+    assert document["parse_error_code"] == "parser_unavailable"
+    assert document["index_state"] == "failed"
+    assert document["source_sha256"] == source_sha
+    assert document["page_count"] == 2  # Best-effort page count does not mark parsing ready.
+    assert library.download_original(document["document_id"], document["version_id"]) == source_bytes
+    with pytest.raises(LibraryError, match="parsing is not ready"):
+        library.get_page(document["document_id"], document["version_id"], 0)
 
 
 def test_library_pdf_image_assets_are_listable_and_hash_checked(tmp_path: Path) -> None:
