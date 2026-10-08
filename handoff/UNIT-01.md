@@ -87,6 +87,8 @@ PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/private/tmp/mnemosyne-unit01-deps:. \
 
 결과: **7 passed, 6 warnings**. 경고 6개는 PyMuPDF SWIG 타입의 `__module__` deprecation이다. 검사는 지정 `contracts/fixtures/bilingual-geometry.pdf` 업로드·원본 hash/권한·페이지 회전/CropBox·인용·주석 CRUD/conflict/replay/idempotency mismatch/tombstone/stale edit-delete 충돌/cursor expiry/재시작/export, citation verification 성공과 위조 anchor 거부, HTTP TestClient 설정/PDF 왕복/citation route, parser 불가 때 failed 상태 및 원본 읽기 보존, indexer의 no-op/invalid success 거부, 합성 embedded raster의 페이지 mapping/hash, schema v2 DB migration, 폴더 입력검증과 500개 초과 pagination을 다룬다. positive citation 검사를 처음 추가했을 때 parse_revision 지정 page 조회의 SQL binding 누락이 발견되어 `(document_id, version_id, page_index, parse_revision)` 전체를 바인딩하도록 수정했다. 이후 7개 fixture 테스트가 통과했다. RAG provider 연결 자체는 실패 callback fixture로만 확인했다. `git diff --check`도 통과했다.
 
+공통 gate 시도 결과: `checks/validate_contracts.py`와 `--require-ready`는 모두 `Ownership mismatch: unassigned=['docs/handoffs/unit-01.md']`에서 중단됐다. 이 handoff 경로는 목표에서 직접 요청했지만 `integration/ownership.json`에는 아직 배정되지 않아 `source_gate()`까지 도달하지 못했다. 통합 담당은 해당 파일을 UNIT-01에 배정한 뒤 두 gate를 다시 실행해야 한다. `checks/source_adapters.py`는 임시 backend 의존 경로로 재시도했으나 DeepTutor runtime의 `aiohttp`가 없어 시작 단계에서 중단됐다. source-adapter PASS로 보고하지 않는다.
+
 아직 실행하지 않은 검증: 전체 DeepTutor suite/build, contract manifest/source check(통합이 upstream SHA 예외를 반영한 뒤 필요), 실제 main/router 조립과 auth/Origin, 실제 RAG/LLM provider·Windows WSL2/Docker 운영, 브라우저 UI, Pumice 빌드 및 실제 iPad/offline/Pencil. registry의 `product_ready=false`, `cloud_repository_access=local_only_no_origin`은 현재도 그대로다. 공통 router/계약/보호/실기기 검증이 끝나기 전 제품 기능 완료로 보고하지 않는다.
 
 ### Adapter 소비 및 indexer 응답 계약 확인
