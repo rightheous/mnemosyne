@@ -59,7 +59,7 @@
 
 6. **계약 0.2.0 — 폴더 API** — 현재 내부 구현은 workspace id를 folder id로, workspace `title`을 사용자 표시명으로 대응한다. upstream 응답의 `material_id`를 새 공개 API에 그대로 노출하지 말고 Mnemosyne document UUID로 정규화한다. 제안 DTO는 `Folder {folder_id: uuid, name: string, description: string, document_ids: uuid[]}`이다. `contracts/models.schema.json`에 schema를 추가하고 OpenAPI에 `GET /v1/folders`, `POST /v1/folders` (`{name,description}`), `PUT /v1/folders/{folder_id}/documents/{document_id}?version_id=...`, `DELETE` 동일 경로를 정의한다. 각 관계 변경은 문서/version/folder 존재를 검증하며, Folder/assignment 응답은 workspace tabs를 document UUID로 변환한다. 폴더 자체 delete나 동시 수정 ETag를 원하면 storage revision/transaction 계약도 같은 변경에서 명시한다. fixture와 `checks/validate_contracts.py`, web/iPad 소비자까지 함께 바꾼다.
 
-7. **upstream 출처 예외** — Unit01이 변경한 tracked fixture test `upstreams/DeepTutor/tests/reading/test_ingestion.py`는 `integration/upstreams.json`에 원래 SHA `8878f4000c042d9480289c1a2823d56db09630eb4776d437ed29498d808fad23`, 원래 git blob `b44b1ed3d358e8b44546e728729d282e21e33c17`로 등록돼 있다. 현재 파일 SHA-256은 `9ab853e74107769baf90e0e28f99ba3f5d130959a59b79754f67eab4b00f9009`다. 통합 담당은 SHA를 갱신하고 원 upstream commit/blob provenance를 유지하면서 Unit01 fixture 변경 예외를 기록한 뒤 source/provenance 검사를 실행한다. `integration/upstreams.json`은 Unit01 수정 권한 밖이라 여기서는 갱신하지 않았다.
+7. **upstream 출처 예외** — Unit01이 변경한 tracked fixture test `upstreams/DeepTutor/tests/reading/test_ingestion.py`는 `integration/upstreams.json`에 원래 SHA `8878f4000c042d9480289c1a2823d56db09630eb4776d437ed29498d808fad23`, 원래 git blob `b44b1ed3d358e8b44546e728729d282e21e33c17`로 등록돼 있다. 현재 파일 SHA-256은 `b3a909c74be29aa442708ec8636ed24b3270671c9bd8f928ec74a9178beb95d7`다. 통합 담당은 SHA를 갱신하고 원 upstream commit/blob provenance를 유지하면서 Unit01 fixture 변경 예외를 기록한 뒤 source/provenance 검사를 실행한다. `integration/upstreams.json`은 Unit01 수정 권한 밖이라 여기서는 갱신하지 않았다.
 
 ### 실제 로컬 통합 브랜치 확인 (2026-10-09)
 
@@ -78,11 +78,17 @@ PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/private/tmp/mnemosyne-unit01-deps:. \
   tests/reading/test_ingestion.py::test_mnemosyne_pdf_upload_annotation_sync_restart_and_export \
   tests/reading/test_ingestion.py::test_library_http_router_settings_and_pdf_round_trip \
   tests/reading/test_ingestion.py::test_library_parser_unavailable_preserves_original_pdf \
+  tests/reading/test_ingestion.py::test_library_indexer_requires_explicit_ready_result \
   tests/reading/test_ingestion.py::test_library_pdf_image_assets_are_listable_and_hash_checked \
   tests/reading/test_ingestion.py::test_library_schema_v2_database_migrates_index_run_timestamp \
   tests/reading/test_ingestion.py::test_library_folder_listing_paginates_and_rejects_empty_names
 ```
 
-결과: **6 passed, 6 warnings**. 경고 6개는 PyMuPDF SWIG 타입의 `__module__` deprecation이다. 검사는 지정 `contracts/fixtures/bilingual-geometry.pdf` 업로드·원본 hash/권한·페이지 회전/CropBox·인용·주석 CRUD/conflict/replay/idempotency mismatch/tombstone/stale edit-delete 충돌/cursor expiry/재시작/export, citation verification 성공과 위조 anchor 거부, HTTP TestClient 설정/PDF 왕복/citation route, parser 불가 때 failed 상태 및 원본 읽기 보존, 합성 embedded raster의 페이지 mapping/hash, schema v2 DB migration, 폴더 입력검증과 500개 초과 pagination을 다룬다. positive citation 검사를 처음 추가했을 때 parse_revision 지정 page 조회의 SQL binding 누락이 발견되어 `(document_id, version_id, page_index, parse_revision)` 전체를 바인딩하도록 수정했다. 이후 6개 fixture 테스트가 통과했다. provider 연결은 실패 callback fixture로만 확인했다. `git diff --check`도 통과했다.
+결과: **7 passed, 6 warnings**. 경고 6개는 PyMuPDF SWIG 타입의 `__module__` deprecation이다. 검사는 지정 `contracts/fixtures/bilingual-geometry.pdf` 업로드·원본 hash/권한·페이지 회전/CropBox·인용·주석 CRUD/conflict/replay/idempotency mismatch/tombstone/stale edit-delete 충돌/cursor expiry/재시작/export, citation verification 성공과 위조 anchor 거부, HTTP TestClient 설정/PDF 왕복/citation route, parser 불가 때 failed 상태 및 원본 읽기 보존, indexer의 no-op/invalid success 거부, 합성 embedded raster의 페이지 mapping/hash, schema v2 DB migration, 폴더 입력검증과 500개 초과 pagination을 다룬다. positive citation 검사를 처음 추가했을 때 parse_revision 지정 page 조회의 SQL binding 누락이 발견되어 `(document_id, version_id, page_index, parse_revision)` 전체를 바인딩하도록 수정했다. 이후 7개 fixture 테스트가 통과했다. RAG provider 연결 자체는 실패 callback fixture로만 확인했다. `git diff --check`도 통과했다.
 
 아직 실행하지 않은 검증: 전체 DeepTutor suite/build, contract manifest/source check(통합이 upstream SHA 예외를 반영한 뒤 필요), 실제 main/router 조립과 auth/Origin, 실제 RAG/LLM provider·Windows WSL2/Docker 운영, 브라우저 UI, Pumice 빌드 및 실제 iPad/offline/Pencil. registry의 `product_ready=false`, `cloud_repository_access=local_only_no_origin`은 현재도 그대로다. 공통 router/계약/보호/실기기 검증이 끝나기 전 제품 기능 완료로 보고하지 않는다.
+
+### Adapter 소비 및 indexer 응답 계약 확인
+
+- UNIT-06 `tutor.py`는 `library.annotation_sync` readiness만 확인하며 문서 검색/페이지/그림/citation 메서드는 호출하지 않는다. UNIT-02는 `library`를 `DocumentSearch`로, `library.documents`를 `DocumentRepository`로 in-process 소비하도록 연결해야 한다. `ports.py::DocumentRepository`의 `get_page_assets` 선언도 추가 대상이다.
+- 주입 `rag_indexer(document, original_path, kb_name)`은 동기/비동기 가능하며 명시적으로 `True` 또는 `{"ready": true, "kb_name": "..."}`를 반환해야 한다. `None`, 빈 object, 거짓 readiness 또는 빈 KB 이름은 ready로 처리하지 않는다. 실제 DeepTutor provider 호출은 미검증이다.

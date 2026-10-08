@@ -1316,6 +1316,34 @@ def test_library_parser_unavailable_preserves_original_pdf(tmp_path: Path, monke
         library.get_page(document["document_id"], document["version_id"], 0)
 
 
+def test_library_indexer_requires_explicit_ready_result(tmp_path: Path) -> None:
+    """A no-op or malformed callback must not make the RAG index look ready."""
+    import asyncio
+
+    from deeptutor.mnemosyne.library import LibraryAdapter
+
+    repository_root = Path(__file__).resolve().parents[4]
+    source = repository_root / "contracts" / "fixtures" / "bilingual-geometry.pdf"
+    source_bytes = source.read_bytes()
+
+    for case, result in (("none", None), ("empty", {}), ("empty_name", {"ready": True, "kb_name": ""})):
+        store = ReadingStore(tmp_path / "indexer-result" / case)
+        library = LibraryAdapter(store, rag_indexer=lambda **_kwargs: result)
+        document = asyncio.run(
+            library.upload_pdf_async(source_bytes, "bilingual-geometry.pdf", title=case)
+        )
+
+        assert document["parse_state"] == "ready"
+        assert document["index_state"] == "failed"
+        assert document["index_error_code"] == "index_failed"
+        with library.db.connect() as conn:
+            indexed = conn.execute(
+                "SELECT index_kb FROM mnemosyne_versions WHERE document_id=? AND version_id=?",
+                (document["document_id"], document["version_id"]),
+            ).fetchone()
+        assert indexed["index_kb"] is None
+
+
 def test_library_pdf_image_assets_are_listable_and_hash_checked(tmp_path: Path) -> None:
     """Exercise the UNIT-02 in-process page-assets and asset-byte ports."""
     import asyncio

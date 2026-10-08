@@ -1380,10 +1380,13 @@ class LibraryAdapter:
                     document=document, original_path=source_path, kb_name=kb_name
                 )
                 result = await indexed if inspect.isawaitable(indexed) else indexed
-                if result is False or (isinstance(result, dict) and result.get("ready") is False):
-                    raise RuntimeError("configured RAG indexer did not publish a ready index")
-                if isinstance(result, dict):
-                    kb_name = str(result.get("kb_name") or kb_name)
+                if result is not True:
+                    if not isinstance(result, dict) or result.get("ready") is not True:
+                        raise RuntimeError("configured RAG indexer did not explicitly confirm a ready index")
+                    reported_name = result.get("kb_name", kb_name)
+                    if not isinstance(reported_name, str) or not reported_name.strip():
+                        raise RuntimeError("configured RAG indexer returned an invalid knowledge-base name")
+                    kb_name = reported_name.strip()
             else:
                 # Reuse DeepTutor's KB initializer, RAGService provider binding,
                 # parser, image pipeline, and durable index readiness check.
