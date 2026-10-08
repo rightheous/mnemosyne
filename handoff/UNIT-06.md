@@ -5,7 +5,8 @@
 ## 이번 변경
 
 - `upstreams/DeepTutor/compose.yaml`을 Windows/WSL2 Docker Compose 프로필로 바꿨다. 지정 DeepTutor snapshot을 로컬 빌드하고, FastAPI+Next.js 한 서비스와 내부 Redis만 사용한다. PocketBase와 sandbox runner는 이 단일 사용자 프로필에서 시작하지 않는다. 포트는 기본 `127.0.0.1`에만 게시하고, 앱 readiness healthcheck, 재시작 정책, 종료 유예, Redis AOF, 원본/SQLite/설정/작업공간의 단일 `data/` 영속 경로를 둔다.
-- `checks/requirements.txt`는 contract fixture와 source probe에서 쓰는 고정 Python 검증 환경을 `checks/audit-environment.txt`에 연결하고 OpenAPI validator를 고정한다. **이것은 backend production lock이 아니다.** DeepTutor의 Python runtime manifest는 버전 범위이며 새 lockfile 경로가 소유권에 배정되지 않았다.
+- `upstreams/DeepTutor/requirements.txt`를 지정 snapshot의 `pyproject.toml`과 `[project.optional-dependencies].partners`에서 해석한 Python 3.11 대상 backend runtime lock으로 교체했다. uv 0.11.21이 192개 고정 항목을 해석했고 잠금에는 3,587개의 SHA-256 해시가 있다. 기존 소유 경로를 사용해 새 파일 배정은 필요하지 않다. Dockerfile은 `pip install --require-hashes`로 잠금과 해시를 강제한다. 소스 프로젝트 자체는 build context에서 설치하므로 lock에서 제외했다. Docker base 이미지 tag와 apt 시스템 패키지는 이 Python lock 범위에 포함되지 않는다.
+- `checks/requirements.txt`는 contract fixture와 source probe에서 쓰는 고정 Python 검증 환경을 `checks/audit-environment.txt`에 연결하고 OpenAPI validator를 고정한다. 이것은 backend lock과 별도의 검증 도구 환경이다.
 - `checks/validate_contracts.py`에서 fixture 검사와 완전한 readiness gate를 분리했다. 기본 실행은 계약 fixture만 검사하고, `--require-ready`는 ownership 및 upstream/source gate까지 검사한다. 기본 PASS를 제품 통합 PASS로 해석하지 않는다.
 
 ## 실행 결과
@@ -13,7 +14,8 @@
 | 검사 | 결과 | 범위 |
 |---|---|---|
 | `/tmp` 임시 venv에 `pip install -r checks/requirements.txt`에 필요한 고정 패키지 설치 | PASS | Python 3.12.14, macOS arm64. 승인된 네트워크 설치. Windows/Linux 설치는 미검증. |
-| `python checks/validate_contracts.py` | PASS | OpenAPI 30 operations, schema instance 80, negative case 19, sync step 10, geometry case 4. 소스/readiness gate는 실행하지 않음. |
+| `uv run --with-requirements checks/requirements.txt --no-project --python 3.12 python3 checks/validate_contracts.py` | PASS | OpenAPI 30 operations, schema instance 80, negative case 19, sync step 10, geometry case 4. 소스/readiness gate는 실행하지 않음. |
+| Backend runtime lock 정적 검사 (위 fixture 검사에 포함) | PASS | 192개 Python 3.11 대상 잠금 항목, 3,587개 해시, 필수 backend 패키지, Docker `--require-hashes` 적용을 확인. 같은 uv 명령의 재해석 결과와 잠금 파일이 바이트 단위로 일치. Docker daemon이 없어 이미지 설치는 미검증. |
 | `python checks/validate_contracts.py --require-ready` | FAIL | 공유 worktree에서 `upstreams/Pumice/Sources/Network/MnemosyneModels.swift`가 ownership에 배정되지 않았다고 보고했다. 통합 소유자 확인 필요. |
 | `python checks/source_adapters.py` | 이전 실행에서 FAIL, 확정 revision 재검사 대기 | fixture `content_language=en`, `response_language=ko` 입력에서 `value.language == "en"` assertion이 실패했다. Tutor mapping은 UNIT-02 소유이며 이후 공유 worktree에 그 경로의 비커밋 변경이 나타났다. 사용자 제공 revision을 받은 뒤 계약의 content/response 언어 분리가 보존되는지 다시 확인한다. 제품 결함으로 확정하거나 해당 경로를 수정하지 않았다. |
 | `docker compose -f upstreams/DeepTutor/compose.yaml config --quiet` | PASS | YAML/Compose 구성 정적 검사. |
@@ -55,6 +57,13 @@ python checks/validate_contracts.py
 python checks/source_adapters.py
 ```
 
+Backend lock 재생성은 DeepTutor 디렉터리에서 실행한다. Python 3.11 대상의 universal resolution이며 DeepTutor 소스 패키지는 Docker build context에서 복사되므로 lock 출력에서 제외한다.
+
+```sh
+cd upstreams/DeepTutor
+uv pip compile pyproject.toml --extra partners --python-version 3.11 --universal --generate-hashes --no-emit-package deeptutor -o requirements.txt
+```
+
 `--require-ready`는 ownership 목록과 모든 등록 seam이 실제 파일에 연결된 뒤 실행한다. 현재는 ownership 검사 실패가 확인됐다. 웹 검사에는 upstream 지침대로 Node 22와 `npm ci --legacy-peer-deps`, `npm run check`가 필요하다.
 
 WSL2 운영은 저장소를 Linux 파일시스템에 두고 다음 명령을 `upstreams/DeepTutor`에서 실행한다. Compose 정적 검사만 확인했으며 빌드·기동은 daemon 복구 후 실행한다.
@@ -83,9 +92,12 @@ docker compose -f compose.yaml start
 ## 통합 담당자에게 필요한 배정/확인
 
 1. `integration/ownership.json`에서 현재 gate가 지적한 `upstreams/Pumice/Sources/Network/MnemosyneModels.swift` 소유자를 명시한다.
-2. Python backend production lock을 위한 신규 경로(예: `upstreams/DeepTutor/uv.lock`)와 root CI 파일(예: `.github/workflows/mnemosyne.yml`)을 UNIT-06에 배정한다. 현재 할당된 `.github/workflows/tests.yml`은 upstream 하위 경로라 이 Mnemosyne root 저장소의 GitHub Actions workflow로 실행되지 않는다.
+2. root CI 파일(예: `.github/workflows/mnemosyne.yml`)을 UNIT-06에 배정한다. 현재 할당된 `.github/workflows/tests.yml`은 upstream 하위 경로라 이 Mnemosyne root 저장소의 GitHub Actions workflow로 실행되지 않는다. Backend runtime lock은 기존 UNIT-06 소유 경로인 `upstreams/DeepTutor/requirements.txt`에 작성했다.
 3. 목표에서 지정한 `docs/handoffs/unit-06.md`는 현재 정확한 소유 목록에 없고 기존 배정 파일은 `handoff/UNIT-06.md`다. 이 handoff는 허용된 경로를 사용했다. 새 문서 경로를 원하면 먼저 배정한다.
-4. Compose 원본 snapshot 파일 변경의 사유와 SHA-256 `d2e88f60c274305012835dfd3c0f533fe19ab7664412c0c6c83b43c74e2e3d74`을 `integration/upstreams.json`의 수정 예외에 반영한다. 해당 파일은 통합 담당 소유라 여기서는 고치지 않았다.
+4. 다음 원본 snapshot 변경의 사유와 SHA-256을 `integration/upstreams.json`의 수정 예외에 반영한다. 해당 메타데이터는 통합 담당 소유라 여기서는 고치지 않았다.
+   - `upstreams/DeepTutor/compose.yaml`: `d2e88f60c274305012835dfd3c0f533fe19ab7664412c0c6c83b43c74e2e3d74`
+   - `upstreams/DeepTutor/Dockerfile`: `1a0ce2428010fa1b9bbb027632f1a1fa700f728d5d845c118c2d1174944313e7`
+   - `upstreams/DeepTutor/requirements.txt`: `c4c5917e5cb1288e80e21bafc6daab70b713eb39f89a59186cce07a2c44a32b5`
 5. 사용자 제공 UNIT-01/02/03/04/05 commit/PR 목록을 받으면 각 정확한 revision에서 통합 검사와 소유 gate를 재실행한다. UNIT-02는 Tutor 언어 분리 assertion을 확인하고, UNIT-04는 iPad simulator/device 검증 결과를 제공해야 한다.
 
 ## 대기 인수

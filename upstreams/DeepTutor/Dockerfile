@@ -95,8 +95,7 @@ ENV PATH="/root/.cargo/bin:${PATH}"
 # Copy requirements and install Python dependencies
 COPY requirements/ ./requirements/
 COPY requirements.txt ./
-RUN pip install --upgrade pip && \
-    pip install -r requirements.txt
+RUN pip install --require-hashes -r requirements.txt
 
 # ============================================
 # Stage 3: Production Image

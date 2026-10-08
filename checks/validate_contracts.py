@@ -284,6 +284,38 @@ def check_compose_profile():
         ensure(not any(re.search(r'(?:API[_-]?KEY|TOKEN|SECRET)', str(key), re.I) for key in environment), 'Provider credential must not be configured in Compose')
     return len(services)
 
+def check_python_runtime_lock():
+    path = ROOT/'upstreams/DeepTutor/requirements.txt'
+    entries = []
+    active = None
+    hash_count = 0
+    for line_number, line in enumerate(path.read_text().splitlines(), 1):
+        value = line.strip()
+        if not value or value.startswith('#'):
+            continue
+        if value.startswith('--hash='):
+            ensure(active is not None, f'Orphan runtime hash at line {line_number}')
+            match = re.fullmatch(r'--hash=sha256:([0-9a-f]{64})(?:\s+\\)?', value)
+            ensure(match is not None, f'Invalid runtime hash at line {line_number}')
+            active['hashes'].append(match.group(1))
+            hash_count += 1
+            continue
+        match = re.match(r'^([A-Za-z0-9_.-]+)==([^\s;\\]+)', value)
+        ensure(match is not None, f'Unpinned runtime requirement at line {line_number}: {value}')
+        if active is not None:
+            ensure(active['hashes'], f'Requirement has no hashes: {active["name"]}')
+        active = {'name': re.sub(r'[-_.]+', '-', match.group(1)).lower(), 'hashes': []}
+        entries.append(active)
+    if active is not None:
+        ensure(active['hashes'], f'Requirement has no hashes: {active["name"]}')
+    names = {entry['name'] for entry in entries}
+    ensure(entries, 'Backend runtime lock is empty')
+    ensure('deeptutor' not in names, 'Source project must be installed from the Docker build context')
+    ensure({'fastapi', 'uvicorn', 'redis', 'llama-index'} <= names, 'Backend runtime lock is missing required runtime packages')
+    dockerfile = (ROOT/'upstreams/DeepTutor/Dockerfile').read_text()
+    ensure('RUN pip install --require-hashes -r requirements.txt' in dockerfile, 'Docker must enforce runtime lock hashes')
+    return len(entries), hash_count
+
 def source_gate():
     state = read(ROOT/'integration/registry.json')
     ensure(state['ready_for_parallel_implementation'] is True, 'Source bootstrap gate is not ready')
@@ -417,6 +449,7 @@ def main():
         headers={p['name'] for p in api['paths'][path][method]['parameters'] if p['in']=='header'}
         ensure({'If-Match','X-Confirm-Action','X-Mnemosyne-Contract-Version'}<=headers, 'Missing protected mutation headers')
     check_manifest()
+    backend_lock_packages, backend_lock_hashes = check_python_runtime_lock()
     compose_service_count = check_compose_profile()
     if args.require_ready:
         # Contract fixtures are useful before every planned owner path has
@@ -425,7 +458,7 @@ def main():
         # regressions or be mistaken for a passing integration check.
         check_ownership()
         source_gate()
-    print(json.dumps({'result':'PASS','openapi_operations':len(operations),'schemas':len(schema_files)+1,**COUNTS,'geometry_cases':len(F['geometry_cases']),'compose_services':compose_service_count,'source_ready':read(ROOT/'integration/registry.json')['ready_for_parallel_implementation'],'ownership_checked':args.require_ready,'source_gate_checked':args.require_ready},ensure_ascii=False))
+    print(json.dumps({'result':'PASS','openapi_operations':len(operations),'schemas':len(schema_files)+1,**COUNTS,'geometry_cases':len(F['geometry_cases']),'backend_lock_packages':backend_lock_packages,'backend_lock_hashes':backend_lock_hashes,'compose_services':compose_service_count,'source_ready':read(ROOT/'integration/registry.json')['ready_for_parallel_implementation'],'ownership_checked':args.require_ready,'source_gate_checked':args.require_ready},ensure_ascii=False))
 
 if __name__ == '__main__':
     try:
