@@ -70,9 +70,12 @@ final class MnemosyneAppModel: ObservableObject {
     @Published private(set) var busyMessage: String?
     @Published private(set) var alertMessage: String?
     @Published private(set) var tutorText = ""
+    @Published private(set) var tutorCitations: [MnemosyneVerifiedCitation] = []
     @Published private(set) var tutorStatus = "튜터 연결을 확인하세요."
     @Published private(set) var pendingAnnotationEvent: Data?
     @Published private(set) var downloadStates: [UUID: String] = [:]
+    @Published private(set) var syncSummary = "동기화 연결 대기"
+    @Published private(set) var syncConflictedMutationIds: [UUID] = []
 
     private(set) var reader: (any MnemosyneReaderFacade)?
     private(set) var syncWorker: (any MnemosyneSyncWorker)?
@@ -84,6 +87,8 @@ final class MnemosyneAppModel: ObservableObject {
     private var currentTurnDocumentId = UserDefaults.standard.string(forKey: "mnemosyne.lastTurnDocumentId")
         .flatMap(UUID.init(uuidString:))
     private var cancelCommandId: UUID?
+    private var pendingQuizAttempts: [String: MnemosyneAttempt] = [:]
+    private var pendingMemoryReviews: [String: MnemosyneMemoryReview] = [:]
 
     var selectedDocument: MnemosyneDocument? {
         guard let selectedDocumentId else { return nil }
@@ -304,12 +309,25 @@ final class MnemosyneAppModel: ObservableObject {
 
     func synchronizeNow() async {
         guard let syncWorker else {
+            syncSummary = "Reader outbox와 sync cursor 연결 대기"
             alertMessage = "Reader outbox와 sync cursor를 연결하는 UNIT-03 facade가 아직 제공되지 않았습니다."
             return
         }
         busyMessage = "필기와 주석을 동기화하고 있습니다"
         defer { busyMessage = nil }
-        do { try await syncWorker.synchronize() } catch { alertMessage = error.localizedDescription }
+        syncConflictedMutationIds = []
+        do {
+            try await syncWorker.synchronize()
+            if let worker = syncWorker as? MnemosyneAnnotationSyncWorker {
+                syncConflictedMutationIds = worker.conflictedMutationIds
+            }
+            syncSummary = syncConflictedMutationIds.isEmpty
+                ? "동기화 완료"
+                : "서버 충돌 검토 필요 · \(syncConflictedMutationIds.count)건"
+        } catch {
+            syncSummary = "재시도 필요 · \(error.localizedDescription)"
+            alertMessage = error.localizedDescription
+        }
     }
 
     func refreshLearning() async {
@@ -318,37 +336,88 @@ final class MnemosyneAppModel: ObservableObject {
         catch { alertMessage = error.localizedDescription }
     }
 
-    func loadQuiz(quizId: UUID) async {
+    func loadQuiz(quizId: UUID, for expectedDocument: MnemosyneDocument? = nil) async {
         guard let api, isPaired else { alertMessage = "기기를 서버에 연결해 주세요."; return }
-        do { activeQuiz = try await api.quiz(quizId: quizId) }
+        guard let document = expectedDocument ?? selectedDocument else {
+            alertMessage = "먼저 문서를 선택해 주세요."
+            return
+        }
+        do {
+            let quiz = try await api.quiz(quizId: quizId)
+            guard quiz.documentId == document.documentId, quiz.versionId == document.versionId else {
+                throw MnemosyneAPIError.invalidResponse
+            }
+            lastAssessment = nil
+            activeQuiz = quiz
+        }
         catch { alertMessage = error.localizedDescription }
     }
 
     func submitQuizAnswers(_ answers: [UUID: String]) async {
         guard let api, let quiz = activeQuiz, let document = selectedDocument,
-              let learningState else { return }
+              let learningState, quiz.documentId == document.documentId,
+              quiz.versionId == document.versionId else { return }
         let nonempty = answers.filter { !$0.value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
         guard !nonempty.isEmpty else { alertMessage = "답을 입력해 주세요."; return }
-        let now = ISO8601DateFormatter().string(from: Date())
-        let attempt = MnemosyneAttempt(attemptId: UUID(), clientMutationId: UUID(), quizId: quiz.quizId,
-            documentId: document.documentId, versionId: document.versionId,
-            baseLearningRevision: learningState.learningRevision, submittedAt: now,
-            answers: nonempty.map { .init(questionId: $0.key, answer: $0.value) })
+        let knownQuestions = Set(quiz.questions.map(\.questionId))
+        guard Set(nonempty.keys).isSubset(of: knownQuestions) else {
+            alertMessage = "현재 퀴즈에 없는 문항의 답은 제출하지 않았습니다."
+            return
+        }
+        let orderedAnswers = nonempty.sorted { $0.key.uuidString < $1.key.uuidString }
+        let answerRows: [[String: String]] = orderedAnswers.map {
+            ["question_id": $0.key.uuidString.lowercased(), "answer": $0.value]
+        }
+        guard let answerData = try? JSONSerialization.data(withJSONObject: answerRows, options: [.sortedKeys]) else {
+            alertMessage = "답안을 안전하게 정리하지 못했습니다."
+            return
+        }
+        var attemptFingerprintData = Data([
+            quiz.quizId.uuidString.lowercased(), document.documentId.uuidString.lowercased(),
+            document.versionId, String(learningState.learningRevision)
+        ].joined(separator: "|").utf8)
+        attemptFingerprintData.append(answerData)
+        let attemptKey = SHA256.hash(data: attemptFingerprintData)
+            .map { String(format: "%02x", $0) }.joined()
+        let attempt: MnemosyneAttempt
+        if let pending = pendingQuizAttempts[attemptKey] {
+            attempt = pending
+        } else {
+            attempt = MnemosyneAttempt(attemptId: UUID(), clientMutationId: UUID(), quizId: quiz.quizId,
+                documentId: document.documentId, versionId: document.versionId,
+                baseLearningRevision: learningState.learningRevision,
+                submittedAt: ISO8601DateFormatter().string(from: Date()),
+                answers: orderedAnswers.map { .init(questionId: $0.key, answer: $0.value) })
+            pendingQuizAttempts[attemptKey] = attempt
+        }
         busyMessage = "서버에서 답을 평가하고 있습니다"
         defer { busyMessage = nil }
         do {
             // Score and feedback always come from DeepTutor's assessment response.
-            lastAssessment = try await api.submitAttempt(attempt)
+            let assessment = try await api.submitAttempt(attempt)
+            guard assessment.attemptId == attempt.attemptId else { throw MnemosyneAPIError.invalidResponse }
+            lastAssessment = assessment
+            pendingQuizAttempts.removeValue(forKey: attemptKey)
             await refreshLearning()
         } catch { alertMessage = error.localizedDescription }
     }
 
     func reviewMemory(_ memory: MnemosyneLearningState.Memory, grade: Int) async {
         guard let api, let learningState, (0...3).contains(grade) else { return }
-        let review = MnemosyneMemoryReview(clientMutationId: UUID(), memoryId: memory.memoryId,
-            baseLearningRevision: learningState.learningRevision, grade: grade,
-            reviewedAt: ISO8601DateFormatter().string(from: Date()))
-        do { learningState = try await api.reviewMemory(review) }
+        let reviewKey = "\(memory.memoryId.uuidString.lowercased())|\(grade)|\(learningState.learningRevision)"
+        let review: MnemosyneMemoryReview
+        if let pending = pendingMemoryReviews[reviewKey] {
+            review = pending
+        } else {
+            review = MnemosyneMemoryReview(clientMutationId: UUID(), memoryId: memory.memoryId,
+                baseLearningRevision: learningState.learningRevision, grade: grade,
+                reviewedAt: ISO8601DateFormatter().string(from: Date()))
+            pendingMemoryReviews[reviewKey] = review
+        }
+        do {
+            learningState = try await api.reviewMemory(review)
+            pendingMemoryReviews.removeValue(forKey: reviewKey)
+        }
         catch { alertMessage = error.localizedDescription }
     }
 
@@ -363,7 +432,9 @@ final class MnemosyneAppModel: ObservableObject {
         }
         guard tutorTask == nil else { return }
         tutorText = ""
+        tutorCitations = []
         verifiedCitations = [:]
+        cancelCommandId = nil
         let transport = MnemosyneTutorTransport(baseURL: url)
         tutorTransport = transport
         tutorStatus = "튜터에 연결하고 있습니다"
@@ -372,7 +443,7 @@ final class MnemosyneAppModel: ObservableObject {
         let resumeSequence = resumeId.flatMap { try? checkpointStore.lastTutorSequence(turnId: $0) } ?? 0
         tutorTask = Task { [weak self] in
             guard let self else { return }
-            defer { tutorTask = nil }
+            defer { tutorTask = nil; cancelCommandId = nil }
             do {
                 try await transport.run(startCommand: resumeId == nil ? startCommand : nil,
                     resumeTurnId: resumeId, afterSequence: resumeSequence,
@@ -429,7 +500,13 @@ final class MnemosyneAppModel: ObservableObject {
                 throw MnemosyneReaderEventError.malformed
             }
             try await verifyCitationAgainstPage(citation, document: document, api: api)
+            if let existing = verifiedCitations[citation.citationId], existing != citation {
+                throw MnemosyneReaderEventError.unverifiedCitation
+            }
             verifiedCitations[citation.citationId] = citation
+            if !tutorCitations.contains(where: { $0.citationId == citation.citationId }) {
+                tutorCitations.append(citation)
+            }
             tutorStatus = "문서 근거 확인됨"
             return
         }
@@ -449,7 +526,7 @@ final class MnemosyneAppModel: ObservableObject {
             guard let quizId = (payload["quiz_id"] as? String).flatMap(UUID.init(uuidString:)) else {
                 throw MnemosyneReaderEventError.malformed
             }
-            await loadQuiz(quizId: quizId)
+            await loadQuiz(quizId: quizId, for: document)
         case "learning.updated":
             await refreshLearning()
         case "turn.started": tutorStatus = "튜터가 문서를 읽고 있습니다"

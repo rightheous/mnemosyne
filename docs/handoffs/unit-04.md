@@ -31,33 +31,51 @@ Tutor reconnect에는 native frame sequence의 durable checkpoint가 필요합�
 
 - PumiceCore가 실제 `MnemosyneLocalStore`와 `MnemosyneReaderFacade` 구현을 제공하고 App에서 호출 가능한 factory를 노출해 주세요. `PumiceApp` 시작 시 이를 조립하고 앱 모델에 주입하는 정확한 signature도 합의해야 합니다.
 - `openCached`가 현재 검증된 durable original URL을 반환하거나 `cachedOriginalURL(documentID:versionID:)`을 제공해 주세요. App은 그 URL만 기존 `PDFReaderView`에 전달하고 현재 page/selection callback은 facade의 `readerContext()`에 저장합니다.
+- Reader 이벤트가 현재 페이지를 이동시키면 facade가 직전 `ReaderContext`를 보존하고 `restoreReaderContext(_:)` 또는 동등한 back-navigation API로 복원할 수 있게 해 주세요. App은 임의의 synthetic Reader event를 만들지 않습니다.
 - Tutor panel은 연결된 Reader context로 typed `start_turn` command를 만들고 취소·재시작 후 저장된 sequence로 재개할 수 있어야 합니다. 서버 문서 UUID/version을 native internal material ID로 resolve하는 계약 제안과 함께 연결해 주세요.
 
 UNIT-04 코드는 `PumiceApp.swift`, `MnemosyneAppDependencies.swift`, `LaunchView.swift`, `MnemosyneTurnWire.swift`, `PumiceUITests.swift`처럼 `integration/ownership.json`에 이미 할당된 경로에만 두었습니다. 이 요청 메모 `docs/handoffs/unit-04.md`는 사용자가 요청한 별도 handoff 경로이나 아직 ownership registry에 없습니다. 공통 검증을 통과시키려면 integrator가 이 경로를 소유자 할당에 등록해야 하며 UNIT-04가 `integration/ownership.json`을 직접 수정하지 않습니다.
 
 ## 통합 담당 / UNIT-02 Tutor 시작 요청
 
-현재 계약 `contracts/openapi.yaml`에는 `GET /v1/tutor/turns/{turn_id}`만 있고 turn 생성 route는 없습니다. 외부 스트림은 `docs/INTEGRATION.md` 결정대로 native `/ws` protocol 2.0이어야 합니다. 그러나 native `start_turn.reading_material_id`는 DeepTutor 내부 opaque material ID이며, 서버가 소유한 document UUID/full SHA-256 매핑은 클라이언트 `Document` DTO에 공개되지 않습니다. UNIT-02 `native_turn_request`도 해당 내부 ID/revision을 인자로 요구합니다. 따라서 iPad가 계약만으로 `start_turn`의 실제 문서 문맥을 만들 방법이 없습니다.
+현재 계약 `contracts/openapi.yaml`에는 `GET /v1/tutor/turns/{turn_id}`만 있고 turn 생성 route는 없습니다. 외부 스트림은 `docs/INTEGRATION.md` 결정대로 native `/ws` protocol 2.0이어야 합니다. native `start_turn.reading_material_id`는 DeepTutor 내부 opaque material ID이고, UNIT-02 `native_turn_request`는 `reading` 요청 때 서버가 해석한 material ID와 revision을 인자로 요구합니다. 이 값은 서버 소유이며 클라이언트 `Document` DTO에 공개되지 않습니다.
 
-새 SSE/HTTP turn 생성 API를 추가하지 않고, `/ws` `start_turn.selection_tutor_context`에 전달할 typed Mnemosyne context를 정해 주세요. 제안 payload는 다음 필드입니다.
+현재 contract `TurnRequest`는 `reader_context`를 포함하지만 그 request를 받는 OpenAPI operation은 없습니다. contract의 다음 버전에서 인증된 `POST /v1/tutor/turns` (`TurnRequest` → `TurnReceipt`)를 정의하고, server handler가 `DocumentRepositoryAdapter`로 document UUID/version을 확인해 material ID/revision으로 해석한 뒤 UNIT-02 `TutorAdapter.start_turn`에 전달해 주세요. receipt를 받은 iPad는 native `/ws`의 `resume_from(turn_id, seq)`를 사용해 저장된 sequence 이후까지 구독합니다.
+
+요청 body는 기존 `TurnRequest`/`ReaderContext` schema를 따릅니다.
 
 ```json
 {
-  "contract_version": "0.1.0",
-  "document_id": "<UUID>",
-  "version_id": "sha256:<64 lowercase hex>",
-  "page_index": 0,
-  "viewport_rect": [0, 0, 1, 1],
-  "selection": null,
-  "content_language": "und",
+  "client_mutation_id": "<UUID>",
+  "capability": "reading",
+  "message": "이 페이지의 핵심 내용을 설명해 주세요.",
+  "reader_context": {
+    "document_id": "<UUID>",
+    "version_id": "sha256:<64 lowercase hex>",
+    "page_index": 0,
+    "viewport_rect": [0, 0, 1, 1],
+    "selection": null,
+    "content_language": "und",
+    "response_language": "ko"
+  },
   "response_language": "ko"
 }
 ```
 
-서버가 document UUID/version을 internal material ID/revision으로 resolve하고, `reading_context`/citation을 검증한 뒤 existing native turn service로 넘겨야 합니다. iPad는 응답의 quote·좌표를 자체 생성하지 않습니다. UNIT-02 capability mapping은 이미 `chat→chat`, `reading→immersive_reading`, `quiz→deep_question`, `mastery→mastery_path`, `solve→deep_solve`로 문서화돼 있습니다. `assessment`, `memory`, `progress`, `review`는 기존 `/v1` 상태 route를 사용하고 fabricated native capability로 시작하지 않습니다.
+`selection_tutor_context`는 UNIT-02 소스의 기존 선택 텍스트 대화 기능(parent session/message ID)이며 Mnemosyne `ReaderContext`가 아닙니다. 두 context를 혼용하지 마세요. 서버는 현재 페이지/선택 anchor를 document version 및 citation service로 검증하고, 화면에 근거를 생성해 넣지 않습니다. UNIT-02 capability mapping은 `chat→chat`, `reading→immersive_reading`, `quiz→deep_question`, `mastery→mastery_path`, `solve→deep_solve`입니다. `assessment`, `memory`, `progress`, `review`는 learning service route를 사용하며 fabricated native capability로 시작하지 않습니다.
 
-요청 소비자는 iPad transport와 web consumer입니다. 계약 편집자는 integrator만이며, context schema/fixture를 추가한다면 영향 받는 iPad·web·server consumer, 계약 버전, 양쪽 `MnemosyneContracts` 복사본, fixture 검사 및 manifest digest를 함께 갱신해 주세요. 현재 native-turn schema는 upstream byte-identical copy이므로 UNIT-04에서 직접 수정하지 않습니다.
+같은 contract 변경에서 Quiz question hint operation도 정의해 주세요. 현재 `Question` schema에는 hint 필드/route가 없어 UI가 정답을 가리지 않는 서버 hint를 요청할 수 없습니다. 제안 operation은 `POST /v1/quizzes/{quiz_id}/questions/{question_id}/hint`; response는 `contract_version`, `quiz_id`, `question_id`, `document_id`, `version_id`, `hint_ko`, verified `citations`를 포함하고 정답/비공개 채점 기준은 내보내지 않아야 합니다.
+
+계약 편집자는 integrator만입니다. `TurnRequest` operation과 Hint response를 추가한다면 계약 버전(제안 `0.2.0`), iPad/web/server 소비자, 양쪽 `MnemosyneContracts` 생성 복사본, fixture, 검증기 및 manifest digest를 함께 갱신해 주세요. native-turn schema는 upstream byte-identical copy이므로 UNIT-04에서 직접 수정하지 않습니다.
+
+## 현재 보이는 server commit과 실제 연결 상태
+
+- `a0aad86676cac74fa13530f3b1aed33cc10ad354` (`codex/unit-01-library-sync`)에는 `build_library_router`와 문서·원본·annotation handler가 있습니다. 이 router는 `api/main.py`에 mount되지 않았고 auth/Origin guard도 router 자체에 없습니다.
+- `17d6e6b5245758aa824589327d6b92b5bfa62035` (`codex/unit-06-cloud-runtime`)에는 UNIT-02 `TutorAdapter`/native mapping이 있습니다. `reader_context`를 처리하고 server-resolved material ID/revision을 요구하지만 authenticated iPad turn-creation HTTP route는 없습니다. `selection_tutor_context`는 다른 용도입니다.
+- 현재 각각의 worktree는 이 SHA 이후 `library.py`/Tutor/WebSocket 및 ReaderFacade/PDFReader 파일이 수정된 dirty 상태입니다. `codex/unit-06-cloud-runtime`에는 UNIT-03 Reader 구현 작업본이 보이지만, 아직 전달된 clean commit/PR가 아니므로 UNIT-04 branch에 포함하거나 제품 연결 근거로 사용하지 않았습니다.
+- 현재 보이는 UNIT-03 작업본에는 local-store `cachedOriginalURL`, `receivedCursor`, reader context 저장 API가 있지만 facade URL 전달, 오프라인 `cachedDocuments`, `syncCursor`/`applyRemoteSnapshot`, native frame `lastTutorSequence`/`commitTutorFrame`, page-restore 경계는 확인되지 않았습니다. 해당 작업의 공식 commit/PR가 제공되면 실제 signature를 다시 대조합니다.
+- 이 commits/작업본은 UNIT-04 branch에 통합되지 않았고 통합 server process도 없어 Library→PDF→Tutor→Reader 이동은 확인할 수 없습니다. 별도 worktree의 fixture report를 제품/API 통합 검증으로 세지 않습니다.
 
 ## API 준비/실제 연결 구분
 
-`/health`와 `/ready`만 감사에서 observed upstream입니다. `/v1/*` Library, pairing, file, annotation, learning, settings route는 contracts에 정의된 planned-unit-extension입니다. UNIT-04 client는 이 wire 계약 소비 코드이며 해당 handler가 통합 브랜치에 연결되기 전까지 서버 제품 연결 성공으로 표시하지 않습니다.
+`/health`와 `/ready`만 감사에서 observed upstream입니다. contract의 `/v1/*` operation은 계획된 wire 계약이고, 별도 branch에 있는 Library router factory도 mounted API가 아닙니다. UNIT-04 client는 wire 계약 소비 코드이며 handler가 통합 server에 연결되기 전까지 제품 서버 연결 성공으로 표시하지 않습니다.

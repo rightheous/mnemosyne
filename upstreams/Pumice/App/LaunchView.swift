@@ -50,6 +50,18 @@ struct MnemosyneRootView: View {
                         .foregroundStyle(.secondary)
                         .accessibilityLabel("서버 상태: \(model.connectionSummary)")
                 }
+                Section("필기 동기화") {
+                    Label(model.syncSummary,
+                          systemImage: model.syncConflictedMutationIds.isEmpty
+                            ? "arrow.triangle.2.circlepath" : "exclamationmark.triangle.fill")
+                        .font(.footnote)
+                        .foregroundStyle(model.syncConflictedMutationIds.isEmpty ? Color.secondary : Color.orange)
+                    if !model.syncConflictedMutationIds.isEmpty {
+                        Text("충돌한 변경 \(model.syncConflictedMutationIds.count)건은 보존했습니다. Reader의 충돌 검토 기능이 연결되면 확인할 수 있습니다.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
             }
             .navigationTitle("므네모시네")
             .navigationSplitViewColumnWidth(min: 220, ideal: 260)
@@ -387,6 +399,29 @@ private struct MnemosyneDocumentWorkspace: View {
                             }
                         } else {
                             Text(model.tutorText).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        if !model.tutorCitations.isEmpty {
+                            VStack(alignment: .leading, spacing: 10) {
+                                Text("검증된 문서 근거")
+                                    .font(.subheadline.weight(.semibold))
+                                ForEach(model.tutorCitations, id: \.citationId) { citation in
+                                    VStack(alignment: .leading, spacing: 5) {
+                                        Label("원문 p. \(citation.anchor.pageIndex + 1)",
+                                              systemImage: "checkmark.seal.fill")
+                                            .font(.caption.weight(.semibold))
+                                            .foregroundStyle(.mnemosyneAccent)
+                                        Text(citation.anchor.quote)
+                                            .font(.callout)
+                                            .textSelection(.enabled)
+                                            .frame(maxWidth: .infinity, alignment: .leading)
+                                    }
+                                    .padding(11)
+                                    .background(Color.mnemosyneCanvas, in: RoundedRectangle(cornerRadius: 9))
+                                }
+                            }
+                            .padding(12)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(.white, in: RoundedRectangle(cornerRadius: 12))
                         }
                         if let assessment = model.lastAssessment {
                             Label("서버 평가 \(Int(assessment.score * 100))%", systemImage: "checkmark.seal.fill")
