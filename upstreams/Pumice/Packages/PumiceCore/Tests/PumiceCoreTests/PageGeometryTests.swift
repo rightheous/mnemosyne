@@ -346,6 +346,169 @@ struct MnemosyneLocalStoreTests {
         }
     }
 
+    @Test("Conflict resolution keeps the latest local edit with a new id and server revision")
+    func conflictResolutionReplaysLatestLocalEdit() throws {
+        let root = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = try FileMnemosyneLocalStore(rootDirectory: root)
+        try store.commitChangesAndCursor(try json([
+            "contract_version": "0.1.0",
+            "document_id": documentID.uuidString.lowercased(),
+            "version_id": versionID,
+            "changes": [annotationRecord(body: "server value", revision: 5)],
+            "next_cursor": "cursor-5",
+            "has_more": false
+        ]))
+
+        let queuedMutationID = UUID(uuidString: "00000000-0000-0000-0000-00000000000d")!
+        let first = try makeMutation(body: "first local edit", mutationID: mutationID,
+                                     baseRevision: 5)
+        let latest = try makeMutation(body: "latest local edit", mutationID: queuedMutationID,
+                                      baseRevision: 5)
+        try store.commitEditAndOutbox(first)
+        try store.commitEditAndOutbox(latest)
+        let conflictRecord = annotationRecord(body: "remote conflict", revision: 6)
+        try store.commitReceipts(try json([
+            "contract_version": "0.1.0",
+            "document_id": documentID.uuidString.lowercased(),
+            "version_id": versionID,
+            "results": [[
+                "client_mutation_id": mutationID.uuidString.lowercased(),
+                "status": "conflict",
+                "code": "conflict",
+                "server_revision": 6,
+                "current": conflictRecord
+            ]]
+        ]))
+        #expect(try store.mutationFailureReason(mutationID) == "conflict")
+        #expect(throws: MnemosyneReaderError.self) { try store.retryMutation(mutationID) }
+
+        let newestRemoteRecord = annotationRecord(body: "newer remote value", revision: 7)
+        try store.commitChangesAndCursor(try json([
+            "contract_version": "0.1.0",
+            "document_id": documentID.uuidString.lowercased(),
+            "version_id": versionID,
+            "changes": [newestRemoteRecord],
+            "next_cursor": "cursor-7",
+            "has_more": false
+        ]))
+        #expect(try store.baseRevision(annotationID: annotationID,
+                                       documentID: documentID, versionID: versionID) == 7)
+        let visibleBeforeResolution = try #require(
+            store.annotations(documentID: documentID, versionID: versionID).first
+        )
+        let visibleBeforeObject = try JSONSerialization.jsonObject(with: visibleBeforeResolution) as! [String: Any]
+        #expect((visibleBeforeObject["payload"] as? [String: Any])?["body"] as? String == "latest local edit")
+
+        let reopened = try FileMnemosyneLocalStore(rootDirectory: root)
+        let replacementID = UUID(uuidString: "00000000-0000-0000-0000-00000000000e")!
+        let replacement = try #require(try reopened.resolveConflict(
+            mutationID,
+            resolution: .keepLocal(replacementMutationID: replacementID)
+        ))
+        let replacementObject = try JSONSerialization.jsonObject(with: replacement) as! [String: Any]
+        let replacementAnnotation = try #require(replacementObject["annotation"] as? [String: Any])
+        #expect(replacementObject["client_mutation_id"] as? String == replacementID.uuidString.lowercased())
+        #expect(replacementObject["base_revision"] as? Int == 7)
+        #expect(replacementAnnotation["annotation_id"] as? String == annotationID.uuidString.lowercased())
+        #expect((replacementAnnotation["payload"] as? [String: Any])?["body"] as? String == "latest local edit")
+        #expect(try reopened.failedMutations().isEmpty)
+        #expect(try reopened.pendingMutations(limit: 10).count == 1)
+
+        try reopened.commitEditAndOutbox(first)
+        let stillPending = try #require(reopened.pendingMutations(limit: 10).first)
+        let stillPendingObject = try JSONSerialization.jsonObject(with: stillPending) as! [String: Any]
+        #expect(stillPendingObject["client_mutation_id"] as? String == replacementID.uuidString.lowercased())
+    }
+
+    @Test("Keeping an edit after a remote tombstone creates a new annotation id")
+    func conflictWithTombstoneCreatesNewAnnotationIdentity() throws {
+        let root = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = try FileMnemosyneLocalStore(rootDirectory: root)
+        try store.commitChangesAndCursor(try json([
+            "contract_version": "0.1.0",
+            "document_id": documentID.uuidString.lowercased(),
+            "version_id": versionID,
+            "changes": [annotationRecord(body: "server value", revision: 5)],
+            "next_cursor": "cursor-5",
+            "has_more": false
+        ]))
+        let local = try makeMutation(body: "keep this note", baseRevision: 5)
+        try store.commitEditAndOutbox(local)
+
+        var tombstone = annotationRecord(body: "ignored", revision: 6)
+        tombstone["deleted"] = true
+        tombstone["deleted_at"] = "2026-10-09T00:00:00Z"
+        tombstone["payload"] = NSNull()
+        try store.commitReceipts(try json([
+            "contract_version": "0.1.0",
+            "document_id": documentID.uuidString.lowercased(),
+            "version_id": versionID,
+            "results": [[
+                "client_mutation_id": mutationID.uuidString.lowercased(),
+                "status": "conflict",
+                "code": "conflict",
+                "server_revision": 6,
+                "current": tombstone
+            ]]
+        ]))
+
+        let replacementID = UUID(uuidString: "00000000-0000-0000-0000-00000000000f")!
+        let replacement = try #require(try store.resolveConflict(
+            mutationID,
+            resolution: .keepLocal(replacementMutationID: replacementID)
+        ))
+        let mutationObject = try JSONSerialization.jsonObject(with: replacement) as! [String: Any]
+        let draft = try #require(mutationObject["annotation"] as? [String: Any])
+        let replacementAnnotationID = try #require(UUID(
+            uuidString: draft["annotation_id"] as? String ?? ""
+        ))
+        #expect(replacementAnnotationID != annotationID)
+        #expect(mutationObject["annotation_id"] as? String == replacementAnnotationID.uuidString.lowercased())
+        #expect(mutationObject["base_revision"] as? Int == 0)
+        let visible = try #require(store.annotations(documentID: documentID, versionID: versionID).first)
+        let visibleObject = try JSONSerialization.jsonObject(with: visible) as! [String: Any]
+        #expect(visibleObject["annotation_id"] as? String == replacementAnnotationID.uuidString.lowercased())
+    }
+
+    @Test("Accepting remote conflict state removes the local chain")
+    func conflictCanAcceptRemoteProjection() throws {
+        let root = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = try FileMnemosyneLocalStore(rootDirectory: root)
+        try store.commitChangesAndCursor(try json([
+            "contract_version": "0.1.0",
+            "document_id": documentID.uuidString.lowercased(),
+            "version_id": versionID,
+            "changes": [annotationRecord(body: "server value", revision: 5)],
+            "next_cursor": "cursor-5",
+            "has_more": false
+        ]))
+        let local = try makeMutation(body: "local value", baseRevision: 5)
+        try store.commitEditAndOutbox(local)
+        let remote = annotationRecord(body: "remote choice", revision: 6)
+        try store.commitReceipts(try json([
+            "contract_version": "0.1.0",
+            "document_id": documentID.uuidString.lowercased(),
+            "version_id": versionID,
+            "results": [[
+                "client_mutation_id": mutationID.uuidString.lowercased(),
+                "status": "conflict",
+                "code": "conflict",
+                "server_revision": 6,
+                "current": remote
+            ]]
+        ]))
+
+        #expect(try store.resolveConflict(mutationID, resolution: .acceptRemote) == nil)
+        #expect(try store.failedMutations().isEmpty)
+        #expect(try store.pendingMutations(limit: 10).isEmpty)
+        let visible = try #require(store.annotations(documentID: documentID, versionID: versionID).first)
+        let visibleObject = try JSONSerialization.jsonObject(with: visible) as! [String: Any]
+        #expect((visibleObject["payload"] as? [String: Any])?["body"] as? String == "remote choice")
+    }
+
     @Test("Same-annotation outbox edits wait for the prior receipt and advance revision")
     func sameAnnotationOutboxAdvancesRevision() throws {
         let root = temporaryDirectory()

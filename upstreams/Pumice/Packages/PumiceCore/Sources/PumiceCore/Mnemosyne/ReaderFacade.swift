@@ -13,7 +13,18 @@ public enum MnemosyneReaderError: Error, Sendable {
     case documentMismatch
     case idempotencyMismatch
     case mutationNotFound
+    case mutationNotConflict
+    case mutationRequiresConflictResolution
     case exportWouldReplaceOriginal
+}
+
+public enum MnemosyneConflictResolution: Sendable, Equatable {
+    /// Keep the latest local edit and submit it with a new id and the
+    /// latest known server revision. A tombstoned annotation is recreated
+    /// with a new annotation id, as required by the sync contract.
+    case keepLocal(replacementMutationID: UUID)
+    /// Drop the local mutation chain and show the latest remote projection.
+    case acceptRemote
 }
 
 public struct MnemosyneLocalAnnotationEdit {
@@ -90,6 +101,9 @@ public struct MnemosyneLocalAnnotationEdit {
     func redo() throws
     func pendingMutations(limit: Int) throws -> [Data]
     func failedMutations() throws -> [Data]
+    func mutationFailureReason(_ mutationID: UUID) throws -> String?
+    func resolveMutationConflict(_ mutationID: UUID,
+                                 resolution: MnemosyneConflictResolution) throws -> Data?
     func markMutationFailed(_ mutationID: UUID, reason: String) throws
     func retryMutation(_ mutationID: UUID) throws
     func applySyncReceipts(_ receipts: Data) throws
@@ -112,6 +126,9 @@ public struct MnemosyneLocalAnnotationEdit {
     func commitApprovedEvent(_ eventID: String, mutation: Data) throws -> Data
     func pendingMutations(limit: Int) throws -> [Data]
     func failedMutations() throws -> [Data]
+    func mutationFailureReason(_ mutationID: UUID) throws -> String?
+    func resolveConflict(_ mutationID: UUID,
+                         resolution: MnemosyneConflictResolution) throws -> Data?
     func markMutationFailed(_ mutationID: UUID, reason: String) throws
     func retryMutation(_ mutationID: UUID) throws
     func commitReceipts(_ receipts: Data) throws
@@ -426,6 +443,119 @@ public struct MnemosyneLocalAnnotationEdit {
         state.outbox.filter { $0.status == .failed }.map(\.data)
     }
 
+    public func mutationFailureReason(_ mutationID: UUID) throws -> String? {
+        let key = mutationID.uuidString.lowercased()
+        guard let mutation = state.outbox.first(where: { $0.mutationID == key }) else {
+            throw MnemosyneReaderError.mutationNotFound
+        }
+        return mutation.status == .failed ? mutation.failureReason : nil
+    }
+
+    public func resolveConflict(_ mutationID: UUID,
+                                resolution: MnemosyneConflictResolution) throws -> Data? {
+        let key = mutationID.uuidString.lowercased()
+        guard let conflicted = state.outbox.first(where: { $0.mutationID == key }) else {
+            throw MnemosyneReaderError.mutationNotFound
+        }
+        guard conflicted.status == .failed, conflicted.failureReason == "conflict" else {
+            throw MnemosyneReaderError.mutationNotConflict
+        }
+
+        let chain = state.outbox.filter {
+            $0.documentID == conflicted.documentID &&
+                $0.versionID == conflicted.versionID &&
+                $0.annotationID == conflicted.annotationID
+        }
+        guard chain.first?.mutationID == key, let latest = chain.last else {
+            throw MnemosyneReaderError.mutationNotConflict
+        }
+        let fields = try Self.parseMutation(latest.data)
+        let documentID = fields.documentID
+        let documentKey = Self.key(documentID, conflicted.versionID)
+        let remoteData = state.remoteAnnotations[documentKey]?[conflicted.annotationID]
+        let remote = try remoteData.map { try Self.object($0) }
+        let remoteRevision = remote?["server_revision"] as? Int ?? 0
+        let remoteIsDeleted = remote?["deleted"] as? Bool == true
+
+        var replacement: StoredMutation?
+        var replacementData: Data?
+        if case let .keepLocal(replacementMutationID) = resolution {
+            if fields.operation == "upsert" ||
+                (fields.operation == "delete" && remote != nil && !remoteIsDeleted) {
+                let replacementKey = replacementMutationID.uuidString.lowercased()
+                let accepted = state.acceptedEventIDs ?? [:]
+                let acceptedAlreadyUsesID = try accepted.values.contains {
+                    try Self.parseMutation($0).mutationID.uuidString.lowercased() == replacementKey
+                }
+                guard replacementKey != key,
+                      state.outbox.allSatisfy({ $0.mutationID != replacementKey }),
+                      state.completedMutations[replacementKey] == nil,
+                      !acceptedAlreadyUsesID else {
+                    throw MnemosyneReaderError.idempotencyMismatch
+                }
+
+                var replacementAnnotationID = fields.annotationID
+                let replacementBaseRevision: Int
+                if fields.operation == "upsert" && remoteIsDeleted {
+                    repeat {
+                        replacementAnnotationID = UUID()
+                    } while state.remoteAnnotations.values.contains(where: {
+                        $0[replacementAnnotationID.uuidString.lowercased()] != nil
+                    }) || state.outbox.contains(where: {
+                        $0.annotationID == replacementAnnotationID.uuidString.lowercased()
+                    })
+                    replacementBaseRevision = 0
+                } else {
+                    replacementBaseRevision = remoteRevision
+                }
+
+                var object = try Self.object(latest.data)
+                object["client_mutation_id"] = replacementKey
+                object["annotation_id"] = replacementAnnotationID.uuidString.lowercased()
+                object["base_revision"] = replacementBaseRevision
+                object["created_at"] = ISO8601DateFormatter().string(from: Date())
+                if fields.operation == "upsert" {
+                    guard let annotationData = fields.annotation else {
+                        throw MnemosyneReaderError.malformedContractData
+                    }
+                    var annotation = try Self.object(annotationData)
+                    annotation["annotation_id"] = replacementAnnotationID.uuidString.lowercased()
+                    object["annotation"] = annotation
+                }
+                let canonical = try Self.canonicalJSON(object)
+                let replacementFields = try Self.parseMutation(canonical)
+                replacement = StoredMutation(
+                    mutationID: replacementKey,
+                    documentID: replacementFields.documentID.uuidString.lowercased(),
+                    versionID: replacementFields.versionID,
+                    annotationID: replacementFields.annotationID.uuidString.lowercased(),
+                    operation: replacementFields.operation,
+                    data: replacementFields.canonicalData,
+                    status: .pending,
+                    failureReason: nil
+                )
+                replacementData = replacementFields.canonicalData
+            }
+        }
+
+        let chainIDs = Set(chain.map(\.mutationID))
+        let originalIndex = state.outbox.firstIndex(where: { $0.mutationID == key }) ?? 0
+        try withTransaction {
+            state.outbox.removeAll { chainIDs.contains($0.mutationID) }
+            for mutation in chain {
+                state.completedMutations[mutation.mutationID] = mutation.data
+            }
+            if state.completedMutations.count > 1024,
+               let first = state.completedMutations.keys.sorted().first {
+                state.completedMutations.removeValue(forKey: first)
+            }
+            if let replacement {
+                state.outbox.insert(replacement, at: min(originalIndex, state.outbox.count))
+            }
+        }
+        return replacementData
+    }
+
     public func markMutationFailed(_ mutationID: UUID, reason: String) throws {
         let key = mutationID.uuidString.lowercased()
         guard let index = state.outbox.firstIndex(where: { $0.mutationID == key }) else {
@@ -441,6 +571,12 @@ public struct MnemosyneLocalAnnotationEdit {
         let key = mutationID.uuidString.lowercased()
         guard let index = state.outbox.firstIndex(where: { $0.mutationID == key }) else {
             throw MnemosyneReaderError.mutationNotFound
+        }
+        guard state.outbox[index].status == .failed else {
+            throw MnemosyneReaderError.mutationNotFound
+        }
+        if state.outbox[index].failureReason == "conflict" {
+            throw MnemosyneReaderError.mutationRequiresConflictResolution
         }
         try withTransaction {
             state.outbox[index].status = .pending
@@ -557,12 +693,23 @@ public struct MnemosyneLocalAnnotationEdit {
         let key = Self.key(documentID, versionID)
         try withTransaction {
             var remote = state.remoteAnnotations[key] ?? [:]
-            let protectedIDs = Set(state.outbox.filter {
-                $0.documentID == documentID.uuidString.lowercased() && $0.versionID == versionID
-            }.map(\.annotationID))
+            var seenChains = Set<String>()
+            let protectedIDs = Set(state.outbox.compactMap { mutation -> String? in
+                guard mutation.documentID == documentID.uuidString.lowercased(),
+                      mutation.versionID == versionID else { return nil }
+                let chain = "\(mutation.documentID)|\(mutation.versionID)|\(mutation.annotationID)"
+                guard seenChains.insert(chain).inserted, mutation.status == .pending else {
+                    return nil
+                }
+                return mutation.annotationID
+            })
             for change in changes {
                 try Self.checkAnnotation(change, documentID: documentID, versionID: versionID)
                 let annotationID = change["annotation_id"] as! String
+                // Keep the original base only for a pending head, which may
+                // already be in flight. A later pending edit behind a failed
+                // head is still a local draft, so the remote base can advance
+                // for explicit conflict resolution.
                 guard !protectedIDs.contains(annotationID) else { continue }
                 if let existing = remote[annotationID],
                    let existingObject = try? Self.object(existing),
@@ -1159,6 +1306,22 @@ public struct MnemosyneLocalAnnotationEdit {
     }
 
     public func failedMutations() throws -> [Data] { try localStore.failedMutations() }
+
+    public func mutationFailureReason(_ mutationID: UUID) throws -> String? {
+        try localStore.mutationFailureReason(mutationID)
+    }
+
+    public func resolveMutationConflict(
+        _ mutationID: UUID,
+        resolution: MnemosyneConflictResolution
+    ) throws -> Data? {
+        let replacement = try localStore.resolveConflict(mutationID, resolution: resolution)
+        if let activeDocument {
+            try engine.replaceAnnotations(localStore.annotations(documentID: activeDocument.id,
+                                                                  versionID: activeDocument.versionID))
+        }
+        return replacement
+    }
 
     public func markMutationFailed(_ mutationID: UUID, reason: String) throws {
         try localStore.markMutationFailed(mutationID, reason: reason)
