@@ -59,7 +59,13 @@
 
 6. **계약 0.2.0 — 폴더 API** — 현재 내부 구현은 workspace id를 folder id로, workspace `title`을 사용자 표시명으로 대응한다. upstream 응답의 `material_id`를 새 공개 API에 그대로 노출하지 말고 Mnemosyne document UUID로 정규화한다. 제안 DTO는 `Folder {folder_id: uuid, name: string, description: string, document_ids: uuid[]}`이다. `contracts/models.schema.json`에 schema를 추가하고 OpenAPI에 `GET /v1/folders`, `POST /v1/folders` (`{name,description}`), `PUT /v1/folders/{folder_id}/documents/{document_id}?version_id=...`, `DELETE` 동일 경로를 정의한다. 각 관계 변경은 문서/version/folder 존재를 검증하며, Folder/assignment 응답은 workspace tabs를 document UUID로 변환한다. 폴더 자체 delete나 동시 수정 ETag를 원하면 storage revision/transaction 계약도 같은 변경에서 명시한다. fixture와 `checks/validate_contracts.py`, web/iPad 소비자까지 함께 바꾼다.
 
-7. **upstream 출처 예외** — Unit01이 변경한 tracked fixture test `upstreams/DeepTutor/tests/reading/test_ingestion.py`는 `integration/upstreams.json`에 원래 SHA `8878f4000c042d9480289c1a2823d56db09630eb4776d437ed29498d808fad23`, 원래 git blob `b44b1ed3d358e8b44546e728729d282e21e33c17`로 등록돼 있다. 현재 파일 SHA-256은 `1907d7d5e714c3aae881e0b25d25893e1241d1d29a344092789c2bdf608e3c65`다. 통합 담당은 SHA를 갱신하고 원 upstream commit/blob provenance를 유지하면서 Unit01 fixture 변경 예외를 기록한 뒤 source/provenance 검사를 실행한다. `integration/upstreams.json`은 Unit01 수정 권한 밖이라 여기서는 갱신하지 않았다.
+7. **upstream 출처 예외** — Unit01이 변경한 tracked fixture test `upstreams/DeepTutor/tests/reading/test_ingestion.py`는 `integration/upstreams.json`에 원래 SHA `8878f4000c042d9480289c1a2823d56db09630eb4776d437ed29498d808fad23`, 원래 git blob `b44b1ed3d358e8b44546e728729d282e21e33c17`로 등록돼 있다. 현재 파일 SHA-256은 `f7e872fe09766228d5a9cc1fe4d9b737e3f85b2c58956f025bf949a46c9679f5`다. 통합 담당은 SHA를 갱신하고 원 upstream commit/blob provenance를 유지하면서 Unit01 fixture 변경 예외를 기록한 뒤 source/provenance 검사를 실행한다. `integration/upstreams.json`은 Unit01 수정 권한 밖이라 여기서는 갱신하지 않았다.
+
+### 실제 로컬 통합 브랜치 확인 (2026-10-09)
+
+- `codex/unit-05-api-integration` (`b1a8224c91118b8d11edfdf5b785c8207b902b5f`)에는 `build_library_router` 구현과 router 단독 TestClient 검사가 있지만 `deeptutor/api/main.py`, `mnemosyne/bootstrap.py` 어디에도 mount가 없다.
+- `codex/unit-06-cloud-runtime` (`470a01f2e4bcccdbfdb725bea65526dc32731ec2`)도 `build_library_router`를 제품 main에 mount하지 않는다. 이 브랜치의 `register_mnemosyne`는 `register_library`에 store/annotation_sync만 전달하고 `ports.py::DocumentRepository`에는 `get_page_assets`가 없다.
+- 두 branch tip 모두 계약 0.1.0과 준비 gate를 바꾸지 않는다. root main checkout의 미커밋 파일은 이 Unit01 작업에 복사하거나 병합하지 않았다. Remote가 없어 PR도 만들지 않았다.
 
 ## 검증 결과와 남은 검증
 
@@ -76,6 +82,6 @@ PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/private/tmp/mnemosyne-unit01-deps:. \
   tests/reading/test_ingestion.py::test_library_folder_listing_paginates_and_rejects_empty_names
 ```
 
-결과: **5 passed, 6 warnings**. 경고 6개는 PyMuPDF SWIG 타입의 `__module__` deprecation이다. 검사는 지정 `contracts/fixtures/bilingual-geometry.pdf` 업로드·원본 hash/권한·페이지 회전/CropBox·인용·주석 CRUD/conflict/replay/tombstone/cursor expiry/재시작/export, HTTP TestClient 설정 및 PDF 왕복, 합성 embedded raster의 페이지 mapping/hash, schema v2 DB migration, 폴더 입력검증과 500개 초과 pagination을 다룬다. provider 연결은 실패 callback fixture로만 확인했다. `git diff --check`도 통과했다.
+결과: **5 passed, 6 warnings**. 경고 6개는 PyMuPDF SWIG 타입의 `__module__` deprecation이다. 검사는 지정 `contracts/fixtures/bilingual-geometry.pdf` 업로드·원본 hash/권한·페이지 회전/CropBox·인용·주석 CRUD/conflict/replay/tombstone/cursor expiry/재시작/export, citation verification 성공과 위조 anchor 거부, HTTP TestClient 설정/PDF 왕복/citation route, 합성 embedded raster의 페이지 mapping/hash, schema v2 DB migration, 폴더 입력검증과 500개 초과 pagination을 다룬다. positive citation 검사를 처음 추가했을 때 parse_revision 지정 page 조회의 SQL binding 누락이 발견되어 `(document_id, version_id, page_index, parse_revision)` 전체를 바인딩하도록 수정했다. 이후 같은 5개 fixture 테스트가 통과했다. provider 연결은 실패 callback fixture로만 확인했다. `git diff --check`도 통과했다.
 
 아직 실행하지 않은 검증: 전체 DeepTutor suite/build, contract manifest/source check(통합이 upstream SHA 예외를 반영한 뒤 필요), 실제 main/router 조립과 auth/Origin, 실제 RAG/LLM provider·Windows WSL2/Docker 운영, 브라우저 UI, Pumice 빌드 및 실제 iPad/offline/Pencil. registry의 `product_ready=false`, `cloud_repository_access=local_only_no_origin`은 현재도 그대로다. 공통 router/계약/보호/실기기 검증이 끝나기 전 제품 기능 완료로 보고하지 않는다.

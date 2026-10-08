@@ -1184,7 +1184,7 @@ class LibraryAdapter:
                 row = conn.execute(
                     "SELECT page_json FROM mnemosyne_pages WHERE document_id=? AND version_id=? "
                     "AND page_index=? AND parse_revision=?",
-                    (document_id, version_id, str(parse_revision)),
+                    (document_id, version_id, page_index, str(parse_revision)),
                 ).fetchone()
         if row is None:
             raise LibraryError("parsed page not found")

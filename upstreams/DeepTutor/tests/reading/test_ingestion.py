@@ -1120,6 +1120,15 @@ def test_mnemosyne_pdf_upload_annotation_sync_restart_and_export(tmp_path: Path)
     invalid_anchor["quote"] = "not the source quote"
     with pytest.raises(LibraryError, match="citation text"):
         restarted.verify_anchor(invalid_anchor, page0)
+
+    verification = restarted.verify_citation(anchor, citation_id=uid())
+    assert verification["verified"] is True
+    assert restarted.require_verified_citation(verification) == verification["anchor"]
+    forged_verification = copy.deepcopy(verification)
+    forged_verification["anchor"]["quote"] = "forged source quote"
+    with pytest.raises(LibraryError, match="does not match this request"):
+        restarted.require_verified_citation(forged_verification)
+
     assert restarted.delete_document(
         document_id,
         confirm_action=f"document.delete:{document_id}",
@@ -1227,6 +1236,31 @@ def test_library_http_router_settings_and_pdf_round_trip(tmp_path: Path) -> None
         )
         assert original.status_code == 200
         assert original.content == source_bytes
+
+        page_response = client.get(
+            f"/v1/documents/{document['document_id']}/pages/0",
+            params={"version_id": document["version_id"]},
+            headers=headers,
+        )
+        assert page_response.status_code == 200, page_response.text
+        page = page_response.json()
+        segment = page["segments"][0]
+        citation_anchor = {
+            "document_id": document["document_id"],
+            "version_id": document["version_id"],
+            "page_index": 0,
+            "parse_revision": page["parse_revision"],
+            "text_sha256": page["text_sha256"],
+            "start_scalar": segment["start_scalar"],
+            "end_scalar": segment["end_scalar"],
+            "quote": page["text"][segment["start_scalar"]:segment["end_scalar"]],
+            "rects": [segment["rect"]],
+        }
+        verified_citation = client.post(
+            "/v1/citations/verify", headers=headers, json=citation_anchor
+        )
+        assert verified_citation.status_code == 200, verified_citation.text
+        assert verified_citation.json()["verified"] is True
 
 
 def test_library_pdf_image_assets_are_listable_and_hash_checked(tmp_path: Path) -> None:
