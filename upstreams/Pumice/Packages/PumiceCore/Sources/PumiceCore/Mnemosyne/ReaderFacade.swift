@@ -408,7 +408,18 @@ public struct MnemosyneLocalAnnotationEdit {
 
     public func pendingMutations(limit: Int) throws -> [Data] {
         guard limit > 0 else { return [] }
-        return state.outbox.filter { $0.status == .pending }.prefix(limit).map(\.data)
+        var seenAnnotationChains = Set<String>()
+        var result: [Data] = []
+        for mutation in state.outbox {
+            let chain = "\(mutation.documentID)|\(mutation.versionID)|\(mutation.annotationID)"
+            guard seenAnnotationChains.insert(chain).inserted else { continue }
+            // A failed head blocks later edits to the same annotation. The
+            // caller must retry or resolve it before those edits can advance.
+            guard mutation.status == .pending else { continue }
+            result.append(mutation.data)
+            if result.count == limit { break }
+        }
+        return result
     }
 
     public func failedMutations() throws -> [Data] {
@@ -462,13 +473,38 @@ public struct MnemosyneLocalAnnotationEdit {
                       state.outbox[index].versionID == versionID else {
                     throw MnemosyneReaderError.documentMismatch
                 }
-                if let current = result["current"] as? [String: Any] {
-                    try Self.checkAnnotation(current, documentID: documentID, versionID: versionID)
-                    let annotationID = current["annotation_id"] as! String
-                    state.remoteAnnotations[Self.key(documentID, versionID), default: [:]][annotationID] =
-                        try Self.canonicalJSON(current)
+                guard let status = result["status"] as? String,
+                      ["applied", "conflict", "rejected"].contains(status),
+                      let code = result["code"] as? String,
+                      ["ok", "conflict", "idempotency_mismatch", "invalid_request", "document_deleted"].contains(code),
+                      let serverRevision = result["server_revision"] as? Int,
+                      serverRevision >= 0,
+                      let currentValue = result["current"] else {
+                    throw MnemosyneReaderError.malformedContractData
                 }
-                if result["status"] as? String == "applied" {
+                let statusAndCodeAgree =
+                    (status == "applied" && code == "ok") ||
+                    (status == "conflict" && code == "conflict") ||
+                    (status == "rejected" && ["idempotency_mismatch", "invalid_request", "document_deleted"].contains(code))
+                guard statusAndCodeAgree else { throw MnemosyneReaderError.malformedContractData }
+                let current: [String: Any]?
+                if let value = currentValue as? [String: Any] {
+                    current = value
+                    try Self.checkAnnotation(value, documentID: documentID, versionID: versionID)
+                    guard value["annotation_id"] as? String == state.outbox[index].annotationID,
+                          let annotationRevision = value["server_revision"] as? Int,
+                          annotationRevision <= serverRevision else {
+                        throw MnemosyneReaderError.documentMismatch
+                    }
+                    let annotationID = state.outbox[index].annotationID
+                    state.remoteAnnotations[Self.key(documentID, versionID), default: [:]][annotationID] =
+                        try Self.canonicalJSON(value)
+                } else if currentValue is NSNull {
+                    current = nil
+                } else {
+                    throw MnemosyneReaderError.malformedContractData
+                }
+                if status == "applied" {
                     let completed = state.outbox.remove(at: index)
                     state.completedMutations[completed.mutationID] = completed.data
                     if state.completedMutations.count > 1024,
@@ -479,12 +515,33 @@ public struct MnemosyneLocalAnnotationEdit {
                         state.remoteAnnotations[Self.key(documentID, versionID)]?
                             .removeValue(forKey: completed.annotationID)
                     }
+                    let nextBaseRevision = current?["server_revision"] as? Int ?? 0
+                    try rebaseNextMutation(after: completed, baseRevision: nextBaseRevision)
                 } else {
                     state.outbox[index].status = .failed
-                    state.outbox[index].failureReason = result["code"] as? String ?? "server_rejected"
+                    state.outbox[index].failureReason = code
                 }
             }
         }
+    }
+
+    /// Only the head mutation for an annotation is exposed by
+    /// `pendingMutations`. After its receipt is applied, the next unsent
+    /// mutation can safely use the server revision produced by that receipt.
+    private func rebaseNextMutation(after completed: StoredMutation,
+                                    baseRevision: Int) throws {
+        guard let index = state.outbox.firstIndex(where: {
+            $0.documentID == completed.documentID &&
+                $0.versionID == completed.versionID &&
+                $0.annotationID == completed.annotationID
+        }), state.outbox[index].status == .pending else { return }
+
+        var mutation = try Self.object(state.outbox[index].data)
+        guard mutation["client_mutation_id"] as? String == state.outbox[index].mutationID else {
+            throw MnemosyneReaderError.malformedContractData
+        }
+        mutation["base_revision"] = baseRevision
+        state.outbox[index].data = try Self.canonicalJSON(mutation)
     }
 
     public func commitChangesAndCursor(_ page: Data) throws {

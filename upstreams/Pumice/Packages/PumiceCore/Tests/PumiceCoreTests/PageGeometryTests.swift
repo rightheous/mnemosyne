@@ -327,6 +327,77 @@ struct MnemosyneLocalStoreTests {
         }
     }
 
+    @Test("Same-annotation outbox edits wait for the prior receipt and advance revision")
+    func sameAnnotationOutboxAdvancesRevision() throws {
+        let root = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = try FileMnemosyneLocalStore(rootDirectory: root)
+        let initial = annotationRecord(body: "server value", revision: 5)
+        try store.commitChangesAndCursor(try json([
+            "contract_version": "0.1.0",
+            "document_id": documentID.uuidString.lowercased(),
+            "version_id": versionID,
+            "changes": [initial],
+            "next_cursor": "cursor-5",
+            "has_more": false
+        ]))
+
+        let secondMutationID = UUID(uuidString: "00000000-0000-0000-0000-00000000000d")!
+        let first = try makeMutation(body: "first local value")
+        let second = try makeMutation(body: "second local value", mutationID: secondMutationID)
+        try store.commitEditAndOutbox(first)
+        try store.commitEditAndOutbox(second)
+
+        let firstPending = try store.pendingMutations(limit: 10)
+        #expect(firstPending.count == 1)
+        let firstObject = try JSONSerialization.jsonObject(with: #require(firstPending.first)) as! [String: Any]
+        #expect(firstObject["client_mutation_id"] as? String == mutationID.uuidString.lowercased())
+        #expect(firstObject["base_revision"] as? Int == 5)
+
+        try store.markMutationFailed(mutationID, reason: "temporary offline")
+        #expect(try store.pendingMutations(limit: 10).isEmpty)
+        try store.retryMutation(mutationID)
+
+        let firstCurrent = annotationRecord(body: "first local value", revision: 6)
+        try store.commitReceipts(try json([
+            "contract_version": "0.1.0",
+            "document_id": documentID.uuidString.lowercased(),
+            "version_id": versionID,
+            "results": [[
+                "client_mutation_id": mutationID.uuidString.lowercased(),
+                "status": "applied",
+                "code": "ok",
+                "server_revision": 6,
+                "current": firstCurrent
+            ]]
+        ]))
+
+        let secondPending = try store.pendingMutations(limit: 10)
+        #expect(secondPending.count == 1)
+        let secondObject = try JSONSerialization.jsonObject(with: #require(secondPending.first)) as! [String: Any]
+        #expect(secondObject["client_mutation_id"] as? String == secondMutationID.uuidString.lowercased())
+        #expect(secondObject["base_revision"] as? Int == 6)
+
+        let secondCurrent = annotationRecord(body: "second local value", revision: 7)
+        try store.commitReceipts(try json([
+            "contract_version": "0.1.0",
+            "document_id": documentID.uuidString.lowercased(),
+            "version_id": versionID,
+            "results": [[
+                "client_mutation_id": secondMutationID.uuidString.lowercased(),
+                "status": "applied",
+                "code": "ok",
+                "server_revision": 7,
+                "current": secondCurrent
+            ]]
+        ]))
+        #expect(try store.pendingMutations(limit: 10).isEmpty)
+        let visible = try #require(store.annotations(documentID: documentID, versionID: versionID).first)
+        let visibleObject = try JSONSerialization.jsonObject(with: visible) as! [String: Any]
+        let visiblePayload = visibleObject["payload"] as? [String: Any]
+        #expect(visiblePayload?["body"] as? String == "second local value")
+    }
+
     @Test("Approved annotation event and outbox survive restart and replay")
     func approvedEventIsDurableAndIdempotent() throws {
         let root = temporaryDirectory()
@@ -404,7 +475,7 @@ struct MnemosyneLocalStoreTests {
         return url
     }
 
-    private func makeMutation(body: String) throws -> Data {
+    private func makeMutation(body: String, mutationID: UUID? = nil) throws -> Data {
         let draft: [String: Any] = [
             "annotation_id": annotationID.uuidString.lowercased(),
             "document_id": documentID.uuidString.lowercased(),
@@ -414,7 +485,7 @@ struct MnemosyneLocalStoreTests {
             "payload": ["position": [10, 20], "body": body, "anchor": NSNull()]
         ]
         return try json([
-            "client_mutation_id": mutationID.uuidString.lowercased(),
+            "client_mutation_id": (mutationID ?? self.mutationID).uuidString.lowercased(),
             "client_id": clientID.uuidString.lowercased(),
             "document_id": documentID.uuidString.lowercased(),
             "version_id": versionID,
