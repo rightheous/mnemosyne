@@ -162,7 +162,7 @@ Migration acceptance points:
 
 | 영역 | 지금 확인된 것 | 제품 인수 전에 추가할 것 |
 |---|---|---|
-| DTO/adapter fixture | public Quiz의 추가 private field 거부, document version mismatch 거부, Attempt/MemoryReview 입력, native turn routing fixture | 모든 nested LearningState field, malformed citation, 중복 answer/question, Assessment attempt/citation/version mismatch |
+| DTO/adapter fixture | public Quiz의 추가 private field 거부, immutable document version match, Attempt/MemoryReview/activity 입력, LearningState의 quiz attempt/mastery/memory/progress/activity nested schema, 잘못된 activity turn ID 거부, native turn routing fixture | malformed citation, 중복 answer/question, Assessment attempt/citation/version mismatch |
 | DB | 이번 UNIT-02 checkpoint는 실제 DB patch를 적용하지 않음 | migration fresh/upgrade/replay, atomic rollback, 동시 idempotency, 같은 ID 다른 hash, revision CAS, user isolation, process restart replay |
 | Provider | 기존 fixture는 mock/provider-free | private rubric의 server-only 접근, 한국어 feedback, timeout/error/retry, provider 중복 방지, 실제 credential 환경의 평가 |
 | API | `contracts/openapi.yaml` 경로 확인. Router mount 검증은 없음 | auth/user scope, contract header, status/error mapping, `/v1/*` 실 mount, API integration fixture |
@@ -175,4 +175,4 @@ Migration acceptance points:
 env DEEPTUTOR_HOME=/private/tmp/mnemosyne-unit02-test-home uv run --directory upstreams/DeepTutor --no-project --with pytest --with pytest-asyncio --with fastapi --with httpx --with pydantic --with pydantic-settings --with PyYAML --with PyMuPDF --with openai --with aiosqlite --with python-multipart --with jinja2 --with tiktoken --with requests --with aiohttp --with ddgs --with tenacity --with packaging --with jsonschema --with redis --with loguru --with json-repair --with croniter --with psutil --with 'python-jose[cryptography]' --with defusedxml --with bcrypt -- python -m pytest deeptutor/learning/tests/test_prompt_language_fallback.py tests/api/routers/test_quiz_judge_unit.py tests/runtime/test_lazy_builtin_catalogs.py tests/api/test_unified_ws_turn_runtime.py tests/multi_user/test_learning_reading_turns.py tests/services/test_task_models.py
 ```
 
-결과: **132 passed, 4 warnings**. `tutor.py` 및 해당 runtime fixture는 Python AST parse를 통과했고, 변경 UNIT-02 파일의 `git diff --check`도 통과했다. 이 결과는 source fixture/unit 검사다. mounted API, 실제 SQLite migration/restart, 실제 provider 호출, iPadOS build/device는 검증하지 않았다. 테스트 및 문법 검사는 upstream 라이선스/원본 경로를 변경하지 않았다.
+결과: **134 passed, 4 warnings**. `tutor.py` 및 해당 runtime fixture는 Python AST parse를 통과했고, 변경 UNIT-02 파일의 `git diff --check`도 통과했다. `LearningState`의 nested quiz-attempt, mastery, memory/citation, progress, activity entry 및 `save_activity` 입력/저장 결과를 schema 형태로 검사한다. 이 결과는 source fixture/unit 검사다. mounted API, 실제 SQLite migration/restart, 실제 provider 호출, iPadOS build/device는 검증하지 않았다. 테스트 및 문법 검사는 upstream 라이선스/원본 경로를 변경하지 않았다.

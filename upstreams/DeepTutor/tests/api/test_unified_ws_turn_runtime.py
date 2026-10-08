@@ -1896,15 +1896,49 @@ async def test_tutor_learning_mutations_match_contract_revision_fields():
         "learning_revision": 2,
         "citations": [citation],
     }
+    activity = {
+        "activity_id": "00000000-0000-0000-0000-000000000034",
+        "kind": "chat",
+        "turn_id": "turn_mnemosyne_1",
+        "summary_ko": "에너지와 질량의 관계를 복습했습니다.",
+        "created_at": "2026-10-08T07:02:00Z",
+    }
     state = {
         "document_id": document_id,
         "version_id": version_id,
         "learning_revision": 2,
-        "quiz_attempts": [],
-        "mastery": [],
-        "memory": [],
-        "progress": {},
-        "activities": [],
+        "quiz_attempts": [
+            {
+                "attempt_id": assessment["attempt_id"],
+                "quiz_id": quiz["quiz_id"],
+                "score": 1.0,
+            }
+        ],
+        "mastery": [
+            {
+                "concept_id": "mass-energy",
+                "label_ko": "질량과 에너지",
+                "score": 1.0,
+                "evidence_attempt_ids": [assessment["attempt_id"]],
+            }
+        ],
+        "memory": [
+            {
+                "memory_id": "00000000-0000-0000-0000-000000000035",
+                "front_ko": "식 E=mc²에서 m은 무엇을 뜻하나요?",
+                "back_ko": "질량을 뜻합니다.",
+                "due_at": "2026-10-09T07:00:00Z",
+                "review_count": 0,
+                "citations": [citation],
+            }
+        ],
+        "progress": {
+            "last_page_index": 1,
+            "pages_read": [0, 1],
+            "reading_seconds": 180,
+            "next_review_at": "2026-10-09T07:00:00Z",
+        },
+        "activities": [activity],
     }
 
     class RecordingLearningStore:
@@ -1918,6 +1952,11 @@ async def test_tutor_learning_mutations_match_contract_revision_fields():
 
         async def review_memory(self, review):
             observed["review"] = review
+            return state
+
+        async def save_activity(self, saved_activity, mutation_id, base_revision):
+            observed["activity"] = saved_activity
+            observed["activity_mutation"] = (mutation_id, base_revision)
             return state
 
     tutor = TutorAdapter(
@@ -1945,11 +1984,15 @@ async def test_tutor_learning_mutations_match_contract_revision_fields():
         "grade": 3,
         "reviewed_at": "2026-10-08T07:01:00Z",
     }
+    activity_mutation_id = "00000000-0000-0000-0000-000000000036"
 
     assert await tutor.submit_attempt(attempt) == assessment
     assert observed["attempt"] == attempt
     assert await tutor.review_memory(review) == state
     assert observed["review"] == review
+    assert await tutor.save_activity(activity, activity_mutation_id, 1) == state
+    assert observed["activity"] == activity
+    assert observed["activity_mutation"] == (activity_mutation_id, 1)
 
 
 @pytest.mark.asyncio
@@ -2032,4 +2075,77 @@ async def test_tutor_quiz_and_learning_state_fail_closed_on_private_or_wrong_ver
     with pytest.raises(ValueError, match="another document version"):
         await tutor.get_learning_state(
             "00000000-0000-0000-0000-000000000001", "sha256:" + "a" * 64
+        )
+
+
+@pytest.mark.asyncio
+async def test_tutor_learning_state_rejects_invalid_nested_entries_and_activity_ids():
+    from deeptutor.mnemosyne.tutor import TutorAdapter
+
+    document_id = "00000000-0000-0000-0000-000000000001"
+    version_id = "sha256:" + "a" * 64
+    state = {
+        "document_id": document_id,
+        "version_id": version_id,
+        "learning_revision": 1,
+        "quiz_attempts": [
+            {
+                "attempt_id": "00000000-0000-0000-0000-00000000002a",
+                "quiz_id": "00000000-0000-0000-0000-000000000028",
+                "score": True,
+            }
+        ],
+        "mastery": [],
+        "memory": [],
+        "progress": {
+            "last_page_index": 0,
+            "pages_read": [],
+            "reading_seconds": 0,
+            "next_review_at": "2026-10-09T07:00:00Z",
+        },
+        "activities": [],
+    }
+
+    class LearningStore:
+        async def get_state(self, _document_id):
+            return state
+
+    tutor = TutorAdapter(object(), SimpleNamespace(annotation_sync=object()), LearningStore())
+    with pytest.raises(ValueError, match="quiz_attempt.score"):
+        await tutor.get_learning_state(document_id, version_id)
+
+    state["quiz_attempts"] = []
+    state["activities"] = [
+        {
+            "activity_id": "00000000-0000-0000-0000-000000000034",
+            "kind": "chat",
+            "turn_id": "turn with spaces",
+            "summary_ko": "복습",
+            "created_at": "2026-10-09T07:00:00Z",
+        }
+    ]
+    with pytest.raises(ValueError, match="activity.turn_id"):
+        await tutor.get_learning_state(document_id, version_id)
+
+
+@pytest.mark.asyncio
+async def test_tutor_save_activity_rejects_malformed_activity_before_store_write():
+    from deeptutor.mnemosyne.tutor import TutorAdapter
+
+    class LearningStore:
+        async def save_activity(self, *_args):
+            raise AssertionError("malformed activity reached the store")
+
+    tutor = TutorAdapter(object(), SimpleNamespace(annotation_sync=object()), LearningStore())
+    with pytest.raises(ValueError, match="turn_id"):
+        await tutor.save_activity(
+            {
+                "activity_id": "00000000-0000-0000-0000-000000000034",
+                "kind": "chat",
+                "turn_id": "invalid turn id",
+                "summary_ko": "복습",
+                "created_at": "2026-10-09T07:00:00Z",
+            },
+            "00000000-0000-0000-0000-000000000036",
+            0,
         )

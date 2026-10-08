@@ -67,6 +67,6 @@
 ## 추가 checkpoint — 2026-10-09
 
 - 사용자 요청으로 DB/API/contract/dependency 명세와 소유자별 patch 제안을 [`docs/handoffs/unit-02.md`](../docs/handoffs/unit-02.md)에 작성했다. 이 경로는 여전히 committed `integration/ownership.json`에 배정되지 않았으므로, 통합 담당이 소유권 map에 추가해야 한다.
-- `TutorAdapter`가 반환하는 public Quiz, Assessment, LearningState를 fail-closed 검사한다. Quiz/Assessment는 허용 키와 주요 필드를 검사하고 LearningState는 최상위 키 및 기본 자료형을 확인한다. Quiz에서 private/추가 필드를 거부하고, immutable document/version, quiz question IDs, Assessment attempt ID와 quiz citation 집합을 대조한다. citation 검사기는 DTO 형식과 source 집합을 검사한다. LearningState nested elements의 전체 schema 검증, 원문 quote/hash의 실제 재검증 및 durable storage는 연결되지 않았다.
-- 전체 지정 6개 pytest 파일을 다시 실행해 **132 passed, 4 warnings**를 확인했다. 변경 Python 2개 파일은 AST parse 통과, 변경 UNIT-02 파일 `git diff --check` 통과. provider, DB migration/restart, mounted API, browser/iPad build/device 검증은 수행하지 않았다.
+- `TutorAdapter`가 반환하는 public Quiz, Assessment, LearningState를 fail-closed 검사한다. Quiz/Assessment는 허용 키와 주요 필드를 검사하고 LearningState는 nested quiz-attempt, mastery, memory/citation, progress, activity entry까지 contract shape를 검사한다. Quiz에서 private/추가 필드를 거부하고, immutable document/version, quiz question IDs, Assessment attempt ID와 quiz citation 집합을 대조한다. `save_activity` 입력 및 저장 결과도 검증한다. citation 검사는 DTO 구조/출처 집합 검사이며 원문 quote/hash 재검증은 별도 citation verifier가 필요하다.
+- 전체 지정 6개 pytest 파일을 다시 실행해 **134 passed, 4 warnings**를 확인했다. 변경 Python 2개 파일은 AST parse 통과, 변경 UNIT-02 파일 `git diff --check` 통과. provider, DB migration/restart, mounted API, browser/iPad build/device 검증은 수행하지 않았다.
 - 계약은 `0.1.0`을 유지했다. `/v1/*`는 planned/unmounted이고 `/ws` protocol 2.0은 현재 native stream transport다. `LearningStateStore.get_quiz`, private grading 입력, claim/commit API 및 durable store wiring은 통합 담당/UNIT-01 인수를 기다린다.

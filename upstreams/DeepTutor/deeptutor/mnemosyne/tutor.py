@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from datetime import datetime
 import math
 import re
+from dataclasses import dataclass
+from datetime import datetime
 from typing import Any
 from uuid import UUID
 
@@ -60,6 +60,19 @@ _LEARNING_STATE_FIELDS = {
     "progress",
     "activities",
 }
+_ACTIVITY_KINDS = frozenset(
+    {
+        "chat",
+        "reading",
+        "quiz",
+        "assessment",
+        "mastery",
+        "solve",
+        "memory",
+        "progress",
+        "review",
+    }
+)
 
 
 def _required_id(value: Any, field: str, *, uuid_value: bool = False) -> str:
@@ -98,6 +111,26 @@ def _safe_integer(value: Any, field: str, *, minimum: int) -> int:
     return value
 
 
+def _required_text(value: Any, field: str) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"{field} is required")
+    return value
+
+
+def _score(value: Any, field: str) -> float | int:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(f"{field} must be between 0 and 1")
+    if value < 0 or value > 1 or (isinstance(value, float) and not math.isfinite(value)):
+        raise ValueError(f"{field} must be between 0 and 1")
+    return value
+
+
+def _exact_object(value: Any, fields: set[str], field: str) -> dict[str, Any]:
+    if not isinstance(value, dict) or set(value) != fields:
+        raise ValueError(f"{field} fields do not match the contract")
+    return value
+
+
 def _validate_verified_citation(
     citation: Any, *, document_id: str, version_id: str
 ) -> dict[str, Any]:
@@ -133,8 +166,7 @@ def _validate_verified_citation(
     ):
         raise ValueError("citation belongs to another document version")
     _safe_integer(anchor.get("page_index"), "anchor.page_index", minimum=0)
-    if not str(anchor.get("parse_revision") or "").strip():
-        raise ValueError("anchor.parse_revision is required")
+    _required_text(anchor.get("parse_revision"), "anchor.parse_revision")
     if not re.fullmatch(r"[a-f0-9]{64}", str(anchor.get("text_sha256") or "")):
         raise ValueError("anchor.text_sha256 must be a SHA-256 digest")
     start = _safe_integer(anchor.get("start_scalar"), "anchor.start_scalar", minimum=0)
@@ -150,7 +182,7 @@ def _validate_verified_citation(
             not isinstance(rect, list)
             or len(rect) != 4
             or any(isinstance(value, bool) or not isinstance(value, (int, float)) for value in rect)
-            or not all(math.isfinite(value) for value in rect)
+            or any(isinstance(value, float) and not math.isfinite(value) for value in rect)
             or rect[2] <= 0
             or rect[3] <= 0
         ):
@@ -161,7 +193,7 @@ def _validate_verified_citation(
 def _validate_public_quiz(quiz: Any) -> dict[str, Any]:
     if not isinstance(quiz, dict) or set(quiz) != _QUIZ_FIELDS:
         raise ValueError("quiz fields do not match the public Quiz contract")
-    quiz_id = _required_id(quiz.get("quiz_id"), "quiz_id", uuid_value=True)
+    _required_id(quiz.get("quiz_id"), "quiz_id", uuid_value=True)
     document_id = _required_id(quiz.get("document_id"), "document_id", uuid_value=True)
     version_id = str(quiz.get("version_id") or "").strip()
     if not _VERSION_RE.fullmatch(version_id):
@@ -188,11 +220,13 @@ def _validate_public_quiz(quiz: Any) -> dict[str, Any]:
         seen_question_ids.add(question_id)
         if not isinstance(question.get("prompt"), str) or not question["prompt"].strip():
             raise ValueError("question.prompt is required")
-        if question.get("kind") not in {"single_choice", "free_text"}:
+        kind = question.get("kind")
+        if not isinstance(kind, str) or kind not in {"single_choice", "free_text"}:
             raise ValueError("question.kind is unsupported")
         choices = question.get("choices")
         if not isinstance(choices, list):
             raise ValueError("question.choices must be an array")
+        seen_choice_ids: set[str] = set()
         for choice in choices:
             if (
                 not isinstance(choice, dict)
@@ -203,6 +237,9 @@ def _validate_public_quiz(quiz: Any) -> dict[str, Any]:
                 or not choice["text"].strip()
             ):
                 raise ValueError("question choice does not match the Choice contract")
+            if choice["choice_id"] in seen_choice_ids:
+                raise ValueError("question choice IDs must be unique")
+            seen_choice_ids.add(choice["choice_id"])
         citations = question.get("citations")
         if not isinstance(citations, list) or not citations:
             raise ValueError("every question requires a verified citation")
@@ -232,12 +269,105 @@ def _validate_learning_state(
     if version_id is not None and resolved_version_id != version_id:
         raise ValueError("learning state belongs to another document version")
     _safe_integer(state.get("learning_revision"), "learning_revision", minimum=1)
-    for name in ("quiz_attempts", "mastery", "memory", "activities"):
-        if not isinstance(state.get(name), list):
-            raise ValueError(f"learning state {name} must be an array")
-    if not isinstance(state.get("progress"), dict):
-        raise ValueError("learning state progress must be an object")
+    quiz_attempts = state.get("quiz_attempts")
+    if not isinstance(quiz_attempts, list):
+        raise ValueError("learning state quiz_attempts must be an array")
+    for attempt in quiz_attempts:
+        attempt = _exact_object(
+            attempt, {"attempt_id", "quiz_id", "score"}, "learning state quiz attempt"
+        )
+        _required_id(attempt.get("attempt_id"), "quiz_attempt.attempt_id", uuid_value=True)
+        _required_id(attempt.get("quiz_id"), "quiz_attempt.quiz_id", uuid_value=True)
+        _score(attempt.get("score"), "quiz_attempt.score")
+
+    mastery = state.get("mastery")
+    if not isinstance(mastery, list):
+        raise ValueError("learning state mastery must be an array")
+    for item in mastery:
+        item = _exact_object(
+            item,
+            {"concept_id", "label_ko", "score", "evidence_attempt_ids"},
+            "learning state mastery item",
+        )
+        _required_text(item.get("concept_id"), "mastery.concept_id")
+        _required_text(item.get("label_ko"), "mastery.label_ko")
+        _score(item.get("score"), "mastery.score")
+        evidence = item.get("evidence_attempt_ids")
+        if not isinstance(evidence, list):
+            raise ValueError("mastery.evidence_attempt_ids must be an array")
+        for attempt_id in evidence:
+            _required_id(attempt_id, "mastery.evidence_attempt_id", uuid_value=True)
+
+    memory_items = state.get("memory")
+    if not isinstance(memory_items, list):
+        raise ValueError("learning state memory must be an array")
+    for item in memory_items:
+        item = _exact_object(
+            item,
+            {"memory_id", "front_ko", "back_ko", "due_at", "review_count", "citations"},
+            "learning state memory item",
+        )
+        _required_id(item.get("memory_id"), "memory.memory_id", uuid_value=True)
+        _required_text(item.get("front_ko"), "memory.front_ko")
+        _required_text(item.get("back_ko"), "memory.back_ko")
+        _required_timestamp(item.get("due_at"), "memory.due_at")
+        _safe_integer(item.get("review_count"), "memory.review_count", minimum=0)
+        citations = item.get("citations")
+        if not isinstance(citations, list) or not citations:
+            raise ValueError("memory.citations must contain at least one citation")
+        for citation in citations:
+            _validate_verified_citation(
+                citation,
+                document_id=resolved_document_id,
+                version_id=resolved_version_id,
+            )
+
+    progress = _exact_object(
+        state.get("progress"),
+        {"last_page_index", "pages_read", "reading_seconds", "next_review_at"},
+        "learning state progress",
+    )
+    _safe_integer(progress.get("last_page_index"), "progress.last_page_index", minimum=0)
+    pages_read = progress.get("pages_read")
+    if not isinstance(pages_read, list):
+        raise ValueError("progress.pages_read must be an array")
+    normalized_pages = [
+        _safe_integer(page, "progress.pages_read[]", minimum=0) for page in pages_read
+    ]
+    if len(normalized_pages) != len(set(normalized_pages)):
+        raise ValueError("progress.pages_read must not contain duplicate pages")
+    _safe_integer(progress.get("reading_seconds"), "progress.reading_seconds", minimum=0)
+    _required_timestamp(progress.get("next_review_at"), "progress.next_review_at")
+
+    activities = state.get("activities")
+    if not isinstance(activities, list):
+        raise ValueError("learning state activities must be an array")
+    for activity in activities:
+        _validate_learning_activity(activity)
     return state
+
+
+def _validate_learning_activity(activity: Any) -> dict[str, Any]:
+    activity = _exact_object(
+        activity,
+        {"activity_id", "kind", "turn_id", "summary_ko", "created_at"},
+        "learning activity",
+    )
+    _required_id(activity.get("activity_id"), "activity.activity_id", uuid_value=True)
+    kind = activity.get("kind")
+    if not isinstance(kind, str) or kind not in _ACTIVITY_KINDS:
+        raise ValueError("activity.kind is unsupported")
+    turn_id = activity.get("turn_id")
+    if turn_id is not None and (
+        not isinstance(turn_id, str)
+        or not 1 <= len(turn_id) <= 256
+        or not re.fullmatch(r"[A-Za-z0-9_-]+", turn_id)
+    ):
+        raise ValueError("activity.turn_id must be a native turn ID or null")
+    if not isinstance(activity.get("summary_ko"), str):
+        raise ValueError("activity.summary_ko must be a string")
+    _required_timestamp(activity.get("created_at"), "activity.created_at")
+    return activity
 
 
 def _validate_assessment(
@@ -252,14 +382,7 @@ def _validate_assessment(
         "attempt_id"
     ]:
         raise ValueError("assessment belongs to another attempt")
-    score = assessment.get("score")
-    if (
-        isinstance(score, bool)
-        or not isinstance(score, (int, float))
-        or not math.isfinite(score)
-        or not 0 <= score <= 1
-    ):
-        raise ValueError("assessment.score must be between 0 and 1")
+    _score(assessment.get("score"), "assessment.score")
     feedback = assessment.get("feedback_ko")
     if not isinstance(feedback, str) or not feedback.strip():
         raise ValueError("assessment.feedback_ko is required")
@@ -333,7 +456,12 @@ def native_protocol_turn_request(request: dict[str, Any]) -> TurnRequest:
     if capability == "immersive_reading":
         material_id = str(payload.get("reading_material_id") or "").strip()
         revision = payload.get("reading_material_revision")
-        if not material_id or isinstance(revision, bool) or not isinstance(revision, int) or revision < 1:
+        if (
+            not material_id
+            or isinstance(revision, bool)
+            or not isinstance(revision, int)
+            or revision < 1
+        ):
             raise ValueError("Reading requires a server-resolved material and revision")
         viewport = payload.get("reading_viewport")
         if isinstance(viewport, dict):
@@ -371,13 +499,20 @@ def native_turn_request(
     page_index = context.get("page_index")
     viewport: dict[str, Any] | None = None
     if context:
-        document_id = _required_id(context.get("document_id"), "reader_context.document_id", uuid_value=True)
+        document_id = _required_id(
+            context.get("document_id"), "reader_context.document_id", uuid_value=True
+        )
         version_id = str(context.get("version_id") or "")
         if not _VERSION_RE.fullmatch(version_id):
             raise ValueError("reader_context.version_id must be a full SHA-256 version")
         if isinstance(page_index, bool) or not isinstance(page_index, int) or page_index < 0:
             raise ValueError("reader_context.page_index must be a non-negative integer")
-        if not native_material_id or isinstance(native_revision, bool) or not isinstance(native_revision, int) or native_revision < 1:
+        if (
+            not native_material_id
+            or isinstance(native_revision, bool)
+            or not isinstance(native_revision, int)
+            or native_revision < 1
+        ):
             if action == "reading":
                 raise ValueError("Reading requires the server-resolved material and revision")
         else:
@@ -581,7 +716,9 @@ class TutorAdapter:
             or base_revision > _MAX_SAFE_INTEGER
         ):
             raise ValueError("base_learning_revision must be a non-negative safe integer")
-        normalized["submitted_at"] = _required_timestamp(attempt.get("submitted_at"), "submitted_at")
+        normalized["submitted_at"] = _required_timestamp(
+            attempt.get("submitted_at"), "submitted_at"
+        )
 
         answers = attempt.get("answers")
         if not isinstance(answers, list) or not answers:
@@ -609,7 +746,10 @@ class TutorAdapter:
         ):
             raise ValueError("attempt does not match the immutable quiz document version")
         quiz_question_ids = {question["question_id"] for question in quiz["questions"]}
-        if any(answer["question_id"] not in quiz_question_ids for answer in normalized_answers):
+        answer_ids = [answer["question_id"] for answer in normalized_answers]
+        if len(answer_ids) != len(set(answer_ids)):
+            raise ValueError("attempt contains duplicate question answers")
+        if any(question_id not in quiz_question_ids for question_id in answer_ids):
             raise ValueError("attempt contains a question outside the stored quiz")
         result = await _learning_store(self.learning_store).submit_attempt(normalized)
         return _validate_assessment(result, attempt=normalized, quiz=quiz)
@@ -619,13 +759,16 @@ class TutorAdapter:
     ) -> dict[str, Any]:
         if not isinstance(activity, dict):
             raise ValueError("activity must be an object")
-        if activity.get("kind") not in SUPPORTED_CAPABILITIES:
-            raise ValueError("Unsupported learning activity kind")
-        if isinstance(base_revision, bool) or not isinstance(base_revision, int) or base_revision < 0:
-            raise ValueError("base_revision must be a non-negative integer")
-        return await _learning_store(self.learning_store).save_activity(
-            dict(activity), _required_id(mutation_id, "mutation_id", uuid_value=True), base_revision
+        normalized_revision = _safe_integer(
+            base_revision, "base_revision", minimum=0
         )
+        normalized_activity = _validate_learning_activity(dict(activity))
+        state = await _learning_store(self.learning_store).save_activity(
+            normalized_activity,
+            _required_id(mutation_id, "mutation_id", uuid_value=True),
+            normalized_revision,
+        )
+        return _validate_learning_state(state)
 
     async def review_memory(self, review: dict[str, Any]) -> dict[str, Any]:
         if not isinstance(review, dict):
