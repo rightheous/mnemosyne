@@ -46,6 +46,14 @@ BUILTIN_CAPABILITY_CLASSES: dict[str, str] = {
     "audio_overview": ("deeptutor.capabilities.audio_overview.capability:AudioOverviewCapability"),
 }
 
+# Mnemosyne is a personal tutor deployment. Keep its executable surface
+# explicit: the upstream source remains intact, while unneeded research,
+# collaboration, authoring, audio, and external-agent capabilities are not
+# registered or advertised by this product.
+MNEMOSYNE_CAPABILITY_NAMES = frozenset(
+    {"chat", "immersive_reading", "deep_solve", "deep_question", "mastery_path"}
+)
+
 
 BUILTIN_CAPABILITY_SPECS: dict[str, BuiltinCapabilitySpec] = {
     "chat": BuiltinCapabilitySpec(
@@ -259,4 +267,5 @@ __all__ = [
     "BUILTIN_CAPABILITY_CLASSES",
     "BUILTIN_CAPABILITY_SPECS",
     "BuiltinCapabilitySpec",
+    "MNEMOSYNE_CAPABILITY_NAMES",
 ]

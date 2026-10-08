@@ -5,12 +5,14 @@ from __future__ import annotations
 import asyncio
 from collections.abc import AsyncIterator, Callable
 import contextlib
+from datetime import datetime, timezone
 import hashlib
 import inspect
 import json
 import logging
 import time
 from typing import TYPE_CHECKING, Any
+from uuid import NAMESPACE_URL, uuid5
 
 from deeptutor.core.stream import StreamEvent, StreamEventType
 from deeptutor.services.session.protocol import SessionStoreProtocol
@@ -28,6 +30,101 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 _SUBSCRIPTION_POLL_SECONDS = 5.0
+_MNEMOSYNE_ERROR_CODES = frozenset(
+    {
+        "unauthorized",
+        "forbidden",
+        "invalid_request",
+        "invalid_pdf",
+        "too_large",
+        "not_found",
+        "not_ready",
+        "conflict",
+        "idempotency_mismatch",
+        "cursor_expired",
+        "document_deleted",
+        "contract_mismatch",
+        "rate_limited",
+        "provider_error",
+        "internal_error",
+    }
+)
+
+
+def _mnemosyne_event_extension(
+    execution: _TurnExecution,
+    event: StreamEvent,
+    *,
+    seq: int,
+    marker: Any = None,
+) -> dict[str, Any] | None:
+    """Build the contract event before its containing native frame is journaled."""
+    semantic_type: str | None = None
+    semantic_payload: dict[str, Any] | None = None
+    if isinstance(marker, dict):
+        semantic_type = str(marker.get("type") or "")
+        raw_payload = marker.get("payload")
+        semantic_payload = raw_payload if isinstance(raw_payload, dict) else None
+    elif event.type == StreamEventType.CONTENT and event.content:
+        semantic_type = "assistant.delta"
+        semantic_payload = {"text": event.content}
+    elif event.type == StreamEventType.DONE:
+        metadata = event.metadata if isinstance(event.metadata, dict) else {}
+        status = str(metadata.get("status") or "completed")
+        if status == "cancelled":
+            semantic_type = "turn.cancelled"
+            reason = str(metadata.get("cancel_reason") or "user_cancelled")
+            semantic_payload = {
+                "reason": reason if reason in {"user_cancelled", "server_shutdown"} else "user_cancelled"
+            }
+        elif status == "failed":
+            semantic_type = "turn.error"
+            raw_code = str(metadata.get("error_code") or "internal_error")
+            code = raw_code if raw_code in _MNEMOSYNE_ERROR_CODES else "internal_error"
+            request_id = str(uuid5(NAMESPACE_URL, f"mnemosyne:{execution.turn_id}:{seq}:error"))
+            semantic_payload = {
+                "error": {
+                    "contract_version": "0.1.0",
+                    "code": code,
+                    "message_ko": (
+                        "요청을 처리하지 못했습니다. 잠시 후 다시 시도해 주세요."
+                        if bool(metadata.get("retryable"))
+                        else "요청을 처리하지 못했습니다. 입력과 설정을 확인해 주세요."
+                    ),
+                    "request_id": request_id,
+                    "retryable": bool(metadata.get("retryable")),
+                    "details": {},
+                }
+            }
+        else:
+            summary = metadata.get("summary_ko")
+            revision = metadata.get("learning_revision")
+            if (
+                isinstance(summary, str)
+                and isinstance(revision, int)
+                and not isinstance(revision, bool)
+                and revision >= 1
+            ):
+                semantic_type = "turn.done"
+                semantic_payload = {
+                    "summary_ko": summary,
+                    "learning_revision": revision,
+                }
+
+    if not semantic_type or semantic_payload is None:
+        return None
+    created_at = datetime.fromtimestamp(event.timestamp, tz=timezone.utc).isoformat(
+        timespec="milliseconds"
+    ).replace("+00:00", "Z")
+    return {
+        "contract_version": "0.1.0",
+        "event_id": f"{execution.turn_id}:{seq}",
+        "turn_id": execution.turn_id,
+        "seq": seq,
+        "created_at": created_at,
+        "type": semantic_type,
+        "payload": semantic_payload,
+    }
 
 
 class TurnLifecycle:
@@ -661,34 +758,48 @@ class TurnLifecycle:
             event.metadata = {**event.metadata, "status": "completed"}
         event.session_id = execution.session_id
         event.turn_id = execution.turn_id
-        payload = event.to_dict()
-        if self.coordinator is not None and execution.lease is not None:
-            payload = await self.coordinator.publish_event(execution.turn_id, payload)
-        async with self._lock:
-            current = self._executions.get(execution.turn_id, execution)
-            seq = int(payload.get("seq") or 0)
-            if seq <= 0:
-                seq = current.next_seq
-                current.next_seq += 1
-                if current is not execution:
-                    execution.next_seq = max(execution.next_seq, current.next_seq)
-            else:
+        async with execution.publish_lock:
+            event_metadata = dict(event.metadata or {})
+            semantic_marker = event_metadata.pop("_mnemosyne_semantic", None)
+            event.metadata = event_metadata
+            payload = event.to_dict()
+            async with self._lock:
+                current = self._executions.get(execution.turn_id, execution)
+                seq = int(payload.get("seq") or current.next_seq)
+            payload["seq"] = seq
+            semantic = _mnemosyne_event_extension(
+                execution,
+                event,
+                seq=seq,
+                marker=semantic_marker,
+            )
+            if semantic is not None:
+                frame_metadata = payload.get("metadata")
+                frame_metadata = dict(frame_metadata) if isinstance(frame_metadata, dict) else {}
+                frame_metadata["mnemosyne"] = semantic
+                payload["metadata"] = frame_metadata
+                payload["protocol_version"] = "2.0"
+            if self.coordinator is not None and execution.lease is not None:
+                payload = await self.coordinator.publish_event(execution.turn_id, payload)
+                if int(payload.get("seq") or 0) != seq:
+                    raise ValueError("Native coordinator changed the Mnemosyne event sequence")
+            async with self._lock:
+                current = self._executions.get(execution.turn_id, execution)
                 current.next_seq = max(current.next_seq, seq + 1)
                 execution.next_seq = max(execution.next_seq, seq + 1)
-            payload["seq"] = seq
-            current.events.append(payload)
-            if current is not execution:
-                execution.events.append(payload)
-            subscribers = list(current.subscribers)
-        if event.type == StreamEventType.DONE:
-            # Never expose DONE to a process-local subscriber before the
-            # complete event prefix is durable. Redis subscribers already
-            # read the same canonical payload from the shared journal.
-            await self._flush_buffered_events(execution)
-        for subscriber in subscribers:
-            with contextlib.suppress(asyncio.QueueFull):
-                subscriber.queue.put_nowait(payload)
-        return payload
+                current.events.append(payload)
+                if current is not execution:
+                    execution.events.append(payload)
+                subscribers = list(current.subscribers)
+            if event.type == StreamEventType.DONE:
+                # Never expose DONE to a process-local subscriber before the
+                # complete event prefix is durable. Redis subscribers already
+                # read the same canonical payload from the shared journal.
+                await self._flush_buffered_events(execution)
+            for subscriber in subscribers:
+                with contextlib.suppress(asyncio.QueueFull):
+                    subscriber.queue.put_nowait(payload)
+            return payload
 
     async def _flush_buffered_events(self, execution: _TurnExecution) -> None:
         """Persist buffered turn events after the live stream has already drained."""

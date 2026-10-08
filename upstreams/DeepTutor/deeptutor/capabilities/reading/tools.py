@@ -13,13 +13,10 @@ of the conversation and act on what the user is looking at. ``reader_goto`` is
 the one that makes the mode feel alive: ask "what does chapter three argue?" and
 the page turns itself.
 
-The two are guarded differently, on purpose. A **highlight** must be real, so it
-is drawn only where the quoted text actually occurs; an unverifiable quote still
-moves the view, without lighting anything up. A **saved annotation** is stronger
-still — it persists and is written into the exported PDF — so it is refused
-outright unless the quote checks out. The asymmetry matters in practice: a user
-reading an English paper in Chinese gets translated "quotes" that can never match
-verbatim, and refusing to move for those made the reader look broken.
+The two are guarded differently, on purpose. A reader move or highlight
+requires a verified verbatim quote. An unverifiable or missing quote does not
+move the reader. A saved annotation additionally requires an explicit user
+request; ordinary explanation never writes a persistent mark.
 
 The material id is never a parameter: the capability injects ``_material_id``
 server-side via ``augment_kwargs``, so the model cannot read a document the user
@@ -431,7 +428,7 @@ class ReaderGotoTool(_ReadingToolBase):
                         "Verbatim text from that locator to highlight. Keep it "
                         "short (one sentence or phrase) and copy it exactly."
                     ),
-                    required=False,
+                    required=True,
                 ),
             ],
         )
@@ -455,27 +452,15 @@ class ReaderGotoTool(_ReadingToolBase):
         quote = str(kwargs.get("quote") or "").strip()
 
         if not quote:
-            # No claim to verify: a bare navigation request is honoured.
-            return _goto_result(material_id, locator, quote="", manifest=manifest, stamps=stamps)
+            return self._failure(
+                "Reader navigation requires a verbatim document quote that can be verified."
+            )
 
         check = await asyncio.to_thread(verify_quote, store, material_id, locator, quote)
         if not check.verified:
-            # Move anyway, without a highlight.
-            #
-            # The locator came from text the model just read; the quote is only
-            # what the highlight needs. Refusing the whole jump made the reader
-            # sit still for the most ordinary case there is — answering in one
-            # language about a document written in another, where the "quote" is
-            # the model's own translation and can never match verbatim. Landing
-            # on the right page with no highlight is far more useful than not
-            # moving at all, and it never paints a highlight over the wrong words.
-            return _goto_result(
-                material_id,
-                locator,
-                quote="",
-                manifest=manifest,
-                stamps=stamps,
-                unverified_quote=quote,
+            return self._failure(
+                "That quote is not verified on the requested page, so the reader was not moved. "
+                "Search or read the source and retry with its exact wording."
             )
         target = check.found_locator or locator
         return _goto_result(
@@ -535,6 +520,10 @@ class ReaderAnnotateTool(_ReadingToolBase):
         from deeptutor.reading import ANNOTATION_COLORS, Annotation, verify_quote
 
         material_id = self._material_id(kwargs)
+        if kwargs.get("_mnemosyne_persistent_annotation_allowed") is not True:
+            return self._failure(
+                "A permanent annotation requires an explicit request from the learner."
+            )
         store = self._store()
         manifest = await asyncio.to_thread(store.manifest, material_id)
 
@@ -592,7 +581,6 @@ def _goto_result(
     manifest: Any,
     stamps: dict[int, str] | None = None,
     corrected_from: int | None = None,
-    unverified_quote: str = "",
 ) -> ToolResult:
     stamp = (stamps or {}).get(locator, "")
     where = f"{manifest.unit} {locator}" + (f" [{stamp}]" if stamp else "")
@@ -601,14 +589,6 @@ def _goto_result(
         note = (
             f" (that passage is on {manifest.unit} {locator}, "
             f"not {manifest.unit} {corrected_from} — cite {locator})"
-        )
-    elif unverified_quote:
-        # Say why nothing lit up, so the model can supply source-language text
-        # next time instead of repeating a translation or a paraphrase.
-        note = (
-            " — but nothing was highlighted: that wording does not appear "
-            "verbatim in the document. To highlight a passage, pass the text "
-            "exactly as the document writes it, in its own language"
         )
     return ToolResult(
         content=f"Reader moved to {where}{note}.",

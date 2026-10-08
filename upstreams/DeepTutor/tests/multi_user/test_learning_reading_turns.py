@@ -7,13 +7,16 @@ import asyncio
 import pytest
 
 from deeptutor.capabilities.reading.capability import ReadingCapability
+from deeptutor.capabilities.reading.capability import _explicit_annotation_request
 from deeptutor.capabilities.reading.tools import (
     BINDING_KWARG,
     WORKSPACE_KWARG,
+    ReaderGotoTool,
     ReadingListTabsTool,
     ReadingSwitchTabTool,
     ReadMaterialTool,
 )
+from deeptutor.capabilities.reading import tools as reading_tools
 from deeptutor.multi_user.grants import save_grant
 from deeptutor.reading import ReadingCatalogStore, ReadingStore
 from deeptutor.reading.references import resolve_reading_sources
@@ -195,3 +198,60 @@ def test_reading_tools_hide_and_block_revoked_tabs(mu_isolated_root, seed_user, 
         assert not read.success
         assert "not assigned" in read.content
         assert "Revoked secret passage." not in read.content
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "이 문장에 밑줄 쳐줘",
+        "여기에 주석을 달아주세요",
+        "Please highlight this passage",
+        "Could you add a note to this?",
+    ],
+)
+def test_persistent_annotation_requires_a_clear_positive_request(message: str) -> None:
+    assert _explicit_annotation_request(message)
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "하이라이트 하지 마",
+        "밑줄 치지 말아 주세요",
+        "이 부분은 강조하지 않아도 돼",
+        "Please don't highlight this passage",
+        "Please highlight this passage, but do not save it",
+        "Can you explain how annotations work?",
+        "",
+    ],
+)
+def test_persistent_annotation_rejects_negated_or_implicit_requests(message: str) -> None:
+    assert not _explicit_annotation_request(message)
+
+
+@pytest.mark.asyncio
+async def test_reader_goto_refuses_unverified_quotes_without_moving(
+    tmp_path, monkeypatch
+) -> None:
+    store = ReadingStore(tmp_path / "reading")
+    material = store.ingest_units(
+        "3" * 16,
+        filename="source.md",
+        title="Source",
+        units=["An exact source passage."],
+    )
+    monkeypatch.setattr(
+        reading_tools._ReadingToolBase,
+        "_store",
+        staticmethod(lambda: store),
+    )
+
+    result = await ReaderGotoTool().execute(
+        _material_id=material.material_id,
+        locator=1,
+        quote="a paraphrase that is absent",
+    )
+
+    assert result.success is False
+    assert "reader_action" not in (result.metadata or {})
+    assert "reader was not moved" in result.content

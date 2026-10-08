@@ -1564,6 +1564,7 @@ class _TurnExecution:
     subscribers: list[_LiveSubscriber] = field(default_factory=list)
     events: list[dict[str, Any]] = field(default_factory=list)
     next_seq: int = 1
+    publish_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
     flush_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
     events_persisted: bool = False
     persisted_events: list[dict[str, Any]] = field(default_factory=list)

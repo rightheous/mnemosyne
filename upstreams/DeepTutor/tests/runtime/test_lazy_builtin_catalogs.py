@@ -10,6 +10,7 @@ import sys
 
 from deeptutor.runtime.bootstrap.builtin_capabilities import BUILTIN_CAPABILITY_SPECS
 from deeptutor.tools.builtin_specs import BUILTIN_TOOL_SPECS
+from deeptutor.runtime.registry.capability_registry import CapabilityRegistry
 
 
 def test_builtin_tool_descriptors_match_implementations() -> None:
@@ -59,3 +60,18 @@ print(json.dumps([name for name in forbidden if name in sys.modules]))
         text=True,
     )
     assert json.loads(result.stdout) == []
+
+
+def test_personal_tutor_registry_exposes_only_its_five_native_capabilities() -> None:
+    registry = CapabilityRegistry()
+    registry.load_builtins()
+    expected = {
+        "chat",
+        "immersive_reading",
+        "deep_solve",
+        "deep_question",
+        "mastery_path",
+    }
+
+    assert set(registry.list_capabilities()) == expected
+    assert registry.get("deep_research") is None

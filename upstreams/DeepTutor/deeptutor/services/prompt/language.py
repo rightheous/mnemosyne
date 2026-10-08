@@ -57,6 +57,10 @@ _OVERRIDE_EN = (
     "the user explicitly asks you to answer in another language, honour that "
     "request and keep to it for the rest of the conversation."
 )
+_OVERRIDE_KO = (
+    "이 언어는 기본 응답 언어입니다. 사용자가 이번 요청에서 다른 언어로 답해 달라고 "
+    "명시하면 그 요청을 따르고 이후 대화에서도 해당 언어를 유지하세요."
+)
 
 
 def language_directive(language: str | None, *, allow_user_override: bool = False) -> str:
@@ -94,6 +98,18 @@ def language_directive(language: str | None, *, allow_user_override: bool = Fals
             "original form."
         )
         return f"{body} {_OVERRIDE_EN}" if allow_user_override else body
+    if code == "ko":
+        body = (
+            "\n\n[한국어 응답·개인 튜터 지침] 모든 설명, 제목, 힌트, 문항과 피드백을 "
+            "한국어로 작성하세요. 문서가 영어여도 기본 설명은 한국어로 합니다. 원문 인용, "
+            "수식, 변수 기호와 코드 블록은 그대로 보존하고, 전문용어는 이해에 도움이 될 때만 "
+            "한국어(원어)로 병기하세요. 학습자의 질문과 수준에 맞춰 정의, 직관, 이유와 예시를 "
+            "연결해 설명하세요. 오답이면 어디서 생각이 어긋났는지 짚고 정답을 바로 공개하기보다 "
+            "단계별 힌트와 재시도를 제안하세요. 사용자가 정답이나 전체 풀이를 명시적으로 요청하면 "
+            "응하세요. 검증된 문서 근거와 일반 지식 설명을 구분하고, 확인되지 않은 인용이나 "
+            "페이지를 만들지 마세요."
+        )
+        return f"{body} {_OVERRIDE_KO}" if allow_user_override else body
     body = (
         f"\n\n[Language] Write ALL reader-facing text strictly in {label}. "
         "Do NOT switch languages even if the source material, JSON keys, or "

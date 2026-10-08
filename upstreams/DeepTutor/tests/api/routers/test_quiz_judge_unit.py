@@ -212,6 +212,25 @@ class TestGuessImageMime:
 
 
 class TestBuildJudgeUserPrompt:
+    def test_ko_prompt_preserves_source_answer_and_requests_learning_feedback(self):
+        prompt = _build_judge_user_prompt(
+            language="ko",
+            question="What is 2+2?",
+            question_type="short_answer",
+            options=None,
+            correct_answer="4",
+            explanation="2+2 equals 4.",
+            user_answer="5",
+            has_image=False,
+            image_count=0,
+        )
+
+        assert "문제:\nWhat is 2+2?" in prompt
+        assert "기준 답안:\n4" in prompt
+        assert "학습자 답안:\n5" in prompt
+        assert "재시도 힌트" in prompt
+        assert "한국어로 평가하세요" in prompt
+
     def test_zh_prompt_carries_question_options_answer_explanation_and_image_note(self):
         prompt = _build_judge_user_prompt(
             language="zh",
@@ -561,6 +580,19 @@ class TestJudgeRequestValidation:
 
 
 class TestJudgeLanguage:
+    def test_korean_language_uses_the_korean_judge_prompt(self, ws_token, reset_spy, monkeypatch):
+        stream = _ScriptedStream(["오답입니다. 한 번 더 생각해 보세요."])
+        client = _judge_client(monkeypatch, stream)
+        with client.websocket_connect("/ws/questions/judge") as ws:
+            ws.send_json(_judge_payload(language="ko"))
+            assert ws.receive_json() == {"type": "started"}
+            assert ws.receive_json() == {
+                "type": "text",
+                "content": "오답입니다. 한 번 더 생각해 보세요.",
+            }
+            assert ws.receive_json() == {"type": "done"}
+        assert stream.calls[0]["system_prompt"] == _JUDGE_SYSTEM_PROMPTS["ko"]
+
     def test_supported_language_is_used_directly(self, ws_token, reset_spy, monkeypatch):
         def _unexpected(*_args, **_kwargs):
             raise AssertionError(
@@ -605,7 +637,7 @@ class TestJudgeLanguage:
 
     def test_supported_languages_mirror_available_prompts(self):
         assert SUPPORTED_JUDGE_LANGUAGES == frozenset(_JUDGE_SYSTEM_PROMPTS)
-        assert {"zh", "en", "de", "uk"} <= SUPPORTED_JUDGE_LANGUAGES
+        assert {"zh", "en", "de", "uk", "ko"} <= SUPPORTED_JUDGE_LANGUAGES
 
 
 class TestJudgeImages:

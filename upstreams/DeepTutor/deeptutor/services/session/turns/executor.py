@@ -228,6 +228,31 @@ class TurnExecutor:
             )
         )
         try:
+            mnemosyne_capability = {
+                "chat": "chat",
+                "immersive_reading": "reading",
+                "deep_question": "quiz",
+                "mastery_path": "mastery",
+                "deep_solve": "solve",
+            }.get(capability_name or "chat")
+            if mnemosyne_capability is not None:
+                response_language = str(payload.get("language") or "ko").strip().lower()
+                await self._publish_live_event(
+                    execution,
+                    StreamEvent(
+                        type=StreamEventType.TOOL_RESULT,
+                        source="mnemosyne",
+                        metadata={
+                            "_mnemosyne_semantic": {
+                                "type": "turn.started",
+                                "payload": {
+                                    "capability": mnemosyne_capability,
+                                    "response_language": response_language,
+                                },
+                            }
+                        },
+                    ),
+                )
             # A queued turn may start after a learner's material grant changes.
             # Recheck before prompt construction and reading-tool execution.
             material_id = _reading_material_id(payload.get("reading_material_id"))

@@ -241,9 +241,17 @@ async def test_turn_runtime_replays_events_and_materializes_messages(
     # filter it out so the timing race doesn't flake the assertion.
     assert [e["type"] for e in events if e["type"] != "session_meta"] == [
         "session",
+        "tool_result",
         "content",
         "done",
     ]
+    started_event = next(
+        e for e in events if (e.get("metadata") or {}).get("mnemosyne", {}).get("type") == "turn.started"
+    )
+    assert started_event["metadata"]["mnemosyne"]["payload"] == {
+        "capability": "chat",
+        "response_language": "en",
+    }
     done_event = next(e for e in events if e["type"] == "done")
     assert done_event["metadata"]["status"] == "completed"
     assert captured["consult_partner_id"] == requested.get("consult_partner_id")
@@ -925,9 +933,14 @@ async def test_turn_runtime_bootstraps_question_followup_context_once(
     # filter it out so the timing race doesn't flake the assertion.
     assert [e["type"] for e in events if e["type"] != "session_meta"] == [
         "session",
+        "tool_result",
         "content",
         "done",
     ]
+    started_event = next(
+        e for e in events if (e.get("metadata") or {}).get("mnemosyne", {}).get("type") == "turn.started"
+    )
+    assert started_event["metadata"]["mnemosyne"]["payload"]["capability"] == "chat"
     detail = await store.get_session_with_messages(session["id"])
     assert detail is not None
     assert [message["role"] for message in detail["messages"]] == ["system", "user", "assistant"]
@@ -1469,3 +1482,210 @@ async def test_selection_tutoring_never_mounts_the_learning_journal(
 
     assert captured["learning_journal_context"] == ""
     assert journal_reads == []
+
+
+def _mnemosyne_turn_request(**overrides):
+    from uuid import UUID
+
+    payload = {
+        "client_mutation_id": str(UUID(int=1)),
+        "capability": "reading",
+        "message": "이 문단을 설명해 줘",
+        "response_language": "ko",
+        "reader_context": {
+            "document_id": str(UUID(int=2)),
+            "version_id": "sha256:" + "a" * 64,
+            "page_index": 1,
+            "viewport_rect": [0, 0, 100, 100],
+            "selection": {
+                "document_id": str(UUID(int=2)),
+                "version_id": "sha256:" + "a" * 64,
+                "page_index": 1,
+                "parse_revision": "pymupdf-test",
+                "text_sha256": "b" * 64,
+                "start_scalar": 0,
+                "end_scalar": 12,
+                "quote": "client quote",
+                "rects": [[1, 1, 10, 10]],
+            },
+            "content_language": "en",
+            "response_language": "ko",
+        },
+    }
+    payload.update(overrides)
+    return payload
+
+
+def test_mnemosyne_turn_mapping_uses_response_language_and_drops_unverified_selection():
+    from deeptutor.mnemosyne.tutor import native_turn_request
+
+    request = native_turn_request(
+        _mnemosyne_turn_request(), material_id="abcdef12", material_revision=3
+    )
+
+    assert request.capability == "immersive_reading"
+    assert request.language == "ko"
+    assert request.reading_material_id == "abcdef12"
+    assert request.reading_material_revision == 3
+    assert request.reading_viewport.model_dump() == {"locator": 2, "selection": None}
+    assert request.skills == ["__mnemosyne_disabled__"]
+    assert request.mcp == ["__mnemosyne_disabled__"]
+
+
+def test_mnemosyne_turn_mapping_rejects_invalid_identity_and_version():
+    from deeptutor.mnemosyne.tutor import native_turn_request
+
+    invalid_id = _mnemosyne_turn_request(client_mutation_id="not-a-uuid")
+    with pytest.raises(ValueError, match="client_mutation_id must be a UUID"):
+        native_turn_request(invalid_id, material_id="abcdef12", material_revision=1)
+
+    invalid_version = _mnemosyne_turn_request()
+    invalid_version["reader_context"]["version_id"] = "sha256:short"
+    with pytest.raises(ValueError, match="full SHA-256"):
+        native_turn_request(invalid_version, material_id="abcdef12", material_revision=1)
+
+
+@pytest.mark.asyncio
+async def test_tutor_adapter_delegates_start_resume_and_idempotent_cancel_to_native_turns():
+    from deeptutor.mnemosyne.tutor import TutorAdapter
+
+    class FakeTurns:
+        def __init__(self):
+            self.started = None
+            self.subscription = None
+            self.cancelled = None
+
+        async def start_turn(self, request):
+            self.started = request
+            return ({"id": "session_1"}, {"id": "turn_1"})
+
+        async def subscribe_turn(self, turn_id, after_seq=0):
+            self.subscription = (turn_id, after_seq)
+            yield {"type": "content", "turn_id": turn_id, "seq": after_seq + 1}
+
+        async def cancel_turn(self, turn_id, *, command_id=None):
+            self.cancelled = (turn_id, command_id)
+            return True
+
+    turns = FakeTurns()
+    adapter = TutorAdapter(turns, SimpleNamespace(annotation_sync=object()), None)
+    receipt = await adapter.start_turn(
+        {
+            "client_mutation_id": "00000000-0000-0000-0000-000000000001",
+            "capability": "chat",
+            "message": "설명해 줘",
+        }
+    )
+    resumed = [frame async for frame in adapter.resume_turn("turn_1", 7)]
+    cancelled = await adapter.cancel_turn(
+        "turn_1", "00000000-0000-0000-0000-000000000002"
+    )
+
+    assert receipt[1]["id"] == "turn_1"
+    assert turns.started.language == "ko"
+    assert turns.subscription == ("turn_1", 7)
+    assert resumed[0]["seq"] == 8
+    assert cancelled is True
+    assert turns.cancelled == ("turn_1", "00000000-0000-0000-0000-000000000002")
+
+
+@pytest.mark.asyncio
+async def test_learning_state_fails_closed_until_unit01_store_is_wired():
+    from deeptutor.mnemosyne.tutor import TutorAdapter
+
+    adapter = TutorAdapter(SimpleNamespace(), SimpleNamespace(annotation_sync=object()), None)
+    with pytest.raises(RuntimeError, match="durable learning store is unavailable"):
+        await adapter.get_learning_state("00000000-0000-0000-0000-000000000002")
+
+
+@pytest.mark.asyncio
+async def test_mnemosyne_semantics_share_the_persisted_native_sequence(tmp_path):
+    from deeptutor.mnemosyne.tutor import semantic_event
+    from deeptutor.runtime.coordination.types import TurnLease
+    from deeptutor.services.session._turn_runtime_shared import _TurnExecution
+    from deeptutor.services.session.turns.lifecycle import _mnemosyne_event_extension
+
+    class PersistingCoordinator:
+        def __init__(self):
+            self.events = []
+
+        async def publish_event(self, turn_id, event):
+            assert turn_id == event["turn_id"]
+            persisted = dict(event)
+            self.events.append(persisted)
+            return persisted
+
+    coordinator = PersistingCoordinator()
+    runtime = TurnRuntimeManager(SQLiteSessionStore(tmp_path / "chat_history.db"))
+    runtime.coordinator = coordinator
+    execution = _TurnExecution(
+        turn_id="turn_mnemosyne_1",
+        session_id="session_1",
+        capability="chat",
+        payload={"language": "ko"},
+        lease=TurnLease(
+            turn_id="turn_mnemosyne_1",
+            session_id="session_1",
+            owner_id="owner_1",
+            fencing_token=1,
+            expires_at=1_900_000_000,
+        ),
+    )
+    started = await runtime._publish_live_event(
+        execution,
+        StreamEvent(
+            type=StreamEventType.TOOL_RESULT,
+            source="mnemosyne",
+            metadata={
+                "_mnemosyne_semantic": {
+                    "type": "turn.started",
+                    "payload": {"capability": "chat", "response_language": "ko"},
+                }
+            },
+        ),
+    )
+    delta = await runtime._publish_live_event(
+        execution,
+        StreamEvent(type=StreamEventType.CONTENT, source="chat", content="안녕하세요."),
+    )
+
+    assert started["protocol_version"] == "2.0"
+    assert started["seq"] == 1
+    assert "_mnemosyne_semantic" not in started["metadata"]
+    assert started["metadata"]["mnemosyne"]["event_id"] == "turn_mnemosyne_1:1"
+    assert delta["seq"] == 2
+    assert delta["metadata"]["mnemosyne"]["payload"] == {"text": "안녕하세요."}
+    assert coordinator.events == [started, delta]
+    assert semantic_event(started) == started["metadata"]["mnemosyne"]
+    assert semantic_event(delta) == delta["metadata"]["mnemosyne"]
+
+    failed_stream_event = StreamEvent(
+        type=StreamEventType.DONE,
+        metadata={"status": "failed", "error_code": "provider_error", "retryable": True},
+    )
+    failed = _mnemosyne_event_extension(execution, failed_stream_event, seq=3)
+    failed_frame = {
+        "type": "done",
+        "protocol_version": "2.0",
+        "turn_id": execution.turn_id,
+        "seq": 3,
+        "metadata": {"status": "failed", "mnemosyne": failed},
+    }
+    assert semantic_event(failed_frame)["type"] == "turn.error"
+    assert failed["payload"]["error"]["code"] == "provider_error"
+    assert failed["payload"]["error"]["retryable"] is True
+
+    cancelled = _mnemosyne_event_extension(
+        execution,
+        StreamEvent(type=StreamEventType.DONE, metadata={"status": "cancelled"}),
+        seq=4,
+    )
+    cancelled_frame = {
+        "type": "done",
+        "protocol_version": "2.0",
+        "turn_id": execution.turn_id,
+        "seq": 4,
+        "metadata": {"status": "cancelled", "mnemosyne": cancelled},
+    }
+    assert semantic_event(cancelled_frame)["type"] == "turn.cancelled"
+    assert cancelled["payload"] == {"reason": "user_cancelled"}

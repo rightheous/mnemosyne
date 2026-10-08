@@ -32,6 +32,7 @@ import asyncio
 from html import escape
 from importlib import resources
 import logging
+import re
 from typing import Any
 
 import yaml
@@ -71,6 +72,36 @@ VIEWPORT_CAPTION_ITEMS = 3
 VIEWPORT_CAPTION_CHARS = 600
 
 _PROMPT_CACHE: dict[str, dict[str, Any]] = {}
+
+
+def _explicit_annotation_request(message: str) -> bool:
+    """Only let a user-authored save request authorize a durable annotation."""
+    text = re.sub(r"\s+", " ", str(message or "").strip()).lower()
+    if not text:
+        return False
+    action = r"(?:하이라이트|형광펜|밑줄|주석|메모|표시|강조|highlight|annotate|mark up|add a note)"
+    # Fail closed when the user negates the annotation action. Negation may
+    # come before or after the action in Korean and English ("don't highlight",
+    # "highlight this, but don't save it", "하이라이트 하지 마").
+    negation = r"(?:하지\s*마(?:세요|요)?|하지\s*말(?:아|고|아\s*줘|아\s*주세요)?|하지\s*않|말아\s*줘|말아주세요|않아도|필요\s*없|원하지\s*않|don't|do\s+not|never|without)"
+    if re.search(rf"{negation}.{{0,48}}{action}", text):
+        return False
+    if re.search(rf"{action}.{{0,48}}{negation}", text):
+        return False
+    korean_request = re.search(
+        r"(?:하이라이트|형광펜|밑줄|주석|메모|표시|강조)\s*(?:을|를|으로|로)?\s*"
+        r"(?:해\s*줘|해주세요|해\s*주세요|쳐\s*줘|쳐주세요|칠해\s*줘|칠해주세요|"
+        r"달아\s*줘|달아주세요|남겨\s*줘|남겨주세요|기록해\s*줘|기록해주세요|"
+        r"저장해\s*줘|저장해주세요|부탁해|부탁합니다)",
+        text,
+    )
+    english_request = re.search(
+        r"\b(?:please|could you|can you|would you)\s+(?:highlight|annotate|mark up|add a note)\b"
+        r"|\b(?:highlight|annotate|mark up|add a note)\s+(?:this|that|the)\b"
+        r"|\b(?:save|leave|add)\s+(?:a\s+)?(?:highlight|annotation|note)\b",
+        text,
+    )
+    return bool(korean_request or english_request)
 
 
 def _load_prompts(language: str) -> dict[str, Any]:
@@ -347,6 +378,11 @@ class ReadingCapability:
             MATERIAL_KWARG: material_id,
             WORKSPACE_KWARG: workspace_id,
             BINDING_KWARG: binding,
+            **(
+                {"_mnemosyne_persistent_annotation_allowed": _explicit_annotation_request(context.user_message)}
+                if tool_name == "reader_annotate"
+                else {}
+            ),
         }
 
     # -- seeds ------------------------------------------------------------

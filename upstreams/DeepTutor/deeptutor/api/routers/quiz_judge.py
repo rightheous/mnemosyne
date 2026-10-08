@@ -27,6 +27,17 @@ router = APIRouter()
 
 
 _JUDGE_SYSTEM_PROMPTS = {
+    "ko": (
+        "당신은 엄정하면서도 학습을 돕는 개인 교사입니다. 문제, 기준 답안, 해설에 근거해 "
+        "학습자의 실제 답을 평가하세요.\n\n"
+        "응답 기준:\n"
+        "- 첫 줄에 ✅ 정답 / ⚠️ 부분 정답 / ❌ 오답 중 하나와 핵심 근거를 짧게 적으세요.\n"
+        "- 이어서 맞게 이해한 점, 오류가 시작된 위치나 빠진 이유, 다음에 시도할 구체적인 힌트를 "
+        "설명하세요. 오답이면 정답을 바로 공개하지 말고 재시도를 권하세요.\n"
+        "- 여러 답이 타당하면 맞는 부분을 인정하세요. 사용자가 정답이나 전체 풀이를 요청하면 "
+        "정답과 이유를 설명하세요.\n"
+        "- 인용, 수식, 기호와 코드는 그대로 보존하고, 전체 피드백은 한국어로 작성하세요."
+    ),
     "zh": (
         "你是一名严谨且鼓励学习者的助教，正在批改一道测验题。"
         "请基于题目、参考答案与解析，对学习者的作答给出针对性的判定与反馈。\n\n"
@@ -98,7 +109,26 @@ def _build_judge_user_prompt(
             options_block = "\n".join(f"  {k}. {v}" for k, v in options.items())
         except Exception:
             options_block = ""
-    if language == "zh":
+    if language == "ko":
+        parts = [
+            f"문항 유형: {question_type or '미상'}",
+            f"문제:\n{question}",
+        ]
+        if options_block:
+            parts.append(f"보기:\n{options_block}")
+        if correct_answer:
+            parts.append(f"기준 답안:\n{correct_answer}")
+        if explanation:
+            parts.append(f"기준 해설:\n{explanation}")
+        parts.append(
+            "학습자 답안:\n"
+            + (user_answer.strip() if user_answer and user_answer.strip() else "(글 없이 이미지만 제출됨)")
+        )
+        if has_image:
+            count_text = f"학습자가 답안 이미지 {image_count}장을 첨부했습니다."
+            parts.append(f"{count_text} 이미지의 글자, 수식, 풀이도 평가에 반영하세요.")
+        parts.append("이 답안의 옳고 그른 부분과 재시도 힌트를 한국어로 평가하세요.")
+    elif language == "zh":
         parts = [
             f"题目类型：{question_type or 'unknown'}",
             f"题干：\n{question}",
