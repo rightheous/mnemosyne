@@ -44,6 +44,15 @@
 - `get_state`, `submit_attempt`, `save_activity`, `review_memory`는 사용자 분리와 revision 검사를 적용한다. review/attempt/activity 실패가 일부 progress만 기록하는 상태를 만들지 않도록 transaction fixture를 제공한다.
 - Fixtures는 공개 응답의 rubric 비노출, 중복 replay, 같은 ID/다른 payload conflict, base revision 경합, 재시작 replay, provider 실패, 다중 사용자 격리, citation 검증 실패를 다룬다. 실제 사용자 문서·자격증명·정답 rubric을 로그나 fixture에 넣지 않는다.
 
+### 추가 연결 명세 — persistent Quiz와 계약 이벤트
+
+- 현재 `contracts/models.schema.json`의 `Quiz`, `Attempt`, `Assessment`, `LearningState`와 `contracts/events.schema.json`의 `quiz.show`, `question.show`, `learning.updated` shape는 이미 있다. OpenAPI에는 `GET /v1/quizzes/{quiz_id}`와 attempt/state 경로만 있고 모두 `planned-unit-extension`이며 quiz generation/create route는 없다. `TurnRequest` action `quiz`와 native `/ws`는 유지한다.
+- 실제 `DeepQuestionCapability`는 `QuestionPipeline`의 `quiz_question_emitted` trace와 turn result를 내지만, 응답 전에 Quiz를 영속화하지 않고 contract의 immutable document/version, per-question `VerifiedCitation`, 비공개 정답/rubric 경계를 만들지 않는다. `tool_dispatch.py` semantic allowlist는 현재 Reader 4개 event만 통과시키며 Quiz·learning event producer는 없다. 이 trace를 persistent `quiz.show`로 포장하거나 event에 정답/rubric을 싣지 않는다.
+- UNIT-01 store 제공 범위: 검증된 document/version 범위에 대해 immutable quiz create/load 및 private grading input 조회, source-verification proof를 붙인 public Quiz 반환, attempt claim/commit/release를 같은 version 및 `base_learning_revision`에 원자 연결한다. create는 `client_mutation_id`와 canonical payload hash로 idempotent해야 하며 기존 quiz ID 재사용 시 immutable content가 변하지 않아야 한다. 기존 port는 통합 담당 소유이므로 `LearningStateStore` signature 변경은 integrator가 관리한다.
+- UNIT-02 연결 동작: existing QuestionPipeline의 생성 결과를 public Quiz로 정규화하되 각 문항에 대해 UNIT-01 Library source에서 citation을 검색·검증한다. 검증된 citation/고정 answer key/rubric 저장이 성공하기 전에는 Quiz 성공 결과를 내지 않는다. 저장된 `quiz_id` 뒤에만 `quiz.show`를 emit하고, question display마다 `question.show`를 해당 `quiz_id`/`question_id`로 emit한다. assessment commit이 durable revision을 반환한 뒤에만 `learning.updated`와 Assessment 결과를 낸다. replay subscriber는 기존 turn frame만 다시 받고 quiz create/attempt commit을 다시 호출하지 않는다.
+- UNIT-05 consumer: `quiz.show` 수신 후 계약 Quiz 조회, answer 제출, `learning.updated` 후 최신 revision reload를 연결한다. Fixture는 source citation 누락/변조 시 no-event, private rubric 미노출, 저장 전 provider failure, duplicate generation/attempt replay, seq-preserving reconnect, learning commit 후 event 순서를 확인한다.
+- 외부 HTTP `/v1/*`를 mount하거나 `x-implementation`을 바꾸는 작업은 통합 담당이 담당한다. Quiz 생성 옵션을 `TurnRequest.message` 이외의 구조화 필드로 노출해야 한다면 consumer(DeepTutor, web, iPad, fixture)·schema/version·validator 변경을 포함한 별도 additive contract proposal을 먼저 통합 담당이 승인/소유권 배정한다. 현재 계약 원본은 수정하지 않았다.
+
 ### UNIT-01 및 통합 담당 요청 — Reading citation 및 annotation
 
 - Library document/version을 서버 ReadingStore material/revision으로 해석하고, quote와 TextAnchor를 해당 immutable revision의 원문과 대조하는 consumer bridge가 필요하다. 변환된 인용은 citation service가 검증한 것만 assessment 및 읽기 응답에 붙인다.
