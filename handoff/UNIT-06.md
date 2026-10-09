@@ -20,16 +20,16 @@
 | 검사 | 결과 | 범위 |
 |---|---|---|
 | `/tmp` 임시 venv에 `pip install -r checks/requirements.txt`에 필요한 고정 패키지 설치 | PASS | Python 3.12.14, macOS arm64. 승인된 네트워크 설치. Windows/Linux 설치는 미검증. |
-| `checks/validate_contracts.py` on clean archive source `0855e4d` with current validator | PASS | OpenAPI 30 operations, 4 schemas, 80 schema instances, 19 negative cases, 10 sync steps, 4 geometry cases. 소스/readiness gate는 실행하지 않음. |
+| `checks/validate_contracts.py` on clean archive `cf38839` | PASS | OpenAPI 30 operations, 4 schemas, 80 schema instances, 19 negative cases, 10 sync steps, 4 geometry cases. 소스/readiness gate는 실행하지 않음. |
 | Backend runtime lock 정적 검사 (위 fixture 검사에 포함) | PASS | 192개 Python 3.11 대상 잠금 항목, 3,587개 해시, 필수 backend 패키지, Docker `--require-hashes` 적용을 확인. 같은 uv 명령의 재해석 결과와 잠금 파일이 바이트 단위로 일치. |
-| `checks/validate_contracts.py --require-ready` on clean archive source `0855e4d` with current validator | FAIL | Ownership: `docs/handoffs/unit-02.md` is unassigned; `absent=[]`. Source gate: 76 tracked upstream files differ from their pinned snapshot hashes without `current_sha256` exceptions (UNIT-02 39, UNIT-05 34, UNIT-06 3). Other source/provenance, contract-copy, registration and license checks completed. |
-| `checks/source_adapters.py` on clean archive source `0855e4d` and pinned DeepTutor `6cf793bd868ba5ecbe64722936d4be8fab5a01df` | PASS | Actual-source adapter checks passed: PDF pages 2, native frames 12, native commands 5, SQLite reopen/replay true, duplicate append creates no events, capability mappings 6. UNIT-02's source-language context fix resolves the prior language-mapping failure. Product readiness remains false. |
+| `checks/validate_contracts.py --require-ready` on clean archive `cf38839` | FAIL | Ownership: `docs/handoffs/unit-02.md` is unassigned; `absent=[]`. Source gate: 76 tracked upstream files differ from their pinned snapshot hashes without `current_sha256` exceptions (UNIT-02 39, UNIT-05 34, UNIT-06 3). Other source/provenance, contract-copy, registration and license checks completed. |
+| `checks/source_adapters.py` on clean archive `cf38839` and pinned DeepTutor `6cf793bd868ba5ecbe64722936d4be8fab5a01df` | PASS | Actual-source adapter checks passed: PDF pages 2, native frames 12, native commands 5, SQLite reopen/replay true, duplicate append creates no events, capability mappings 6. UNIT-02's source-language context fix resolves the prior language-mapping failure. Product readiness remains false. |
 | `docker compose -f upstreams/DeepTutor/compose.yaml config --quiet` | PASS | YAML/Compose 구성 정적 검사. 1개 앱 서비스, 루프백 포트, persistence와 종료 유예를 확인. |
 | `docker compose -f upstreams/DeepTutor/docker-compose.yml config --quiet` | PASS | 기존 upstream compose 구성 정적 검사. 새 Mnemosyne 프로필의 기동 증거는 아님. |
 | `python -m pip check` | PASS | 설치한 검증 venv 안의 패키지 관계만 확인. |
 | `docker info` | PASS | 권한 승인 후 Docker Desktop daemon 29.4.1 ARM64 응답 확인. |
-| Clean-source `docker compose ... build deeptutor` on pinned bases | PASS | Application source matches `8ff76c1`; Node 22/Python 3.11 manifest digest references resolved, and production image stages completed using cache. Local image manifest-list digest: `sha256:62a542877ddd2faa82faaa790ea543527e50e0a9fb53b1e62a44a251900d4f10`. It was not pushed or published. |
-| Compose up/readiness/health/stop on pinned-base image | PASS, limited smoke | One service started and became Docker `healthy`; internal backend `/health/ready` returned HTTP 200 `{"status":"ready"}`, frontend port 3782 `/` returned HTTP 307 to `/learning/reading`, and graceful `compose stop` exited 0. Startup logs warn that no active LLM model is configured, so Tutor requests were not exercised. Checks ran inside the container. |
+| Clean-source `docker compose ... build deeptutor` on `cf38839` | PASS | Node 22/Python 3.11 manifest digest references resolved; production image stages completed using cache. Local image manifest-list digest: `sha256:5956fe94d8cf71134577cf9d939248e01618f763f122e79c61d066379f89a509`. It was not pushed or published. |
+| Compose up/readiness/health/stop on clean archive `cf38839` | PASS, limited smoke | One service started and became Docker `healthy`; internal backend `/health/ready` returned HTTP 200 `{"status":"ready"}`, frontend port 3782 `/` returned HTTP 307 to `/learning/reading`, and graceful `compose stop` exited 0. Startup logs warn that no active LLM model is configured, so Tutor requests were not exercised. Checks ran inside the container. |
 | Generated default-data tar backup/restore smoke | PASS, limited | Stopped test service data was tarred, extracted to a separate `/tmp` directory, and recursively compared equal. This was generated empty/default runtime data only, with no uploaded source documents or provider secrets; live database recovery with user data remains untested. |
 | Node 22 `npm ci --legacy-peer-deps` on clean archive `b1d3956` | PASS | Node 22.23.3/npm 10.9.9; installed 950 packages. npm audit reported 28 vulnerabilities (5 low, 7 moderate, 15 high, 1 critical). |
 | Node `check:fast`: contracts / architecture / typecheck / node tests | PASS | Contracts check passed; dependency-cruiser reported 913 modules and 2,844 dependencies with no violations; typecheck passed; Node tests passed 1,304/1,304 when repository root and Git were available. |
@@ -39,7 +39,7 @@
 | iPad macOS/Xcode build 및 signing 분리 job | 미실행 | 이 호스트는 full Xcode/XcodeGen이 없다. GitHub Mac runner도 실행되지 않았다. |
 | Windows/WSL2 서버, 실제 iPad Pencil, 실제 LLM provider | 대기 | 이 실행에서 해당 장치/서버를 사용할 수 없었다. fixture 검사는 이 인수 검증을 대체하지 않는다. |
 
-계약 fixture/source-adapter 검사와 두 readiness gate는 깨끗한 archive source `0855e4d`에 현재 UNIT-06 validator를 overlay해 실행했다. scratch Git index는 `git add -f -A`로 복원해 upstream `.gitignore`의 ignored-but-tracked 파일을 보존했다. 앞선 scratch archive에서 `git add -A`로 제외했던 여섯 파일은 archive와 commit tree에 실제 존재하며, corrected ownership 결과는 `absent=[]`다. Node 전체 검사는 깨끗한 archive of commit `b1d3956`에서 실행했다. 현재 shared worktree에는 UNIT-01/03/05와 UNIT-02의 미커밋 변경이 있다. 이 변경은 검사·stage·commit 대상에서 제외했다.
+계약 fixture/source-adapter 검사와 두 readiness gate는 깨끗한 archive commit `cf38839`에서 실행했다. scratch Git index는 `git add -f -A`로 복원해 upstream `.gitignore`의 ignored-but-tracked 파일을 보존했다. 앞선 scratch archive에서 `git add -A`로 제외했던 여섯 파일은 archive와 commit tree에 실제 존재하며, corrected ownership 결과는 `absent=[]`다. Node 전체 검사는 깨끗한 archive of commit `b1d3956`에서 실행했다. 현재 shared worktree에는 UNIT-01/03/05와 UNIT-02의 미커밋 변경이 있다. 이 변경은 검사·stage·commit 대상에서 제외했다.
 
 ## 계약 fixture와 제품 인수의 경계
 
@@ -134,7 +134,7 @@ docker compose -f compose.yaml start
 1. `integration/ownership.json`에서 tracked 상태인 `docs/handoffs/unit-02.md`에 단독 담당자를 배정한다. Corrected archive check에서 다른 소유 경로의 누락은 없다.
 2. root CI 파일(예: `.github/workflows/mnemosyne.yml`)을 UNIT-06에 배정한다. 현재 할당된 `.github/workflows/tests.yml`은 upstream 하위 경로라 이 Mnemosyne root 저장소의 GitHub Actions workflow로 실행되지 않는다. Backend runtime lock은 기존 UNIT-06 소유 경로인 `upstreams/DeepTutor/requirements.txt`에 작성했다.
 3. 목표에서 지정한 `docs/handoffs/unit-06.md`는 현재 정확한 소유 목록에 없고 기존 배정 파일은 `handoff/UNIT-06.md`다. 이 handoff는 허용된 경로를 사용했다. 새 문서 경로를 원하면 먼저 배정한다.
-4. Clean source `0855e4d`에서 76개 tracked upstream 수정의 사유와 실제 SHA-256을 `integration/upstreams.json`의 수정 예외에 반영한다. 계산된 분포는 UNIT-02 39개, UNIT-05 34개, UNIT-06 3개다. 해당 메타데이터는 통합 담당 소유라 여기서는 고치지 않았다. UNIT-06 변경의 현재 SHA-256:
+4. Clean source `cf38839`에서 76개 tracked upstream 수정의 사유와 실제 SHA-256을 `integration/upstreams.json`의 수정 예외에 반영한다. 계산된 분포는 UNIT-02 39개, UNIT-05 34개, UNIT-06 3개다. 해당 메타데이터는 통합 담당 소유라 여기서는 고치지 않았다. UNIT-06 변경의 현재 SHA-256:
    - `upstreams/DeepTutor/compose.yaml`: `a86bfe994c63763b93125f3c3861e32c9942a618fb2d191a83d9a0e3629a8bab`
    - `upstreams/DeepTutor/Dockerfile`: `c42b5bdf68bc4bd6811c0022b8ac01c5d7abaaee7aacd0c3b9ac39cd698e07cb`
    - `upstreams/DeepTutor/requirements.txt`: `c4c5917e5cb1288e80e21bafc6daab70b713eb39f89a59186cce07a2c44a32b5`
@@ -145,5 +145,5 @@ docker compose -f compose.yaml start
 - 실제 Windows/WSL2 설치·기동, SQLite 기록의 재시작 복구, 업로드 원본을 포함한 백업/복구 확인
 - 실제 iPad에서 Pencil 입력, 오프라인 저장, 종료/재시작 복구 확인
 - 실제 LLM provider 연결(명시적 테스트 자격증명 사용, 로그/fixture에 secret 금지)
-- Docker 단일 서비스 profile은 clean archive `8ff76c1`에서 image build, Compose up, `/health/ready`, healthy, graceful stop까지 PASS. 실제 자료를 이용한 upload/parse/sync/restart/backup recovery는 미검증이며 이 profile은 Redis를 사용하지 않는다.
+- Docker 단일 서비스 profile은 clean archive `cf38839`에서 image build, Compose up, `/health/ready`, healthy, graceful stop까지 PASS. 실제 자료를 이용한 upload/parse/sync/restart/backup recovery는 미검증이며 이 profile은 Redis를 사용하지 않는다.
 - Node 22 full `npm run check`는 3개 unit timeout과 `/` route-budget mismatch로 완전히 PASS하지 못했다. timeout 3건은 serial retry PASS. Root GitHub Linux/macOS/Xcode CI workflow는 현재 소유 배정이 없어 미추가·미실행.
