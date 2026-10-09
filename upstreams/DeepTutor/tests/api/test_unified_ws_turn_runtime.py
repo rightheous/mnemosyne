@@ -2031,6 +2031,125 @@ def test_native_protocol_turn_adapter_defaults_to_korean_and_rejects_unneeded_ca
 
 
 @pytest.mark.asyncio
+async def test_native_tutor_consumes_versioned_mnemosyne_web_envelope():
+    from deeptutor.mnemosyne.tutor import TutorAdapter
+
+    captured = {}
+
+    class FakeTurns:
+        async def start_turn(self, request):
+            captured["request"] = request
+            return {"session_id": request.session_id}, {"id": "turn-1"}
+
+    request = {
+        "type": "start_turn",
+        "protocol_version": "2.0",
+        "content": "설명해 줘",
+        "client_submission_id": "00000000-0000-0000-0000-000000000011",
+        "session_id": "session-1",
+        "capability": "chat",
+        "language": "en",
+        "reply_language_override": "ko",
+        "config": {
+            "_mnemosyne_content_language": "attacker-value",
+            "mnemosyne": {
+                "contract_version": "0.1.0",
+                "turn_request": {
+                    "client_mutation_id": "00000000-0000-0000-0000-000000000011",
+                    "capability": "quiz",
+                    "message": "설명해 줘",
+                    "reader_context": {
+                        "document_id": "00000000-0000-0000-0000-000000000002",
+                        "version_id": "sha256:" + "a" * 64,
+                        "page_index": 1,
+                        "viewport_rect": [0, 0, 612, 792],
+                        "selection": {"quote": "client supplied text"},
+                        "content_language": "en",
+                        "response_language": "ko",
+                    },
+                    "response_language": "ko",
+                },
+            },
+        },
+    }
+
+    adapter = TutorAdapter(turns=FakeTurns(), library=None, learning_store=None)
+    session, turn = await adapter.start_native_turn(request)
+
+    native = captured["request"]
+    assert session == {"session_id": "session-1"}
+    assert turn == {"id": "turn-1"}
+    assert native.session_id == "session-1"
+    assert native.capability == "deep_question"
+    assert native.content == "설명해 줘"
+    assert native.client_submission_id == "00000000-0000-0000-0000-000000000011"
+    assert native.language == "ko"
+    assert native.reply_language_override == "ko"
+    assert native.skills == ["__mnemosyne_disabled__"]
+    assert native.mcp == ["__mnemosyne_disabled__"]
+    assert native.config == {
+        "_mnemosyne_content_language": "en",
+        "_mnemosyne_reader_context": {
+            "document_id": "00000000-0000-0000-0000-000000000002",
+            "version_id": "sha256:" + "a" * 64,
+            "page_index": 1,
+        },
+    }
+
+
+@pytest.mark.parametrize(
+    ("mutate", "message"),
+    [
+        (lambda request: request["config"]["mnemosyne"].update(contract_version="0.2.0"), "Unsupported Mnemosyne"),
+        (lambda request: request["config"]["mnemosyne"]["turn_request"].update(client_mutation_id="00000000-0000-0000-0000-000000000099"), "submission IDs do not match"),
+        (lambda request: request["config"]["mnemosyne"]["turn_request"].update(capability="memory"), "learning-state operation"),
+        (lambda request: request["config"]["mnemosyne"]["turn_request"].update(capability="reading"), "server-resolved material"),
+    ],
+)
+@pytest.mark.asyncio
+async def test_native_tutor_rejects_invalid_or_unresolved_mnemosyne_actions(mutate, message):
+    from deeptutor.mnemosyne.tutor import TutorAdapter
+
+    class FakeTurns:
+        async def start_turn(self, _request):
+            raise AssertionError("invalid Mnemosyne requests must not start a turn")
+
+    request = {
+        "type": "start_turn",
+        "protocol_version": "2.0",
+        "content": "설명해 줘",
+        "client_submission_id": "00000000-0000-0000-0000-000000000011",
+        "session_id": "session-1",
+        "capability": "chat",
+        "config": {
+            "mnemosyne": {
+                "contract_version": "0.1.0",
+                "turn_request": {
+                    "client_mutation_id": "00000000-0000-0000-0000-000000000011",
+                    "capability": "quiz",
+                    "message": "설명해 줘",
+                    "reader_context": {
+                        "document_id": "00000000-0000-0000-0000-000000000002",
+                        "version_id": "sha256:" + "a" * 64,
+                        "page_index": 1,
+                        "viewport_rect": [0, 0, 612, 792],
+                        "selection": None,
+                        "content_language": "en",
+                        "response_language": "ko",
+                    },
+                    "response_language": "ko",
+                },
+            }
+        },
+    }
+    mutate(request)
+    adapter = TutorAdapter(turns=FakeTurns(), library=None, learning_store=None)
+
+    with pytest.raises(ValueError, match=message):
+        await adapter.start_native_turn(request)
+
+
+@pytest.mark.asyncio
 async def test_unified_ws_uses_registered_tutor_for_start_cancel_and_reconnect(monkeypatch):
     import json
 

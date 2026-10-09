@@ -109,6 +109,13 @@
 - `checks/source_adapters.py`와 `checks/sync_contracts.py --check`는 각각 **PASS**이며 registry `product_ready:false`를 확인했다. 이들은 fixture/adapter 준비 검사이지 실제 PDF의 Tutor→Reader UI 연결 또는 제품 인수 검사가 아니다. 실제 provider, mounted web Tutor turn, iPad, DB restart/replay는 여전히 미검증이다.
 - 추가 통합 의존: 현재 웹 Tutor는 `config.mnemosyne.turn_request`에 문서/version/선택 anchor를 담아 `/ws`로 보내지만, `api/routers/unified_ws.py`는 이를 `TutorAdapter.start_native_turn`에 전달하고 `start_native_turn`은 nested envelope를 해석하지 않는다. UI 요청에는 DeepTutor의 `reading_material_id`/revision도 없다. LibraryAdapter `get_document`의 SELECT에는 `v.material_id`가 있지만 반환 DTO에 없고, UNIT-02가 16자 content hash를 문서 UUID/full SHA로 추론해서는 안 된다. 통합 전에 UNIT-01이 authenticated in-process `document_id+version_id → material_id+revision` resolver를 공개하고, 통합/UNIT-02가 versioned nested turn envelope를 기존 native start 경계에서 소비해야 한다. 현재 구현은 direct TutorAdapter context fixture 경로만 확인됐으며, web `/ws` product path에 완료된 것으로 보고하지 않는다.
 
+## 추가 checkpoint — native `/ws`의 버전형 웹 요청 수용 — 2026-10-09
+
+- `TutorAdapter.start_native_turn`이 `config.mnemosyne`의 계약 `0.1.0` envelope를 읽도록 연결했다. inner/outer 메시지와 mutation/submission UUID 일치, 지원 capability, 문서 UUID/full SHA/page index, 언어 태그, viewport 숫자 배열을 확인한다. request의 nested envelope와 client가 보낸 private language/context 및 ReadingStore material/revision/workspace 값은 제거하고, 검증한 문서 identity와 source language만 adapter-owned private bridge로 넣는다. 기존 `session_id`는 보존한다. capability 불일치와 `memory`/`progress`/`review` state action은 fail closed다.
+- 현재 native Reading 시작은 여전히 fail closed다. 등록된 `LibraryAdapter`에는 document/version → ReadingStore material/revision resolver가 없고, browser material ID를 신뢰할 수 없다. client `selection`/rect는 adapter에서 evidence로 사용하지 않는다. 검증된 Reader 이벤트는 immutable source bridge가 확인한 실제 원문 quote/geometry에서만 만들어진다.
+- 실제 실행 fixture: `tests/api/test_unified_ws_turn_runtime.py -k 'native_tutor_consumes_versioned_mnemosyne_web_envelope or native_tutor_rejects_invalid_or_unresolved_mnemosyne_actions'` — **5 passed, 49 deselected**. `ruff check`는 두 수정 Python 파일에 **PASS**, `git diff --check` 및 문법 compile probe도 **PASS**했다. 이는 TutorAdapter와 fake turn service fixture 결과이며, mounted `/ws` 브라우저 전체 흐름·provider·Reader UI를 검증하지 않는다.
+- 계약은 계속 `0.1.0`. 직전 checkpoint의 nested envelope 미소비 진술은 이 변경으로 갱신되지만, authenticated Library→ReadingStore resolver와 `/ws`에서 실제 source-grounded Reading capability 실행은 미완료다. Durable learning state, 외부 API mount, real provider 및 제품/build/device 검증도 남아 있으며 registry `product_ready:false`다.
+
 검증 명령:
 
 ```text

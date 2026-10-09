@@ -596,6 +596,134 @@ def native_protocol_turn_request(
     return TurnRequest.model_validate(payload)
 
 
+def _mnemosyne_web_turn_request(request: dict[str, Any]) -> TurnRequest | None:
+    """Normalize the versioned web envelope carried by native ``/ws``.
+
+    The web client keeps the protocol-2.0 start command as its transport and
+    nests the Mnemosyne action in ``config.mnemosyne``. Only the adapter may
+    turn that client context into the private source-language/reader bridge;
+    the nested envelope itself is removed before DeepTutor validates config.
+    """
+    config = request.get("config")
+    if not isinstance(config, dict) or "mnemosyne" not in config:
+        return None
+    envelope = config.get("mnemosyne")
+    if (
+        not isinstance(envelope, dict)
+        or set(envelope) != {"contract_version", "turn_request"}
+        or envelope.get("contract_version") != "0.1.0"
+    ):
+        raise ValueError("Unsupported Mnemosyne turn envelope")
+    raw = envelope.get("turn_request")
+    required_fields = {
+        "client_mutation_id",
+        "capability",
+        "message",
+        "reader_context",
+        "response_language",
+    }
+    if not isinstance(raw, dict) or set(raw) != required_fields:
+        raise ValueError("Malformed Mnemosyne turn request")
+
+    capability = str(raw.get("capability") or "").strip()
+    if capability not in SUPPORTED_CAPABILITIES:
+        raise ValueError("Unsupported personal tutor capability")
+    if capability not in CAPABILITY_MAP:
+        raise ValueError("This action requires a learning-state operation, not a native turn")
+
+    message = raw.get("message")
+    if not isinstance(message, str) or not message.strip():
+        raise ValueError("message is required")
+    if request.get("content") != message:
+        raise ValueError("Mnemosyne and native turn messages do not match")
+    mutation_id = _required_id(
+        raw.get("client_mutation_id"), "client_mutation_id", uuid_value=True
+    )
+    submission_id = _required_id(
+        request.get("client_submission_id"), "client_submission_id", uuid_value=True
+    )
+    if mutation_id != submission_id:
+        raise ValueError("Mnemosyne and native submission IDs do not match")
+
+    context = raw.get("reader_context")
+    context_fields = {
+        "document_id",
+        "version_id",
+        "page_index",
+        "viewport_rect",
+        "selection",
+        "content_language",
+        "response_language",
+    }
+    if not isinstance(context, dict) or set(context) != context_fields:
+        raise ValueError("Malformed Mnemosyne reader context")
+    content_language = str(context.get("content_language") or "").strip()
+    if not _CONTENT_LANGUAGE_RE.fullmatch(content_language):
+        raise ValueError("reader_context.content_language must be a valid language tag")
+    response_language = str(raw.get("response_language") or "").strip().lower()
+    context_response_language = str(context.get("response_language") or "").strip().lower()
+    if (
+        not _CONTENT_LANGUAGE_RE.fullmatch(response_language)
+        or context_response_language != response_language
+    ):
+        raise ValueError("response_language must match the reader context")
+
+    viewport_rect = context.get("viewport_rect")
+    if (
+        not isinstance(viewport_rect, list)
+        or len(viewport_rect) != 4
+        or any(
+            isinstance(value, bool)
+            or not isinstance(value, (int, float))
+            or not math.isfinite(value)
+            for value in viewport_rect
+        )
+    ):
+        raise ValueError("reader_context.viewport_rect must contain four finite numbers")
+    selection = context.get("selection")
+    if selection is not None and not isinstance(selection, dict):
+        raise ValueError("reader_context.selection must be an object or null")
+
+    # Outer capability is a protocol placeholder in the current web client.
+    # Accept it or a matching native alias, but reject conflicting actions.
+    outer_capability = str(request.get("capability") or "chat").strip()
+    if outer_capability not in {"chat", capability, CAPABILITY_MAP[capability]}:
+        raise ValueError("Mnemosyne and native turn capabilities do not match")
+
+    normalized_context = _normalized_reader_context(context)
+    payload = {
+        key: value
+        for key, value in request.items()
+        if key not in {"type", "protocol_version"}
+    }
+    sanitized_config = dict(config)
+    sanitized_config.pop("mnemosyne", None)
+    sanitized_config.pop(_CONTENT_LANGUAGE_CONFIG_KEY, None)
+    sanitized_config.pop(_READER_CONTEXT_CONFIG_KEY, None)
+    payload.update(
+        {
+            "content": message.strip(),
+            "client_submission_id": mutation_id,
+            "capability": capability,
+            "language": content_language,
+            "reply_language_override": response_language,
+            "config": sanitized_config,
+        }
+    )
+    # A browser-provided DeepTutor material key is not authoritative. Reading
+    # stays unavailable until the server adapter has a Library→ReadingStore
+    # resolver; native_protocol_turn_request will reject the missing mapping.
+    payload.pop("reading_material_id", None)
+    payload.pop("reading_material_revision", None)
+    payload.pop("reading_workspace_id", None)
+    payload.pop("reading_viewport", None)
+    return native_protocol_turn_request(
+        payload,
+        content_language=content_language,
+        reader_context=normalized_context,
+    )
+
+
 def native_turn_request(
     request: dict[str, Any], *, material_id: str | None = None, material_revision: int | None = None
 ) -> TurnRequest:
@@ -791,8 +919,14 @@ class TutorAdapter:
     async def start_native_turn(
         self, request: dict[str, Any]
     ) -> tuple[dict[str, Any], dict[str, Any]]:
-        """Start from a validated DeepTutor protocol 2.0 command payload."""
-        return await self.turns.start_turn(native_protocol_turn_request(request))
+        """Start a DeepTutor protocol command, including Mnemosyne's web envelope."""
+        normalized = _mnemosyne_web_turn_request(request)
+        native = (
+            native_protocol_turn_request(request)
+            if normalized is None
+            else normalized
+        )
+        return await self.turns.start_turn(native)
 
     async def subscribe_turn(self, turn_id: str, after_seq: int = 0):
         """Read an existing turn from its native durable event cursor."""
