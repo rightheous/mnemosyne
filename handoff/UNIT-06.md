@@ -20,10 +20,10 @@
 | 검사 | 결과 | 범위 |
 |---|---|---|
 | `/tmp` 임시 venv에 `pip install -r checks/requirements.txt`에 필요한 고정 패키지 설치 | PASS | Python 3.12.14, macOS arm64. 승인된 네트워크 설치. Windows/Linux 설치는 미검증. |
-| `checks/validate_contracts.py` on clean archive `cf38839` | PASS | OpenAPI 30 operations, 4 schemas, 80 schema instances, 19 negative cases, 10 sync steps, 4 geometry cases. 소스/readiness gate는 실행하지 않음. |
+| `checks/validate_contracts.py` on clean archive `2b47f29` | PASS | OpenAPI 30 operations, 4 schemas, 80 schema instances, 19 negative cases, 10 sync steps, 4 geometry cases. 소스/readiness gate는 실행하지 않음. |
 | Backend runtime lock 정적 검사 (위 fixture 검사에 포함) | PASS | 192개 Python 3.11 대상 잠금 항목, 3,587개 해시, 필수 backend 패키지, Docker `--require-hashes` 적용을 확인. 같은 uv 명령의 재해석 결과와 잠금 파일이 바이트 단위로 일치. |
-| `checks/validate_contracts.py --require-ready` on clean archive `cf38839` | FAIL | Ownership: `docs/handoffs/unit-02.md` is unassigned; `absent=[]`. Source gate: 76 tracked upstream files differ from their pinned snapshot hashes without `current_sha256` exceptions (UNIT-02 39, UNIT-05 34, UNIT-06 3); output includes each path's current SHA-256. Other source/provenance, contract-copy, registration and license checks completed. |
-| `checks/source_adapters.py` on clean archive `cf38839` and pinned DeepTutor `6cf793bd868ba5ecbe64722936d4be8fab5a01df` | PASS | Actual-source adapter checks passed: PDF pages 2, native frames 12, native commands 5, SQLite reopen/replay true, duplicate append creates no events, capability mappings 6. UNIT-02's source-language context fix resolves the prior language-mapping failure. Product readiness remains false. |
+| `checks/validate_contracts.py --require-ready` on clean archive `2b47f29` | FAIL | Ownership: `docs/handoffs/unit-02.md` is unassigned; `absent=[]`. Source gate: 76 tracked upstream files differ from their pinned snapshot hashes without `current_sha256` exceptions (UNIT-02 39, UNIT-05 34, UNIT-06 3); output includes each path's current SHA-256. Other source/provenance, contract-copy, registration and license checks completed. |
+| `checks/source_adapters.py` on clean archive `2b47f29` and pinned DeepTutor `6cf793bd868ba5ecbe64722936d4be8fab5a01df` | PASS | Actual-source adapter checks passed: PDF pages 2, native frames 12, native commands 5, SQLite reopen/replay true, duplicate append creates no events, capability mappings 6. UNIT-02's source-language context fix resolves the prior language-mapping failure. Product readiness remains false. |
 | `docker compose -f upstreams/DeepTutor/compose.yaml config --quiet` | PASS | YAML/Compose 구성 정적 검사. 1개 앱 서비스, 루프백 포트, persistence와 종료 유예를 확인. |
 | `docker compose -f upstreams/DeepTutor/docker-compose.yml config --quiet` | PASS | 기존 upstream compose 구성 정적 검사. 새 Mnemosyne 프로필의 기동 증거는 아님. |
 | `python -m pip check` | PASS | 설치한 검증 venv 안의 패키지 관계만 확인. |
@@ -39,7 +39,7 @@
 | iPad macOS/Xcode build 및 signing 분리 job | 미실행 | 이 호스트는 full Xcode/XcodeGen이 없다. GitHub Mac runner도 실행되지 않았다. |
 | Windows/WSL2 서버, 실제 iPad Pencil, 실제 LLM provider | 대기 | 이 실행에서 해당 장치/서버를 사용할 수 없었다. fixture 검사는 이 인수 검증을 대체하지 않는다. |
 
-계약 fixture/source-adapter 검사와 두 readiness gate는 깨끗한 archive commit `cf38839`에서 실행했다. scratch Git index는 `git add -f -A`로 복원해 upstream `.gitignore`의 ignored-but-tracked 파일을 보존했다. 앞선 scratch archive에서 `git add -A`로 제외했던 여섯 파일은 archive와 commit tree에 실제 존재하며, corrected ownership 결과는 `absent=[]`다. Node 전체 검사는 깨끗한 archive of commit `b1d3956`에서 실행했다. 현재 shared worktree에는 UNIT-01/03/05와 UNIT-02의 미커밋 변경이 있다. 이 변경은 검사·stage·commit 대상에서 제외했다.
+계약 fixture/source-adapter 검사와 두 readiness gate는 깨끗한 archive commit `2b47f29`에서 실행했다. scratch Git index는 `git add -f -A`로 복원해 upstream `.gitignore`의 ignored-but-tracked 파일을 보존했다. 앞선 scratch archive에서 `git add -A`로 제외했던 여섯 파일은 archive와 commit tree에 실제 존재하며, corrected ownership 결과는 `absent=[]`다. Node 전체 검사는 깨끗한 archive of commit `b1d3956`에서 실행했다. 현재 shared worktree에는 UNIT-01/03/05와 UNIT-02의 미커밋 변경이 있다. 이 변경은 검사·stage·commit 대상에서 제외했다.
 
 ## 계약 fixture와 제품 인수의 경계
 
@@ -134,7 +134,7 @@ docker compose -f compose.yaml start
 1. `integration/ownership.json`에서 tracked 상태인 `docs/handoffs/unit-02.md`에 단독 담당자를 배정한다. Corrected archive check에서 다른 소유 경로의 누락은 없다.
 2. root CI 파일(예: `.github/workflows/mnemosyne.yml`)을 UNIT-06에 배정한다. 현재 할당된 `.github/workflows/tests.yml`은 upstream 하위 경로라 이 Mnemosyne root 저장소의 GitHub Actions workflow로 실행되지 않는다. Backend runtime lock은 기존 UNIT-06 소유 경로인 `upstreams/DeepTutor/requirements.txt`에 작성했다.
 3. 목표에서 지정한 `docs/handoffs/unit-06.md`는 현재 정확한 소유 목록에 없고 기존 배정 파일은 `handoff/UNIT-06.md`다. 이 handoff는 허용된 경로를 사용했다. 새 문서 경로를 원하면 먼저 배정한다.
-4. Clean source `cf38839`에서 76개 tracked upstream 수정의 사유와 실제 SHA-256을 `integration/upstreams.json`의 수정 예외에 반영한다. 계산된 분포는 UNIT-02 39개, UNIT-05 34개, UNIT-06 3개다. `--require-ready` source gate 출력에 현재 SHA-256이 포함된다. 해당 metadata는 통합 담당 소유라 여기서는 고치지 않았다. UNIT-06 변경의 현재 SHA-256:
+4. Clean source `2b47f29`에서 76개 tracked upstream 수정의 사유와 실제 SHA-256을 `integration/upstreams.json`의 수정 예외에 반영한다. 계산된 분포는 UNIT-02 39개, UNIT-05 34개, UNIT-06 3개다. `--require-ready` source gate 출력에 현재 SHA-256이 포함된다. 해당 metadata는 통합 담당 소유라 여기서는 고치지 않았다. UNIT-06 변경의 현재 SHA-256:
    - `upstreams/DeepTutor/compose.yaml`: `a86bfe994c63763b93125f3c3861e32c9942a618fb2d191a83d9a0e3629a8bab`
    - `upstreams/DeepTutor/Dockerfile`: `c42b5bdf68bc4bd6811c0022b8ac01c5d7abaaee7aacd0c3b9ac39cd698e07cb`
    - `upstreams/DeepTutor/requirements.txt`: `c4c5917e5cb1288e80e21bafc6daab70b713eb39f89a59186cce07a2c44a32b5`
