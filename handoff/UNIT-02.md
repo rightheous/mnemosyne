@@ -59,6 +59,36 @@
 - 실제 fixture `tests/api/test_unified_ws_turn_runtime.py -k 'tutor_learning_mutations_match_contract_revision_fields or tutor_save_activity_rejects_malformed_activity_before_store_write or tutor_save_activity_rejects_state_from_another_document_version or tutor_save_activity_requires_the_activity_in_persisted_state'`는 **4 passed, 56 deselected**다. store scope 전달, 다른 version 거부, 요청한 activity가 빠진 성공 state 거부를 확인했다. 수정 Python 두 파일 Ruff **PASS**, `git diff --check` **PASS**.
 - 현재 shared worktree의 UNIT-01 `library.py`를 사용해 재실행한 `-k tutor_revalidates_bilingual_quiz_citations_against_source_pdf`는 계속 **1 failed, 57 deselected**다. `get_page` parse-revision SQL은 4개 placeholder를 쓰지만 현재 dirty implementation은 3개 parameter를 전달한다 (`library.py:1095–1098`). UNIT-02는 이 소유 파일을 수정하지 않았다.
 
+### 통합 담당 계약 제안 — version-scoped Progress activity mutation (0.2.0)
+
+현재 0.1.0 OpenAPI에는 `GET /v1/documents/{document_id}/learning`만 있고 activity write가 없다. Web/Reader에서 Progress 기록을 요청할 수 있도록 다음 additive operation과 named schema를 루트 `contracts/` 및 생성 복사본에 추가한다. Unit02는 이 계약을 직접 수정하지 않았다.
+
+```yaml
+POST /v1/documents/{document_id}/learning/activities
+  operationId: saveLearningActivity
+  headers:
+    X-Mnemosyne-Contract-Version: "0.2.0"
+  path:
+    document_id: UUID
+  query:
+    version_id: "sha256:<64 lowercase hex>"
+  requestBody: LearningActivityMutation
+  responses:
+    200: LearningState
+    400: ErrorEnvelope
+    401: ErrorEnvelope
+    403: ErrorEnvelope
+    404: ErrorEnvelope
+    409: ErrorEnvelope
+    503: ErrorEnvelope
+```
+
+`LearningActivityMutation`는 `client_mutation_id: UUID`, `base_learning_revision: safe integer >= 0`, `activity: LearningActivity`를 필수로 둔다. `LearningActivity`는 기존 `LearningState.activities[]` shape를 named `$defs`로 분리한다: `activity_id: UUID`, `kind`는 `chat|reading|quiz|assessment|mastery|solve|memory|progress|review`, `turn_id: native turn ID|null`, `summary_ko: string`, `created_at: RFC 3339 date-time`. 성공 응답 state는 path/query의 같은 document/version이고, 저장된 activity를 포함해야 한다.
+
+같은 `client_mutation_id`와 canonical request hash 재전송은 원래 저장 결과/state를 반환한다. 같은 ID에 다른 hash면 409 idempotency conflict, stale `base_learning_revision`이면 409 revision conflict를 반환하고 state를 변경하지 않는다. HTTP mutation 자체에는 native `turn_id/seq`가 없으므로 `learning.updated` WebSocket event를 꾸며내지 않는다. turn 완료와 결합하는 producer는 별도 native persisted-frame 작업으로 처리한다.
+
+소비자 영향은 DeepTutor TutorAdapter/API, UNIT-05 web Progress/Reading, UNIT-03/04 iPad 학습 진도, OpenAPI/schema codegen, contract fixtures 및 validator다. 필수 fixture는 새 mutation, 같은 ID/hash 재전송, 같은 ID/different hash 충돌, stale revision, 잘못된 document/version, 재시작 후 replay 및 응답 state에 activity 포함 여부다. 통합 담당은 version/header 기대값을 0.2.0으로 갱신하고 `checks/sync_contracts.py`/validator에서 두 upstream 생성 복사본과 소비자 gate를 확인한다.
+
 ### 추가 연결 명세 — persistent Quiz와 계약 이벤트
 
 - 현재 `contracts/models.schema.json`의 `Quiz`, `Attempt`, `Assessment`, `LearningState`와 `contracts/events.schema.json`의 `quiz.show`, `question.show`, `learning.updated` shape는 이미 있다. OpenAPI에는 `GET /v1/quizzes/{quiz_id}`와 attempt/state 경로만 있고 모두 `planned-unit-extension`이며 quiz generation/create route는 없다. `TurnRequest` action `quiz`와 native `/ws`는 유지한다.
