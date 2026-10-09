@@ -122,6 +122,7 @@
 - `TurnExecutor`는 Assessment를 Quiz와 같은 `deep_question` capability로 실행하면서 semantic `turn.started.capability=assessment` 및 `TaskKind.MNEMOSYNE_ASSESSMENT`를 사용한다. 다른 Mnemosyne action은 각각 해당 의미 이벤트와 task model scope로 유지하며, action 정보가 없는 legacy `deep_question`은 기존 Quiz behavior를 유지한다.
 - 실행 검증: `tests/api/test_unified_ws_turn_runtime.py -k 'native_protocol_turn_adapter or native_tutor_consumes_versioned_mnemosyne_web_envelope or native_tutor_rejects_invalid_or_unresolved_mnemosyne_actions or assessment_action_keeps_its_event_and_model_identity or turn_runtime_replays_events_and_materializes_messages'` — **13 passed, 42 deselected, 3 warnings**. 이 결과에는 기존 Chat runtime fixture의 private config 제거와 의미 이벤트, action/model identity mapping 단위 검증이 포함된다. 실제 assessment provider 호출 및 durable Assessment commit/restart 검증은 아니다.
 - `ruff check`는 수정한 Python 4개 파일에 **PASS**했고 `git diff --check` 및 문법 compile probe도 통과했다. 계약 `0.1.0`과 `product_ready:false`를 유지한다.
+- 이후 전체 `tests/api/test_unified_ws_turn_runtime.py` 실행은 **54 passed, 1 failed, 9 warnings**다. 첫 실행에서 발견한 일반 `deep_research` turn에 Mnemosyne Chat start event를 잘못 발행하던 새 fallback은 수정했고 재실행에서 회귀가 사라졌다. 유일한 실패는 UNIT-01 `library.py:1095–1099`의 `get_page` SQL placeholder 4개/parameter 3개 binding 오류로 `test_tutor_revalidates_bilingual_quiz_citations_against_source_pdf`가 source citation 재검증 전에 실패한 것이다. UNIT-02는 해당 파일을 수정하지 않았다.
 
 ## 공통 gate 확인 — 2026-10-09
 

@@ -67,7 +67,7 @@ logger = logging.getLogger(__name__)
 def _mnemosyne_turn_selection(
     capability_name: str | None,
     action: str | None,
-):
+) -> tuple[str | None, Any]:
     """Keep semantic action identity after actions share a DeepTutor capability."""
     from deeptutor.services.model_selection.tasks import TaskKind
 
@@ -90,7 +90,7 @@ def _mnemosyne_turn_selection(
     }
     return native_actions.get(
         str(capability_name or "chat"),
-        ("chat", TaskKind.MNEMOSYNE_CHAT),
+        (None, TaskKind.MNEMOSYNE_CHAT),
     )
 
 

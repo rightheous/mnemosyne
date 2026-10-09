@@ -2117,6 +2117,10 @@ def test_assessment_action_keeps_its_event_and_model_identity():
         "quiz",
         TaskKind.MNEMOSYNE_QUIZ,
     )
+    assert _mnemosyne_turn_selection("deep_research", None) == (
+        None,
+        TaskKind.MNEMOSYNE_CHAT,
+    )
 
 
 @pytest.mark.parametrize(
