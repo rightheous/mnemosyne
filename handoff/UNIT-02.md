@@ -135,8 +135,14 @@
 
 - Mnemosyne assessment provider가 대기 중인 상태에서 호출자가 task를 취소하는 fixture를 추가했다. 취소가 공개 provider 오류로 바뀌지 않고 `CancelledError`로 전파되며, claim이 `assessment_cancelled` 코드로 retry 해제되고 assessment commit은 실행되지 않는 것을 확인한다.
 - 실행: `tests/api/test_unified_ws_turn_runtime.py -k mnemosyne_assessment_service_releases_failed_claim_for_retry` — **3 passed, 53 deselected**. 이 fixture는 fake evaluator/store 경계만 검사하며 durable store의 process-restart replay, provider credential/API, mounted HTTP, 제품 인수는 검증하지 않는다.
-- 전체 `tests/api/test_unified_ws_turn_runtime.py` 재실행은 **55 passed, 1 failed, 9 warnings**다. 유일한 실패는 `test_tutor_revalidates_bilingual_quiz_citations_against_source_pdf`이며 UNIT-01 `library.py:1095–1099`가 네 placeholder에 세 값을 바인딩하는 기존 문제와 동일하다. UNIT-02는 그 파일을 수정하지 않았다.
+- 최신 전체 `tests/api/test_unified_ws_turn_runtime.py` 실행은 한국어 Reading prompt fixture를 포함해 **57 passed, 1 failed, 9 warnings**다. 유일한 실패는 `test_tutor_revalidates_bilingual_quiz_citations_against_source_pdf`이며 UNIT-01 `library.py:1095–1099`가 네 placeholder에 세 값을 바인딩하는 기존 문제와 동일하다. UNIT-02는 그 파일을 수정하지 않았다.
 - 취소 중 retry 해제에 대한 이 fixture 결과는 기존 provider-error/commit-error 케이스와 함께 확인했다. 저장소가 claim/release를 영속화하고 transaction으로 보장하는 구현은 UNIT-01/통합 wiring이 아직 필요하다.
+
+## 추가 checkpoint — 한국어 Reading prompt — 2026-10-09
+
+- `ReadingCapability._load_prompts`가 `ko`/`ko-*`를 영어 fallback으로 보내던 동작을 수정하고, 한국어 학습·Reading prompt와 열린 문서가 없을 때의 한국어 안내를 추가했다. 문서 언어와 응답 언어를 분리해 영어 원문도 한국어로 설명하고, quote·수식·코드를 보존하며, source text를 신뢰되지 않는 데이터로 취급하고 검증 전 Reader 이동/강조를 금지한다.
+- UNIT-02 runtime fixture 2개(`ko-KR` open reader, `ko` empty reader)는 **2 passed, 56 deselected**. 기존 reading capability의 영어·중국어 prompt 및 no-material prompt 확인은 **4 passed, 42 deselected**. 변경 Python 파일 Ruff 검사와 `git diff --check`도 통과했다.
+- 실제 LLM 응답이나 화면 문자열 렌더는 검증하지 않았다. 이 prompt는 문서/source resolver나 citation store를 대체하지 않으며, 해당 경계 및 durable learning storage는 여전히 UNIT-01/통합 연결이 필요하다.
 
 검증 명령:
 

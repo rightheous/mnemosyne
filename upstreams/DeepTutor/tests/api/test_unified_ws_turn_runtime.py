@@ -1676,6 +1676,49 @@ def test_reader_capability_only_injects_server_context_for_reader_tools():
     assert "_mnemosyne_reader_context" not in read
 
 
+def test_reader_capability_uses_korean_learning_and_source_instructions(monkeypatch):
+    from deeptutor.capabilities.reading.capability import ReadingCapability
+    from deeptutor.core.context import UnifiedContext
+
+    capability = ReadingCapability()
+    context = UnifiedContext(
+        user_message="이 내용을 설명해 줘",
+        metadata={"reading_material_id": "abcdef12"},
+    )
+    monkeypatch.setattr(
+        capability,
+        "_material_facts",
+        lambda _material_id, *, language: "### 열린 문서\nfixture source",
+    )
+
+    block = capability.system_block(context, language="ko-KR", prompts={})
+
+    assert block is not None
+    assert "기본 답변은 한국어로 작성하세요" in block.content
+    assert "영문 원문 인용, 수식, 코드는 그대로 보존" in block.content
+    assert "검증되지 않은 quote로 이동하거나 강조하지 마세요" in block.content
+    assert "`reader_goto`" in block.content
+    assert "fixture source" in block.content
+    assert "You can see the document only" not in block.content
+
+
+def test_reader_capability_explains_empty_reader_in_korean():
+    from deeptutor.capabilities.reading.capability import ReadingCapability
+    from deeptutor.core.context import UnifiedContext
+
+    context = UnifiedContext(
+        user_message="이 논문은 무엇을 말해?",
+        metadata={"immersive_reading_mode": True},
+    )
+
+    block = ReadingCapability().system_block(context, language="ko", prompts={})
+
+    assert block is not None
+    assert "열린 문서 없음" in block.content
+    assert "Reader에서 파일을 열어 달라고 요청하세요" in block.content
+    assert "기억으로 답하거나 페이지·인용문을 만들어 내지 마세요" in block.content
+
+
 def test_verified_mnemosyne_reader_citation_binds_source_bytes_and_geometry(monkeypatch, tmp_path):
     import hashlib
 
