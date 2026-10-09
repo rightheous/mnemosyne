@@ -34,6 +34,7 @@ _VERSION_RE = re.compile(r"^sha256:[a-f0-9]{64}$")
 _CONTENT_LANGUAGE_RE = re.compile(r"^(und|[A-Za-z]{2,8}(-[A-Za-z0-9]{1,8})*)$")
 _CONTENT_LANGUAGE_CONFIG_KEY = "_mnemosyne_content_language"
 _READER_CONTEXT_CONFIG_KEY = "_mnemosyne_reader_context"
+_ACTION_CONFIG_KEY = "_mnemosyne_action"
 _DATETIME_RE = re.compile(
     r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$"
 )
@@ -518,6 +519,7 @@ def native_protocol_turn_request(
     *,
     content_language: str | None = None,
     reader_context: dict[str, Any] | None = None,
+    mnemosyne_action: str | None = None,
 ) -> TurnRequest:
     """Constrain an already validated native /ws start command for Mnemosyne.
 
@@ -540,6 +542,7 @@ def native_protocol_turn_request(
     # context; the adapter supplies this private bridge for Reader turns.
     config.pop(_CONTENT_LANGUAGE_CONFIG_KEY, None)
     config.pop(_READER_CONTEXT_CONFIG_KEY, None)
+    config.pop(_ACTION_CONFIG_KEY, None)
     if content_language is not None:
         normalized_content_language = str(content_language).strip()
         if not _CONTENT_LANGUAGE_RE.fullmatch(normalized_content_language):
@@ -547,11 +550,17 @@ def native_protocol_turn_request(
         config[_CONTENT_LANGUAGE_CONFIG_KEY] = normalized_content_language
     if reader_context is not None:
         config[_READER_CONTEXT_CONFIG_KEY] = _normalized_reader_context(reader_context)
+    if mnemosyne_action is not None:
+        if not isinstance(mnemosyne_action, str) or mnemosyne_action not in CAPABILITY_MAP:
+            raise ValueError("Unsupported Mnemosyne native action")
+        config[_ACTION_CONFIG_KEY] = mnemosyne_action
     payload["config"] = config
     requested_capability = str(payload.get("capability") or "chat").strip()
     capability = _NATIVE_CAPABILITY_ALIASES.get(requested_capability)
     if capability is None:
         raise ValueError("Unsupported personal tutor capability")
+    if mnemosyne_action is not None and CAPABILITY_MAP.get(mnemosyne_action) != capability:
+        raise ValueError("Mnemosyne action does not match the native capability")
 
     submission_id = _required_id(
         payload.get("client_submission_id") or payload.get("client_mutation_id"),
@@ -672,12 +681,7 @@ def _mnemosyne_web_turn_request(request: dict[str, Any]) -> TurnRequest | None:
     if (
         not isinstance(viewport_rect, list)
         or len(viewport_rect) != 4
-        or any(
-            isinstance(value, bool)
-            or not isinstance(value, (int, float))
-            or not math.isfinite(value)
-            for value in viewport_rect
-        )
+        or any(not _finite_number(value) for value in viewport_rect)
     ):
         raise ValueError("reader_context.viewport_rect must contain four finite numbers")
     selection = context.get("selection")
@@ -707,6 +711,7 @@ def _mnemosyne_web_turn_request(request: dict[str, Any]) -> TurnRequest | None:
             "capability": capability,
             "language": content_language,
             "reply_language_override": response_language,
+            "auto_route": False,
             "config": sanitized_config,
         }
     )
@@ -721,7 +726,17 @@ def _mnemosyne_web_turn_request(request: dict[str, Any]) -> TurnRequest | None:
         payload,
         content_language=content_language,
         reader_context=normalized_context,
+        mnemosyne_action=capability,
     )
+
+
+def _finite_number(value: Any) -> bool:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return False
+    try:
+        return math.isfinite(value)
+    except (OverflowError, TypeError, ValueError):
+        return False
 
 
 def native_turn_request(
@@ -801,6 +816,7 @@ def native_turn_request(
         reply_language_override=response_language,
         config={
             _CONTENT_LANGUAGE_CONFIG_KEY: content_language,
+            _ACTION_CONFIG_KEY: action,
             **(
                 {_READER_CONTEXT_CONFIG_KEY: mnemosyne_reader_context}
                 if mnemosyne_reader_context is not None
@@ -816,6 +832,7 @@ def native_turn_request(
         # an explicit empty allowlist for these optional extension systems.
         skills=["__mnemosyne_disabled__"],
         mcp=["__mnemosyne_disabled__"],
+        auto_route=False,
     )
 
 
@@ -913,6 +930,7 @@ class TutorAdapter:
                 native.model_dump(),
                 content_language=(native.config or {}).get(_CONTENT_LANGUAGE_CONFIG_KEY),
                 reader_context=(native.config or {}).get(_READER_CONTEXT_CONFIG_KEY),
+                mnemosyne_action=str(request.get("capability") or "").strip(),
             )
         )
 

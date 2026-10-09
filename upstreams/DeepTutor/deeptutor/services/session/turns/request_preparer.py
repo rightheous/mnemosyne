@@ -47,6 +47,14 @@ _MNEMOSYNE_CONTENT_LANGUAGE_RE = re.compile(
     r"^(und|[A-Za-z]{2,8}(-[A-Za-z0-9]{1,8})*)$"
 )
 _MNEMOSYNE_VERSION_RE = re.compile(r"^sha256:[a-f0-9]{64}$")
+_MNEMOSYNE_ACTION_CAPABILITIES = {
+    "chat": "chat",
+    "reading": "immersive_reading",
+    "quiz": "deep_question",
+    "assessment": "deep_question",
+    "mastery": "mastery_path",
+    "solve": "deep_solve",
+}
 
 if TYPE_CHECKING:
     from deeptutor.runtime.coordination import RuntimeCoordinator
@@ -172,6 +180,12 @@ class TurnRequestPreparer:
             or not _MNEMOSYNE_CONTENT_LANGUAGE_RE.fullmatch(mnemosyne_content_language)
         ):
             raise RuntimeError("Mnemosyne content language must be a valid language tag")
+        mnemosyne_action = raw_config.pop("_mnemosyne_action", None)
+        if mnemosyne_action is not None and (
+            not isinstance(mnemosyne_action, str)
+            or mnemosyne_action not in _MNEMOSYNE_ACTION_CAPABILITIES
+        ):
+            raise RuntimeError("Mnemosyne action is invalid")
         mnemosyne_reader_context = raw_config.pop("_mnemosyne_reader_context", None)
         if mnemosyne_reader_context is not None:
             if (
@@ -198,7 +212,9 @@ class TurnRequestPreparer:
         linked_task_ids = raw_config.pop("linked_task_ids", None)
         resource_reuse = raw_config.pop("_resource_reuse", None)
         persistent_kbs = raw_config.pop("_persistent_knowledge_bases", None)
-        per_turn_auto_route = payload.get("auto_route")
+        per_turn_auto_route = (
+            False if mnemosyne_action is not None else payload.get("auto_route")
+        )
         if per_turn_auto_route is None:
             from deeptutor.services.config.runtime_settings import load_system_settings
 
@@ -372,6 +388,11 @@ class TurnRequestPreparer:
         capability = (
             capability_route.capability if capability_route is not None else requested_capability
         )
+        if (
+            mnemosyne_action is not None
+            and _MNEMOSYNE_ACTION_CAPABILITIES[mnemosyne_action] != capability
+        ):
+            raise RuntimeError("Mnemosyne action does not match the native capability")
         try:
             from deeptutor.multi_user.learning_access import apply_learning_policy
 
@@ -398,6 +419,7 @@ class TurnRequestPreparer:
             "capability": capability,
             "_mnemosyne_content_language": mnemosyne_content_language,
             "_mnemosyne_reader_context": mnemosyne_reader_context,
+            "_mnemosyne_action": mnemosyne_action,
             "workspace_mode": workspace_mode,
             "course_id": requested_course_id,
             # Rendered here, where the course is already loaded and validated,

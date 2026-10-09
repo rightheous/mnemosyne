@@ -116,6 +116,13 @@
 - 실제 실행 fixture: `tests/api/test_unified_ws_turn_runtime.py -k 'native_tutor_consumes_versioned_mnemosyne_web_envelope or native_tutor_rejects_invalid_or_unresolved_mnemosyne_actions'` — **5 passed, 49 deselected**. `ruff check`는 두 수정 Python 파일에 **PASS**, `git diff --check` 및 문법 compile probe도 **PASS**했다. 이는 TutorAdapter와 fake turn service fixture 결과이며, mounted `/ws` 브라우저 전체 흐름·provider·Reader UI를 검증하지 않는다.
 - 계약은 계속 `0.1.0`. 직전 checkpoint의 nested envelope 미소비 진술은 이 변경으로 갱신되지만, authenticated Library→ReadingStore resolver와 `/ws`에서 실제 source-grounded Reading capability 실행은 미완료다. Durable learning state, 외부 API mount, real provider 및 제품/build/device 검증도 남아 있으며 registry `product_ready:false`다.
 
+## 추가 checkpoint — Quiz/Assessment 동작 identity 보존 — 2026-10-09
+
+- 공유 native capability `deep_question`에 매핑되는 Mnemosyne Quiz와 Assessment의 원래 action을 검증된 private config bridge로 보존한다. `request_preparer`는 action allowlist와 native capability 대응을 확인하고, explicit capability의 auto-route를 끈 다음 내부 payload로만 옮긴다. 사용자 config와 저장된 public config에서는 private action을 제거한다. raw `/ws` client가 private action 값을 직접 넣으면 native adapter가 제거한다.
+- `TurnExecutor`는 Assessment를 Quiz와 같은 `deep_question` capability로 실행하면서 semantic `turn.started.capability=assessment` 및 `TaskKind.MNEMOSYNE_ASSESSMENT`를 사용한다. 다른 Mnemosyne action은 각각 해당 의미 이벤트와 task model scope로 유지하며, action 정보가 없는 legacy `deep_question`은 기존 Quiz behavior를 유지한다.
+- 실행 검증: `tests/api/test_unified_ws_turn_runtime.py -k 'native_protocol_turn_adapter or native_tutor_consumes_versioned_mnemosyne_web_envelope or native_tutor_rejects_invalid_or_unresolved_mnemosyne_actions or assessment_action_keeps_its_event_and_model_identity or turn_runtime_replays_events_and_materializes_messages'` — **13 passed, 42 deselected, 3 warnings**. 이 결과에는 기존 Chat runtime fixture의 private config 제거와 의미 이벤트, action/model identity mapping 단위 검증이 포함된다. 실제 assessment provider 호출 및 durable Assessment commit/restart 검증은 아니다.
+- `ruff check`는 수정한 Python 4개 파일에 **PASS**했고 `git diff --check` 및 문법 compile probe도 통과했다. 계약 `0.1.0`과 `product_ready:false`를 유지한다.
+
 검증 명령:
 
 ```text

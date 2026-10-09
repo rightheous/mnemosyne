@@ -236,6 +236,7 @@ async def test_turn_runtime_replays_events_and_materializes_messages(
             "config": {
                 **(consultation.get("config") or {}),
                 "_mnemosyne_content_language": "en",
+                "_mnemosyne_action": "chat",
                 "_mnemosyne_reader_context": {
                     "document_id": "00000000-0000-0000-0000-000000000002",
                     "version_id": "sha256:" + "a" * 64,
@@ -276,6 +277,7 @@ async def test_turn_runtime_replays_events_and_materializes_messages(
         "page_index": 1,
     }
     assert "_mnemosyne_reader_context" not in captured["config_overrides"]
+    assert "_mnemosyne_action" not in captured["config_overrides"]
 
     assert captured["turn_status_when_done_published"] == "completed"
     assert captured["title_started_after_done"] is True
@@ -1999,6 +2001,7 @@ def test_native_protocol_turn_adapter_defaults_to_korean_and_rejects_unneeded_ca
             "capability": "chat",
             "config": {
                 "_mnemosyne_content_language": "en",
+                "_mnemosyne_action": "assessment",
                 "_mnemosyne_reader_context": {
                     "document_id": "00000000-0000-0000-0000-000000000002",
                     "version_id": "sha256:" + "a" * 64,
@@ -2008,12 +2011,13 @@ def test_native_protocol_turn_adapter_defaults_to_korean_and_rejects_unneeded_ca
         }
     )
     assert "_mnemosyne_content_language" not in stripped.config
+    assert "_mnemosyne_action" not in stripped.config
     assert "_mnemosyne_reader_context" not in stripped.config
     trusted = native_protocol_turn_request(
         {
             "content": "설명해 줘",
             "client_submission_id": "00000000-0000-0000-0000-000000000008",
-            "capability": "chat",
+            "capability": "deep_question",
         },
         content_language="en",
         reader_context={
@@ -2021,8 +2025,10 @@ def test_native_protocol_turn_adapter_defaults_to_korean_and_rejects_unneeded_ca
             "version_id": "sha256:" + "a" * 64,
             "page_index": 1,
         },
+        mnemosyne_action="assessment",
     )
     assert trusted.config["_mnemosyne_content_language"] == "en"
+    assert trusted.config["_mnemosyne_action"] == "assessment"
     assert trusted.config["_mnemosyne_reader_context"] == {
         "document_id": "00000000-0000-0000-0000-000000000002",
         "version_id": "sha256:" + "a" * 64,
@@ -2087,14 +2093,30 @@ async def test_native_tutor_consumes_versioned_mnemosyne_web_envelope():
     assert native.reply_language_override == "ko"
     assert native.skills == ["__mnemosyne_disabled__"]
     assert native.mcp == ["__mnemosyne_disabled__"]
+    assert native.auto_route is False
     assert native.config == {
         "_mnemosyne_content_language": "en",
+        "_mnemosyne_action": "quiz",
         "_mnemosyne_reader_context": {
             "document_id": "00000000-0000-0000-0000-000000000002",
             "version_id": "sha256:" + "a" * 64,
             "page_index": 1,
         },
     }
+
+
+def test_assessment_action_keeps_its_event_and_model_identity():
+    from deeptutor.services.model_selection.tasks import TaskKind
+    from deeptutor.services.session.turns.executor import _mnemosyne_turn_selection
+
+    assert _mnemosyne_turn_selection("deep_question", "assessment") == (
+        "assessment",
+        TaskKind.MNEMOSYNE_ASSESSMENT,
+    )
+    assert _mnemosyne_turn_selection("deep_question", None) == (
+        "quiz",
+        TaskKind.MNEMOSYNE_QUIZ,
+    )
 
 
 @pytest.mark.parametrize(

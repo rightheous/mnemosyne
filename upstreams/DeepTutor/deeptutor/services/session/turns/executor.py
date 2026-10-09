@@ -64,6 +64,36 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def _mnemosyne_turn_selection(
+    capability_name: str | None,
+    action: str | None,
+):
+    """Keep semantic action identity after actions share a DeepTutor capability."""
+    from deeptutor.services.model_selection.tasks import TaskKind
+
+    action_kinds = {
+        "chat": TaskKind.MNEMOSYNE_CHAT,
+        "reading": TaskKind.MNEMOSYNE_READING,
+        "quiz": TaskKind.MNEMOSYNE_QUIZ,
+        "assessment": TaskKind.MNEMOSYNE_ASSESSMENT,
+        "mastery": TaskKind.MNEMOSYNE_MASTERY,
+        "solve": TaskKind.MNEMOSYNE_SOLVE,
+    }
+    if action in action_kinds:
+        return action, action_kinds[action]
+    native_actions = {
+        "chat": ("chat", TaskKind.MNEMOSYNE_CHAT),
+        "immersive_reading": ("reading", TaskKind.MNEMOSYNE_READING),
+        "deep_question": ("quiz", TaskKind.MNEMOSYNE_QUIZ),
+        "mastery_path": ("mastery", TaskKind.MNEMOSYNE_MASTERY),
+        "deep_solve": ("solve", TaskKind.MNEMOSYNE_SOLVE),
+    }
+    return native_actions.get(
+        str(capability_name or "chat"),
+        ("chat", TaskKind.MNEMOSYNE_CHAT),
+    )
+
+
 class TurnExecutor:
     if TYPE_CHECKING:
         store: SessionStoreProtocol
@@ -229,13 +259,9 @@ class TurnExecutor:
             )
         )
         try:
-            mnemosyne_capability = {
-                "chat": "chat",
-                "immersive_reading": "reading",
-                "deep_question": "quiz",
-                "mastery_path": "mastery",
-                "deep_solve": "solve",
-            }.get(capability_name or "chat")
+            mnemosyne_capability, _ = _mnemosyne_turn_selection(
+                capability_name, payload.get("_mnemosyne_action")
+            )
             if mnemosyne_capability is not None:
                 response_language = str(payload.get("language") or "ko").strip().lower()
                 await self._publish_live_event(
@@ -570,18 +596,12 @@ class TurnExecutor:
                     )
 
             llm_config, llm_scope_token = activate_llm_selection(payload.get("llm_selection"))
-            from deeptutor.services.model_selection.tasks import TaskKind, task_llm_scope
+            from deeptutor.services.model_selection.tasks import task_llm_scope
 
-            if capability_name == "immersive_reading":
-                task_model_scope.enter_context(task_llm_scope(TaskKind.MNEMOSYNE_READING))
-            elif capability_name == "deep_question":
-                task_model_scope.enter_context(task_llm_scope(TaskKind.MNEMOSYNE_QUIZ))
-            elif capability_name == "mastery_path":
-                task_model_scope.enter_context(task_llm_scope(TaskKind.MNEMOSYNE_MASTERY))
-            elif capability_name == "deep_solve":
-                task_model_scope.enter_context(task_llm_scope(TaskKind.MNEMOSYNE_SOLVE))
-            else:
-                task_model_scope.enter_context(task_llm_scope(TaskKind.MNEMOSYNE_CHAT))
+            _, task_kind = _mnemosyne_turn_selection(
+                capability_name, payload.get("_mnemosyne_action")
+            )
+            task_model_scope.enter_context(task_llm_scope(task_kind))
             builder = self._create_context_builder()
 
             async def _emit_context_event(event: StreamEvent) -> None:
