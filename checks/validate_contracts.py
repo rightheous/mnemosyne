@@ -320,6 +320,7 @@ def source_gate():
     ensure(state['external_transport'] == 'websocket', 'Must reuse native /ws transport')
     ensure(state['contract_manifest_sha256'] == sha((C/'manifest.json').read_bytes()), 'Registry bundle digest differs')
     provenance = read(ROOT/'integration/upstreams.json')
+    snapshot_mismatches = []
     for key, name in [('pumice','Pumice'), ('deeptutor','DeepTutor')]:
         ensure(state['upstreams'][key]['commit'] == provenance['sources'][name]['commit'], 'Upstream pin differs')
         ensure((ROOT/'upstreams'/name/'LICENSE').is_file(), 'Upstream license absent')
@@ -327,7 +328,8 @@ def source_gate():
             path = original['path']
             override = provenance['modified_originals'].get(path)
             digest = override['current_sha256'] if override else original['sha256']
-            ensure(sha((ROOT/path).read_bytes()) == digest, f'Upstream snapshot differs: {path}')
+            if sha((ROOT/path).read_bytes()) != digest:
+                snapshot_mismatches.append(path)
     ensure((C/'native-turn.schema.json').read_bytes() == (ROOT/'upstreams/DeepTutor/web/contracts/schema/turn-protocol.json').read_bytes(), 'Native wire schema copy differs')
     for copy_path in state['contract_copies']:
         for path in C.rglob('*'):
@@ -349,6 +351,10 @@ def source_gate():
         source = (ROOT/unit['registration_path']).read_text()
         ensure(re.search(r'\b(?:def|func|function)\s+'+re.escape(unit['registration_symbol'])+r'\s*\(', source), 'Registration symbol missing')
     ensure(state['assembly_symbol'] in (ROOT/state['assembly_path']).read_text(), 'Assembly symbol missing')
+    ensure(
+        not snapshot_mismatches,
+        f'Upstream snapshot differs in {len(snapshot_mismatches)} files: {", ".join(snapshot_mismatches)}',
+    )
 
 def main():
     parser = argparse.ArgumentParser()
@@ -448,14 +454,43 @@ def main():
     check_manifest()
     backend_lock_packages, backend_lock_hashes = check_python_runtime_lock()
     compose_service_count = check_compose_profile()
+    readiness_gates = None
     if args.require_ready:
-        # Contract fixtures are useful before every planned owner path has
-        # landed. Keep their result independent from the stronger bootstrap
-        # readiness gate so a missing unit registration cannot hide fixture
-        # regressions or be mistaken for a passing integration check.
-        check_ownership()
-        source_gate()
-    print(json.dumps({'result':'PASS','openapi_operations':len(operations),'schemas':len(schema_files)+1,**COUNTS,'geometry_cases':len(F['geometry_cases']),'backend_lock_packages':backend_lock_packages,'backend_lock_hashes':backend_lock_hashes,'compose_services':compose_service_count,'source_ready':read(ROOT/'integration/registry.json')['ready_for_parallel_implementation'],'ownership_checked':args.require_ready,'source_gate_checked':args.require_ready},ensure_ascii=False))
+        # Evaluate both gates independently: a single ownership mismatch must
+        # not hide whether upstream provenance and registration are sound.
+        readiness_gates = {}
+        for name, gate in [('ownership', check_ownership), ('source', source_gate)]:
+            try:
+                gate()
+            except Exception as error:
+                readiness_gates[name] = {'result': 'FAIL', 'error': str(error)}
+            else:
+                readiness_gates[name] = {'result': 'PASS'}
+        if any(result['result'] != 'PASS' for result in readiness_gates.values()):
+            print(
+                json.dumps(
+                    {'result': 'FAIL', 'readiness_gates': readiness_gates},
+                    ensure_ascii=False,
+                ),
+                file=sys.stderr,
+            )
+            sys.exit(1)
+    result = {
+        'result': 'PASS',
+        'openapi_operations': len(operations),
+        'schemas': len(schema_files) + 1,
+        **COUNTS,
+        'geometry_cases': len(F['geometry_cases']),
+        'backend_lock_packages': backend_lock_packages,
+        'backend_lock_hashes': backend_lock_hashes,
+        'compose_services': compose_service_count,
+        'source_ready': read(ROOT / 'integration/registry.json')['ready_for_parallel_implementation'],
+        'ownership_checked': args.require_ready,
+        'source_gate_checked': args.require_ready,
+    }
+    if readiness_gates is not None:
+        result['readiness_gates'] = readiness_gates
+    print(json.dumps(result,ensure_ascii=False))
 
 if __name__ == '__main__':
     try:

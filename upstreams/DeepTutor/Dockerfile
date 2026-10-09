@@ -20,7 +20,7 @@
 # Run on the build platform natively (not under QEMU emulation).
 # The output is platform-independent static assets (JS/HTML/CSS),
 # so there is no need to cross-compile this stage.
-FROM --platform=$BUILDPLATFORM node:22-slim AS frontend-builder
+FROM --platform=$BUILDPLATFORM node:22-slim@sha256:c3de60bf2f9dd0ac6370e6117950ff62d6e339527e7472301c9c78a017978392 AS frontend-builder
 
 WORKDIR /app/web
 
@@ -56,12 +56,12 @@ RUN npm run build
 # Provides the correctly-architected node binary for the final image.
 # Unlike frontend-builder (pinned to BUILDPLATFORM), this stage pulls
 # the node image matching each target platform (amd64 / arm64).
-FROM node:22-slim AS node-runtime
+FROM node:22-slim@sha256:c3de60bf2f9dd0ac6370e6117950ff62d6e339527e7472301c9c78a017978392 AS node-runtime
 
 # ============================================
 # Stage 2: Python Base with Dependencies
 # ============================================
-FROM python:3.11-slim AS python-base
+FROM python:3.11-slim@sha256:0dd364ba7e10242f07755449e3a3d0e35f9efd987952737b90def6709ab0c5ce AS python-base
 
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -100,7 +100,7 @@ RUN pip install --require-hashes -r requirements.txt
 # ============================================
 # Stage 3: Production Image
 # ============================================
-FROM python:3.11-slim AS production
+FROM python:3.11-slim@sha256:0dd364ba7e10242f07755449e3a3d0e35f9efd987952737b90def6709ab0c5ce AS production
 
 # Labels
 LABEL maintainer="DeepTutor Team" \
