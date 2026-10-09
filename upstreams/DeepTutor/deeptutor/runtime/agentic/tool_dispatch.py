@@ -27,6 +27,7 @@ import logging
 from typing import Any
 
 from deeptutor.core.context import UnifiedContext
+from deeptutor.core.stream import StreamEvent, StreamEventType
 from deeptutor.core.tool_protocol import ToolLookup, provider_identity
 from deeptutor.core.trace import (
     build_trace_metadata,
@@ -859,12 +860,16 @@ async def _collect_outcome(
     ):
         result_text = str(result["result_text"])
         tool_meta = per_tool_trace_meta[tool_index]
-        tool_extra_meta = result.get("metadata") if isinstance(result, dict) else None
+        raw_tool_extra_meta = result.get("metadata") if isinstance(result, dict) else None
+        tool_extra_meta = (
+            dict(raw_tool_extra_meta) if isinstance(raw_tool_extra_meta, dict) else {}
+        )
+        semantic_markers = tool_extra_meta.pop("_mnemosyne_semantics", [])
         result_event_meta = merge_trace_metadata(tool_meta, {"trace_kind": "tool_result"})
-        if isinstance(tool_extra_meta, dict) and tool_extra_meta:
+        if tool_extra_meta:
             result_event_meta = merge_trace_metadata(
                 result_event_meta,
-                {"tool_metadata": dict(tool_extra_meta)},
+                {"tool_metadata": tool_extra_meta},
             )
         if tool_index not in suppress_ui_indices:
             await stream.tool_result(
@@ -874,6 +879,27 @@ async def _collect_outcome(
                 stage=stage,
                 metadata=result_event_meta,
             )
+        if isinstance(semantic_markers, list):
+            for marker in semantic_markers:
+                if (
+                    not isinstance(marker, dict)
+                    or marker.get("type")
+                    not in {
+                        "citation.verified",
+                        "reader.goto",
+                        "reader.highlight",
+                        "reader.annotate",
+                    }
+                    or not isinstance(marker.get("payload"), dict)
+                ):
+                    continue
+                await stream.emit(
+                    StreamEvent(
+                        type=StreamEventType.RESULT,
+                        source="mnemosyne",
+                        metadata={"_mnemosyne_semantic": marker},
+                    )
+                )
         aggregated_sources.extend(result.get("sources") or [])
         tool_messages.append(
             {
@@ -895,14 +921,14 @@ async def _collect_outcome(
                 if image_count and model_image_count + image_count <= 2:
                     model_messages.append({**private_message, "_after_tool_call_id": tool_call_id})
                     model_image_count += image_count
-        if isinstance(tool_extra_meta, dict) and tool_extra_meta:
+        if tool_extra_meta:
             tool_metadata_by_id[tool_call_id] = dict(tool_extra_meta)
         if result.get("terminate_turn") and not terminate:
             terminate = True
             terminate_payload = {
                 "tool_name": tool_name,
                 "content": result_text,
-                "metadata": dict(tool_extra_meta) if isinstance(tool_extra_meta, dict) else {},
+                "metadata": dict(tool_extra_meta),
             }
         pause_request = result.get("pause_for_user")
         if pause_request and not pause:

@@ -100,6 +100,15 @@
 - 위 통합 fixture는 원문이 맞는 English/Korean anchor를 거쳐 새 proof 재발급과 `require_verified_citation`을 확인하고, 같은 길이의 변조 quote는 거부해야 한다. 현재는 Library 조회 binding 오류 때문에 그 결과까지 도달하지 못한다. UNIT-01 수정 후 해당 테스트를 재실행해야 한다. `git diff --check`는 통과했다.
 - Tutor 응답 경계 코드는 직접 service 호출로 연결되어 있다. durable learning store/bootstrap 주입, 인증된 API mount, process restart, real provider, iPad build/device도 여전히 검증되지 않았다. 계약과 registry는 `0.1.0`, `product_ready:false`를 유지한다.
 
+## 추가 checkpoint — Reader semantic event 발행 경로 — 2026-10-09
+
+- Tutor request의 private `_mnemosyne_reader_context`를 `/ws` 요청 정규화 때 제거하고, trusted `TutorAdapter.start_turn` 인자에서만 재주입한다. `request_preparer`가 UUID/full-SHA/page index를 재검증해 capability config에서 빼고, executor가 `UnifiedContext.metadata.mnemosyne_reader_context`로 전달한다. ReadingCapability는 reader 도구에만 이 값을 주입한다.
+- Reader quote bridge는 열린 `ReadingStore.raw_path(material_id)`의 원본 바이트와 선택된 LibraryAdapter document/version 다운로드를 full SHA-256으로 일치시킨다. 그 뒤 선택 locator의 immutable parser page에서 quote span과 geometry를 만들고 UNIT-01 `LibraryAdapter.verify_citation` 결과만 semantic event에 싣는다. mismatch, 미준비 원본/page, 검증 실패는 fail closed다.
+- ReaderGoto는 `citation.verified`, `reader.goto`, TTL 1800ms `reader.highlight`를 발행한다. Mnemosyne ReaderAnnotate는 즉시 `save_annotation`하지 않고 확인 필요 highlight draft를 발행하며, note가 있을 때 별도 확인 draft를 발행한다. tool dispatcher는 private marker를 일반 `tool_metadata`에서 제거하고 이벤트 버스에 전달하며 lifecycle이 기존 native sequence를 유지해 `metadata.mnemosyne`으로 저장/재생한다.
+- fixture 검증: Tutor/요청 context 및 private config strip, Reader 도구의 citation-bound payload와 confirmation draft, material 원본 hash 불일치 거부, tool metadata 비노출, persisted sequence/replay, contract sync, source adapter. 최신 전체 두 파일 실행은 **63 passed, 1 failed**였다. 유일한 실패는 이미 기록한 UNIT-01 `library.py:1095–1099` page query parameter 누락이다.
+- `checks/source_adapters.py`와 `checks/sync_contracts.py --check`는 각각 **PASS**이며 registry `product_ready:false`를 확인했다. 이들은 fixture/adapter 준비 검사이지 실제 PDF의 Tutor→Reader UI 연결 또는 제품 인수 검사가 아니다. 실제 provider, mounted web Tutor turn, iPad, DB restart/replay는 여전히 미검증이다.
+- 추가 통합 의존: 현재 웹 Tutor는 `config.mnemosyne.turn_request`에 문서/version/선택 anchor를 담아 `/ws`로 보내지만, `api/routers/unified_ws.py`는 이를 `TutorAdapter.start_native_turn`에 전달하고 `start_native_turn`은 nested envelope를 해석하지 않는다. UI 요청에는 DeepTutor의 `reading_material_id`/revision도 없다. LibraryAdapter `get_document`의 SELECT에는 `v.material_id`가 있지만 반환 DTO에 없고, UNIT-02가 16자 content hash를 문서 UUID/full SHA로 추론해서는 안 된다. 통합 전에 UNIT-01이 authenticated in-process `document_id+version_id → material_id+revision` resolver를 공개하고, 통합/UNIT-02가 versioned nested turn envelope를 기존 native start 경계에서 소비해야 한다. 현재 구현은 direct TutorAdapter context fixture 경로만 확인됐으며, web `/ws` product path에 완료된 것으로 보고하지 않는다.
+
 검증 명령:
 
 ```text

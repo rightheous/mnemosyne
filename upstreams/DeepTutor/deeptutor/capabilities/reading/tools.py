@@ -23,22 +23,26 @@ server-side via ``augment_kwargs``, so the model cannot read a document the user
 has not opened, and cannot get the id wrong. Each call builds its own store,
 matching the REST router, so concurrent turns never share mutable state.
 
-UI side-effects travel on ``ToolResult.metadata`` under ``reader_action``, which
-the pipeline already forwards to the client as part of the ``tool_result``
-event — no new stream channel, no change to the chat engine.
+Legacy DeepTutor reader hints still travel on ``ToolResult.metadata`` under
+``reader_action``. Mnemosyne turns additionally attach private semantic markers;
+the tool dispatcher converts those into ordered native events, and the session
+lifecycle persists them as contract extensions on the same sequence.
 """
 
 from __future__ import annotations
 
 import asyncio
 from typing import Any
+import uuid
 
 from deeptutor.capabilities.reading._tool_base import (
     BINDING_KWARG,
     MATERIAL_KWARG,
+    READER_CONTEXT_KWARG,
     WORKSPACE_KWARG,
     _guard,
     _ReadingToolBase,
+    _verified_mnemosyne_citation,
 )
 from deeptutor.capabilities.reading.figure_view import ViewFigureTool
 from deeptutor.capabilities.reading.media_notes import render_media_note as _media_note
@@ -463,7 +467,7 @@ class ReaderGotoTool(_ReadingToolBase):
                 "Search or read the source and retry with its exact wording."
             )
         target = check.found_locator or locator
-        return _goto_result(
+        result = _goto_result(
             material_id,
             target,
             quote=quote,
@@ -471,10 +475,53 @@ class ReaderGotoTool(_ReadingToolBase):
             stamps=stamps,
             corrected_from=locator if target != locator else None,
         )
+        reader_context = kwargs.get(READER_CONTEXT_KWARG)
+        if reader_context is not None:
+            citation = await asyncio.to_thread(
+                _verified_mnemosyne_citation,
+                store,
+                material_id,
+                target,
+                quote,
+                reader_context,
+            )
+            anchor = citation["anchor"]
+            target_document = {
+                "document_id": anchor["document_id"],
+                "version_id": anchor["version_id"],
+                "page_index": anchor["page_index"],
+            }
+            rects = anchor["rects"]
+            citation_id = citation["citation_id"]
+            result.metadata["_mnemosyne_semantics"] = [
+                {
+                    "type": "citation.verified",
+                    "payload": {"citation": citation},
+                },
+                {
+                    "type": "reader.goto",
+                    "payload": {
+                        "target": target_document,
+                        "position": [rects[0][0], rects[0][1]],
+                        "citation_id": citation_id,
+                    },
+                },
+                {
+                    "type": "reader.highlight",
+                    "payload": {
+                        "target": target_document,
+                        "rects": rects,
+                        "citation_id": citation_id,
+                        "ttl_ms": 1800,
+                        "persistent": False,
+                    },
+                },
+            ]
+        return result
 
 
 class ReaderAnnotateTool(_ReadingToolBase):
-    """Leave a durable mark on the document, exportable with the user's own."""
+    """Save a requested mark or propose a confirmation-gated Mnemosyne edit."""
 
     name = "reader_annotate"
 
@@ -482,11 +529,11 @@ class ReaderAnnotateTool(_ReadingToolBase):
         return ToolDefinition(
             name="reader_annotate",
             description=(
-                "Mark a passage in the user's document with an optional note. "
-                "The mark persists, appears in the reader's annotation list, "
-                "and is included when the user exports their annotated file. "
-                "Use it when the user asks you to highlight, mark up or "
-                "annotate something — not for ordinary explanation."
+                "Propose a persistent mark on a passage in the user's document, "
+                "with an optional note. Mnemosyne proposals require the user's "
+                "confirmation before they are saved. Use only when the user asks "
+                "you to highlight, mark up or annotate something — not for "
+                "ordinary explanation."
             ),
             parameters=[
                 ToolParameter(
@@ -543,6 +590,90 @@ class ReaderAnnotateTool(_ReadingToolBase):
                 "Read the passage first and copy it exactly."
             )
         target = check.found_locator or locator
+
+        reader_context = kwargs.get(READER_CONTEXT_KWARG)
+        if reader_context is not None:
+            citation = await asyncio.to_thread(
+                _verified_mnemosyne_citation,
+                store,
+                material_id,
+                target,
+                quote,
+                reader_context,
+            )
+            anchor = citation["anchor"]
+            color_name = str(kwargs.get("color") or "yellow").strip().lower()
+            color_hex = {
+                "yellow": "#FFE08280",
+                "green": "#A5D6A780",
+                "blue": "#90CAF980",
+                "pink": "#F48FB180",
+                "purple": "#CE93D880",
+            }.get(color_name, "#FFE08280")
+            annotation = {
+                "annotation_id": str(uuid.uuid4()),
+                "document_id": anchor["document_id"],
+                "version_id": anchor["version_id"],
+                "page_index": anchor["page_index"],
+                "kind": "highlight",
+                "payload": {"anchor": anchor, "color": color_hex},
+            }
+            semantics = [
+                {
+                    "type": "citation.verified",
+                    "payload": {"citation": citation},
+                },
+                {
+                    "type": "reader.annotate",
+                    "payload": {
+                        "annotation": annotation,
+                        "citation_id": citation["citation_id"],
+                        "requires_confirmation": True,
+                        "suggested_mutation_id": str(uuid.uuid4()),
+                    },
+                }
+            ]
+            note = str(kwargs.get("note") or "").strip()
+            if note:
+                if len(note) > 20_000:
+                    return self._failure("The annotation note is longer than 20,000 characters.")
+                rect = anchor["rects"][0]
+                note_annotation = {
+                    "annotation_id": str(uuid.uuid4()),
+                    "document_id": anchor["document_id"],
+                    "version_id": anchor["version_id"],
+                    "page_index": anchor["page_index"],
+                    "kind": "note",
+                    "payload": {
+                        "position": [rect[0], rect[1]],
+                        "body": note,
+                        "anchor": anchor,
+                    },
+                }
+                semantics.append(
+                    {
+                        "type": "reader.annotate",
+                        "payload": {
+                            "annotation": note_annotation,
+                            "citation_id": citation["citation_id"],
+                            "requires_confirmation": True,
+                            "suggested_mutation_id": str(uuid.uuid4()),
+                        },
+                    }
+                )
+            return ToolResult(
+                content=(
+                    f"Prepared a highlight proposal for {manifest.unit} {target}: "
+                    f"“{_ellipsis(quote, 80)}”. It will be saved only after confirmation."
+                ),
+                metadata={
+                    "material_id": material_id,
+                    "reader_action": "annotate_proposal",
+                    "locator": target,
+                    "quote": quote,
+                    "_mnemosyne_semantics": semantics,
+                },
+            )
 
         colour = str(kwargs.get("color") or "").strip().lower()
         annotation = Annotation(

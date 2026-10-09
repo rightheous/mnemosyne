@@ -980,6 +980,11 @@ class TurnExecutor:
                     ),
                 ),
                 metadata={
+                    **(
+                        {"mnemosyne_reader_context": payload["_mnemosyne_reader_context"]}
+                        if isinstance(payload.get("_mnemosyne_reader_context"), dict)
+                        else {}
+                    ),
                     "conversation_summary": history_result.conversation_summary,
                     "conversation_context_text": conversation_context_text,
                     "history_token_count": history_result.token_count,

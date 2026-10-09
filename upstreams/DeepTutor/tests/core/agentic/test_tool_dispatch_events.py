@@ -100,6 +100,30 @@ class _ProgressRegistry:
         return ToolResult(content="ok", success=True)
 
 
+class _MnemosyneSemanticRegistry(_Registry):
+    async def execute(self, name: str, **kwargs: Any) -> ToolResult:
+        return ToolResult(
+            content="Reader moved.",
+            metadata={
+                "reader_action": "goto",
+                "_mnemosyne_semantics": [
+                    {
+                        "type": "reader.goto",
+                        "payload": {
+                            "target": {
+                                "document_id": "00000000-0000-0000-0000-000000000002",
+                                "version_id": "sha256:" + "a" * 64,
+                                "page_index": 1,
+                            },
+                            "position": [10, 20],
+                            "citation_id": "00000000-0000-0000-0000-000000000003",
+                        },
+                    }
+                ],
+            },
+        )
+
+
 def _augment(tool_name: str, tool_args: dict[str, Any], _ctx: UnifiedContext) -> dict[str, Any]:
     # Mirrors the chat pipeline: server-side plumbing rides on private keys.
     return {
@@ -249,6 +273,23 @@ async def test_tool_call_event_args_exclude_private_kwargs() -> None:
     # The whole event must survive strict JSON serialization — this is what
     # the WS push and the turn-event store both rely on.
     json.dumps(tool_calls[0].to_dict())
+
+
+@pytest.mark.asyncio
+async def test_mnemosyne_semantics_are_emitted_without_leaking_private_markers() -> None:
+    events = await _run_dispatch(
+        [{"id": "c1", "name": "reader_goto", "arguments": json.dumps({"locator": 2})}],
+        registry=_MnemosyneSemanticRegistry(),
+    )
+
+    result = next(event for event in events if event.type == StreamEventType.TOOL_RESULT)
+    tool_metadata = (result.metadata or {}).get("tool_metadata") or {}
+    assert tool_metadata == {"reader_action": "goto"}
+    semantic = [event for event in events if event.type == StreamEventType.RESULT]
+    assert len(semantic) == 1
+    assert semantic[0].source == "mnemosyne"
+    assert semantic[0].metadata["_mnemosyne_semantic"]["type"] == "reader.goto"
+    json.dumps(semantic[0].to_dict())
 
 
 @pytest.mark.asyncio

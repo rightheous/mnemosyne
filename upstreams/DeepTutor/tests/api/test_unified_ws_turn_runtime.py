@@ -175,6 +175,7 @@ async def test_turn_runtime_replays_events_and_materializes_messages(
             captured["response_language"] = context.language
             captured["content_language"] = context.content_language
             captured["metadata"] = context.metadata
+            captured["config_overrides"] = context.config_overrides
             captured["source_manifest"] = context.source_manifest
             yield StreamEvent(
                 type=StreamEventType.CONTENT,
@@ -235,6 +236,11 @@ async def test_turn_runtime_replays_events_and_materializes_messages(
             "config": {
                 **(consultation.get("config") or {}),
                 "_mnemosyne_content_language": "en",
+                "_mnemosyne_reader_context": {
+                    "document_id": "00000000-0000-0000-0000-000000000002",
+                    "version_id": "sha256:" + "a" * 64,
+                    "page_index": 1,
+                },
             },
         }
     )
@@ -264,6 +270,12 @@ async def test_turn_runtime_replays_events_and_materializes_messages(
     assert captured["partner_discussion_group_id"] == requested.get("partner_discussion_group_id")
     assert captured["response_language"] == "ko"
     assert captured["content_language"] == "en"
+    assert captured["metadata"]["mnemosyne_reader_context"] == {
+        "document_id": "00000000-0000-0000-0000-000000000002",
+        "version_id": "sha256:" + "a" * 64,
+        "page_index": 1,
+    }
+    assert "_mnemosyne_reader_context" not in captured["config_overrides"]
 
     assert captured["turn_status_when_done_published"] == "completed"
     assert captured["title_started_after_done"] is True
@@ -1536,11 +1548,208 @@ def test_mnemosyne_turn_mapping_uses_response_language_and_drops_unverified_sele
     assert request.language == "en"
     assert request.reply_language_override == "ko"
     assert request.config["_mnemosyne_content_language"] == "en"
+    assert request.config["_mnemosyne_reader_context"] == {
+        "document_id": "00000000-0000-0000-0000-000000000002",
+        "version_id": "sha256:" + "a" * 64,
+        "page_index": 1,
+    }
     assert request.reading_material_id == "abcdef12"
     assert request.reading_material_revision == 3
     assert request.reading_viewport.model_dump() == {"locator": 2, "selection": None}
     assert request.skills == ["__mnemosyne_disabled__"]
     assert request.mcp == ["__mnemosyne_disabled__"]
+
+
+@pytest.mark.asyncio
+async def test_mnemosyne_reader_tools_emit_verified_events_and_confirmation_drafts(monkeypatch):
+    from deeptutor.capabilities.reading.capability import ReadingCapability
+    import deeptutor.capabilities.reading.tools as reading_tools
+    from deeptutor.capabilities.reading.tools import ReaderAnnotateTool, ReaderGotoTool
+    from deeptutor.core.context import UnifiedContext
+    import deeptutor.reading
+
+    reader_context = {
+        "document_id": "00000000-0000-0000-0000-000000000002",
+        "version_id": "sha256:" + "a" * 64,
+        "page_index": 1,
+    }
+    anchor = {
+        **reader_context,
+        "parse_revision": "pymupdf-test",
+        "text_sha256": "b" * 64,
+        "start_scalar": 0,
+        "end_scalar": 12,
+        "quote": "source quote",
+        "rects": [[10, 20, 30, 8]],
+    }
+    citation = {
+        "citation_id": "00000000-0000-0000-0000-000000000003",
+        "verification_id": "00000000-0000-0000-0000-000000000004",
+        "verified": True,
+        "anchor": anchor,
+    }
+    store = SimpleNamespace(
+        manifest=lambda _material_id: SimpleNamespace(unit_count=5, unit="page", revision=7),
+        save_annotation=lambda *_args: (_ for _ in ()).throw(
+            AssertionError("Mnemosyne annotations require confirmation")
+        ),
+    )
+    monkeypatch.setattr(ReaderGotoTool, "_store", staticmethod(lambda: store))
+    monkeypatch.setattr(ReaderAnnotateTool, "_store", staticmethod(lambda: store))
+    monkeypatch.setattr(
+        "deeptutor.multi_user.learning_access.assert_learning_material", lambda _material_id: None
+    )
+    monkeypatch.setattr(
+        deeptutor.reading,
+        "verify_quote",
+        lambda *_args: SimpleNamespace(verified=True, found_locator=2),
+    )
+    monkeypatch.setattr(deeptutor.reading, "unit_timestamps", lambda *_args: {})
+    monkeypatch.setattr(
+        reading_tools,
+        "_verified_mnemosyne_citation",
+        lambda *_args: citation,
+    )
+    context = UnifiedContext(
+        user_message="이 문단을 형광펜으로 표시해 줘.",
+        metadata={
+            "reading_material_id": "abcdef12",
+            "mnemosyne_reader_context": reader_context,
+        },
+    )
+    goto_kwargs = ReadingCapability().augment_kwargs(
+        "reader_goto", {"locator": 2, "quote": "source quote"}, context
+    )
+    annotate_kwargs = ReadingCapability().augment_kwargs(
+        "reader_annotate",
+        {"locator": 2, "quote": "source quote", "note": "복습할 개념"},
+        context,
+    )
+
+    goto = await ReaderGotoTool().execute(**goto_kwargs)
+    annotate = await ReaderAnnotateTool().execute(**annotate_kwargs)
+
+    goto_events = goto.metadata["_mnemosyne_semantics"]
+    assert [event["type"] for event in goto_events] == [
+        "citation.verified",
+        "reader.goto",
+        "reader.highlight",
+    ]
+    assert goto_events[0]["payload"]["citation"]["verified"] is True
+    assert goto_events[1]["payload"]["position"] == [10, 20]
+    assert goto_events[2]["payload"]["persistent"] is False
+    proposals = annotate.metadata["_mnemosyne_semantics"]
+    assert proposals[0]["type"] == "citation.verified"
+    annotations = proposals[1:]
+    assert len(annotations) == 2
+    assert all(event["payload"]["requires_confirmation"] is True for event in annotations)
+    assert [event["payload"]["annotation"]["kind"] for event in annotations] == [
+        "highlight",
+        "note",
+    ]
+
+
+def test_reader_capability_only_injects_server_context_for_reader_tools():
+    from deeptutor.capabilities.reading.capability import ReadingCapability
+    from deeptutor.core.context import UnifiedContext
+
+    reader_context = {
+        "document_id": "00000000-0000-0000-0000-000000000002",
+        "version_id": "sha256:" + "a" * 64,
+        "page_index": 1,
+    }
+    context = UnifiedContext(
+        user_message="설명해 줘",
+        metadata={
+            "reading_material_id": "abcdef12",
+            "mnemosyne_reader_context": reader_context,
+        },
+    )
+    capability = ReadingCapability()
+
+    goto = capability.augment_kwargs("reader_goto", {"locator": 2}, context)
+    read = capability.augment_kwargs("read_material", {"locator": 2}, context)
+
+    assert goto["_mnemosyne_reader_context"] == reader_context
+    assert "_mnemosyne_reader_context" not in read
+
+
+def test_verified_mnemosyne_reader_citation_binds_source_bytes_and_geometry(monkeypatch, tmp_path):
+    import hashlib
+
+    from deeptutor.capabilities.reading._tool_base import _verified_mnemosyne_citation
+
+    source = b"fixture PDF source bytes"
+    source_path = tmp_path / "source.pdf"
+    source_path.write_bytes(source)
+    text = "Intro exact source quote footer"
+    start = text.index("exact source quote")
+    anchor_page = {
+        "document_id": "00000000-0000-0000-0000-000000000002",
+        "version_id": "sha256:" + hashlib.sha256(source).hexdigest(),
+        "page_index": 1,
+        "parse_revision": "pymupdf-test",
+        "text_sha256": hashlib.sha256(text.encode("utf-8")).hexdigest(),
+        "text": text,
+        "segments": [
+            {
+                "start_scalar": 0,
+                "end_scalar": len(text),
+                "rect": [10, 20, 30, 8],
+            }
+        ],
+    }
+    verified: dict[str, object] = {}
+
+    class FakeLibrary:
+        def __init__(self, _store):
+            pass
+
+        def get_document(self, document_id, version_id):
+            return {
+                "document_id": document_id,
+                "version_id": version_id,
+                "source_sha256": hashlib.sha256(source).hexdigest(),
+                "parse_state": "ready",
+                "original_available": True,
+            }
+
+        def download_original(self, _document_id, _version_id):
+            return source
+
+        def get_page(self, _document_id, _version_id, _page_index):
+            return anchor_page
+
+        def verify_citation(self, anchor):
+            verified["anchor"] = anchor
+            return {
+                "citation_id": "00000000-0000-0000-0000-000000000003",
+                "verification_id": "00000000-0000-0000-0000-000000000004",
+                "verified": True,
+                "anchor": anchor,
+            }
+
+    monkeypatch.setattr("deeptutor.mnemosyne.library.LibraryAdapter", FakeLibrary)
+    store = SimpleNamespace(raw_path=lambda _material_id: source_path)
+    context = {
+        "document_id": anchor_page["document_id"],
+        "version_id": anchor_page["version_id"],
+        "page_index": 0,
+    }
+
+    citation = _verified_mnemosyne_citation(
+        store, "abcdef12", 2, "exact source quote", context
+    )
+
+    assert citation["verified"] is True
+    assert verified["anchor"]["start_scalar"] == start
+    assert verified["anchor"]["end_scalar"] == start + len("exact source quote")
+    assert verified["anchor"]["quote"] == "exact source quote"
+    assert verified["anchor"]["rects"] == [[10, 20, 30, 8]]
+
+    source_path.write_bytes(b"different source")
+    with pytest.raises(ValueError, match="does not match"):
+        _verified_mnemosyne_citation(store, "abcdef12", 2, "exact source quote", context)
 
 
 def test_mnemosyne_turn_mapping_rejects_invalid_identity_and_version():
@@ -1666,6 +1875,27 @@ async def test_mnemosyne_semantics_share_the_persisted_native_sequence(tmp_path)
         execution,
         StreamEvent(type=StreamEventType.CONTENT, source="chat", content="안녕하세요."),
     )
+    reader_goto = await runtime._publish_live_event(
+        execution,
+        StreamEvent(
+            type=StreamEventType.RESULT,
+            source="mnemosyne",
+            metadata={
+                "_mnemosyne_semantic": {
+                    "type": "reader.goto",
+                    "payload": {
+                        "target": {
+                            "document_id": "00000000-0000-0000-0000-000000000002",
+                            "version_id": "sha256:" + "a" * 64,
+                            "page_index": 1,
+                        },
+                        "position": [10, 20],
+                        "citation_id": "00000000-0000-0000-0000-000000000003",
+                    },
+                }
+            },
+        ),
+    )
 
     assert started["protocol_version"] == "2.0"
     assert started["seq"] == 1
@@ -1673,7 +1903,11 @@ async def test_mnemosyne_semantics_share_the_persisted_native_sequence(tmp_path)
     assert started["metadata"]["mnemosyne"]["event_id"] == "turn_mnemosyne_1:1"
     assert delta["seq"] == 2
     assert delta["metadata"]["mnemosyne"]["payload"] == {"text": "안녕하세요."}
-    assert coordinator.events == [started, delta]
+    assert reader_goto["seq"] == 3
+    assert reader_goto["metadata"]["mnemosyne"]["type"] == "reader.goto"
+    assert "_mnemosyne_semantic" not in reader_goto["metadata"]
+    assert semantic_event(reader_goto) == reader_goto["metadata"]["mnemosyne"]
+    assert coordinator.events == [started, delta, reader_goto]
     assert semantic_event(started) == started["metadata"]["mnemosyne"]
     assert semantic_event(delta) == delta["metadata"]["mnemosyne"]
 
@@ -1681,12 +1915,12 @@ async def test_mnemosyne_semantics_share_the_persisted_native_sequence(tmp_path)
         type=StreamEventType.DONE,
         metadata={"status": "failed", "error_code": "provider_error", "retryable": True},
     )
-    failed = _mnemosyne_event_extension(execution, failed_stream_event, seq=3)
+    failed = _mnemosyne_event_extension(execution, failed_stream_event, seq=4)
     failed_frame = {
         "type": "done",
         "protocol_version": "2.0",
         "turn_id": execution.turn_id,
-        "seq": 3,
+        "seq": 4,
         "metadata": {"status": "failed", "mnemosyne": failed},
     }
     assert semantic_event(failed_frame)["type"] == "turn.error"
@@ -1696,13 +1930,13 @@ async def test_mnemosyne_semantics_share_the_persisted_native_sequence(tmp_path)
     cancelled = _mnemosyne_event_extension(
         execution,
         StreamEvent(type=StreamEventType.DONE, metadata={"status": "cancelled"}),
-        seq=4,
+        seq=5,
     )
     cancelled_frame = {
         "type": "done",
         "protocol_version": "2.0",
         "turn_id": execution.turn_id,
-        "seq": 4,
+        "seq": 5,
         "metadata": {"status": "cancelled", "mnemosyne": cancelled},
     }
     assert semantic_event(cancelled_frame)["type"] == "turn.cancelled"
@@ -1763,10 +1997,18 @@ def test_native_protocol_turn_adapter_defaults_to_korean_and_rejects_unneeded_ca
             "content": "설명해 줘",
             "client_submission_id": "00000000-0000-0000-0000-000000000007",
             "capability": "chat",
-            "config": {"_mnemosyne_content_language": "en"},
+            "config": {
+                "_mnemosyne_content_language": "en",
+                "_mnemosyne_reader_context": {
+                    "document_id": "00000000-0000-0000-0000-000000000002",
+                    "version_id": "sha256:" + "a" * 64,
+                    "page_index": 1,
+                },
+            },
         }
     )
     assert "_mnemosyne_content_language" not in stripped.config
+    assert "_mnemosyne_reader_context" not in stripped.config
     trusted = native_protocol_turn_request(
         {
             "content": "설명해 줘",
@@ -1774,8 +2016,18 @@ def test_native_protocol_turn_adapter_defaults_to_korean_and_rejects_unneeded_ca
             "capability": "chat",
         },
         content_language="en",
+        reader_context={
+            "document_id": "00000000-0000-0000-0000-000000000002",
+            "version_id": "sha256:" + "a" * 64,
+            "page_index": 1,
+        },
     )
     assert trusted.config["_mnemosyne_content_language"] == "en"
+    assert trusted.config["_mnemosyne_reader_context"] == {
+        "document_id": "00000000-0000-0000-0000-000000000002",
+        "version_id": "sha256:" + "a" * 64,
+        "page_index": 1,
+    }
 
 
 @pytest.mark.asyncio

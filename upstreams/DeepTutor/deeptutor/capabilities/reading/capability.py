@@ -37,6 +37,7 @@ from typing import Any
 import yaml
 
 from deeptutor.capabilities.protocol import PromptBlock
+from deeptutor.capabilities.reading._tool_base import READER_CONTEXT_KWARG
 from deeptutor.capabilities.reading.media_notes import CAPTION_CHAR_LIMIT
 from deeptutor.capabilities.reading.tools import (
     BINDING_KWARG,
@@ -378,7 +379,17 @@ class ReadingCapability:
             WORKSPACE_KWARG: workspace_id,
             BINDING_KWARG: binding,
             **(
-                {"_mnemosyne_persistent_annotation_allowed": _explicit_annotation_request(context.user_message)}
+                {READER_CONTEXT_KWARG: context.metadata["mnemosyne_reader_context"]}
+                if tool_name in {"reader_goto", "reader_annotate"}
+                and isinstance(context.metadata.get("mnemosyne_reader_context"), dict)
+                else {}
+            ),
+            **(
+                {
+                    "_mnemosyne_persistent_annotation_allowed": _explicit_annotation_request(
+                        context.user_message
+                    )
+                }
                 if tool_name == "reader_annotate"
                 else {}
             ),

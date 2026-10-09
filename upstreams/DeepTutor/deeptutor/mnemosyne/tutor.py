@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-import math
-import re
 from dataclasses import dataclass
 from datetime import datetime
+import math
+import re
 from typing import Any
 from uuid import UUID
 
@@ -33,6 +33,7 @@ REQUIRED_LEARNING_SERVICES = ("assessment", "memory", "progress", "review")
 _VERSION_RE = re.compile(r"^sha256:[a-f0-9]{64}$")
 _CONTENT_LANGUAGE_RE = re.compile(r"^(und|[A-Za-z]{2,8}(-[A-Za-z0-9]{1,8})*)$")
 _CONTENT_LANGUAGE_CONFIG_KEY = "_mnemosyne_content_language"
+_READER_CONTEXT_CONFIG_KEY = "_mnemosyne_reader_context"
 _DATETIME_RE = re.compile(
     r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$"
 )
@@ -493,8 +494,30 @@ def _learning_store(store: LearningStateStore | None) -> LearningStateStore:
     return store
 
 
+def _normalized_reader_context(value: dict[str, Any]) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        raise ValueError("reader context must be an object")
+    document_id = _required_id(
+        value.get("document_id"), "reader_context.document_id", uuid_value=True
+    )
+    version_id = str(value.get("version_id") or "")
+    if not _VERSION_RE.fullmatch(version_id):
+        raise ValueError("reader_context.version_id must be a full SHA-256 version")
+    page_index = value.get("page_index")
+    if isinstance(page_index, bool) or not isinstance(page_index, int) or page_index < 0:
+        raise ValueError("reader_context.page_index must be a non-negative integer")
+    return {
+        "document_id": document_id,
+        "version_id": version_id,
+        "page_index": page_index,
+    }
+
+
 def native_protocol_turn_request(
-    request: dict[str, Any], *, content_language: str | None = None
+    request: dict[str, Any],
+    *,
+    content_language: str | None = None,
+    reader_context: dict[str, Any] | None = None,
 ) -> TurnRequest:
     """Constrain an already validated native /ws start command for Mnemosyne.
 
@@ -516,11 +539,14 @@ def native_protocol_turn_request(
     # Direct protocol clients cannot inject Mnemosyne's source-language
     # context; the adapter supplies this private bridge for Reader turns.
     config.pop(_CONTENT_LANGUAGE_CONFIG_KEY, None)
+    config.pop(_READER_CONTEXT_CONFIG_KEY, None)
     if content_language is not None:
         normalized_content_language = str(content_language).strip()
         if not _CONTENT_LANGUAGE_RE.fullmatch(normalized_content_language):
             raise ValueError("content_language must be a valid language tag")
         config[_CONTENT_LANGUAGE_CONFIG_KEY] = normalized_content_language
+    if reader_context is not None:
+        config[_READER_CONTEXT_CONFIG_KEY] = _normalized_reader_context(reader_context)
     payload["config"] = config
     requested_capability = str(payload.get("capability") or "chat").strip()
     capability = _NATIVE_CAPABILITY_ALIASES.get(requested_capability)
@@ -602,6 +628,7 @@ def native_turn_request(
     native_material_id = str(material_id or "").strip()
     native_revision = material_revision
     page_index = context.get("page_index")
+    mnemosyne_reader_context: dict[str, Any] | None = None
     viewport: dict[str, Any] | None = None
     if context:
         document_id = _required_id(
@@ -612,6 +639,11 @@ def native_turn_request(
             raise ValueError("reader_context.version_id must be a full SHA-256 version")
         if isinstance(page_index, bool) or not isinstance(page_index, int) or page_index < 0:
             raise ValueError("reader_context.page_index must be a non-negative integer")
+        mnemosyne_reader_context = {
+            "document_id": document_id,
+            "version_id": version_id,
+            "page_index": page_index,
+        }
         if (
             not native_material_id
             or isinstance(native_revision, bool)
@@ -639,7 +671,14 @@ def native_turn_request(
         # continues to make Korean the response language for English material.
         language=content_language,
         reply_language_override=response_language,
-        config={_CONTENT_LANGUAGE_CONFIG_KEY: content_language},
+        config={
+            _CONTENT_LANGUAGE_CONFIG_KEY: content_language,
+            **(
+                {_READER_CONTEXT_CONFIG_KEY: mnemosyne_reader_context}
+                if mnemosyne_reader_context is not None
+                else {}
+            ),
+        },
         reading_material_id=native_material_id if action == "reading" else None,
         reading_material_revision=(
             native_revision if action == "reading" and native_revision else None
@@ -745,6 +784,7 @@ class TutorAdapter:
             native_protocol_turn_request(
                 native.model_dump(),
                 content_language=(native.config or {}).get(_CONTENT_LANGUAGE_CONFIG_KEY),
+                reader_context=(native.config or {}).get(_READER_CONTEXT_CONFIG_KEY),
             )
         )
 

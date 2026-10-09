@@ -46,6 +46,7 @@ from .._turn_runtime_shared import (
 _MNEMOSYNE_CONTENT_LANGUAGE_RE = re.compile(
     r"^(und|[A-Za-z]{2,8}(-[A-Za-z0-9]{1,8})*)$"
 )
+_MNEMOSYNE_VERSION_RE = re.compile(r"^sha256:[a-f0-9]{64}$")
 
 if TYPE_CHECKING:
     from deeptutor.runtime.coordination import RuntimeCoordinator
@@ -171,6 +172,29 @@ class TurnRequestPreparer:
             or not _MNEMOSYNE_CONTENT_LANGUAGE_RE.fullmatch(mnemosyne_content_language)
         ):
             raise RuntimeError("Mnemosyne content language must be a valid language tag")
+        mnemosyne_reader_context = raw_config.pop("_mnemosyne_reader_context", None)
+        if mnemosyne_reader_context is not None:
+            if (
+                not isinstance(mnemosyne_reader_context, dict)
+                or set(mnemosyne_reader_context)
+                != {"document_id", "version_id", "page_index"}
+            ):
+                raise RuntimeError("Mnemosyne reader context is malformed")
+            try:
+                document_id = str(uuid.UUID(str(mnemosyne_reader_context["document_id"])))
+            except (ValueError, AttributeError, TypeError) as exc:
+                raise RuntimeError("Mnemosyne reader document id must be a UUID") from exc
+            version_id = mnemosyne_reader_context["version_id"]
+            page_index = mnemosyne_reader_context["page_index"]
+            if not isinstance(version_id, str) or not _MNEMOSYNE_VERSION_RE.fullmatch(version_id):
+                raise RuntimeError("Mnemosyne reader version must be a full SHA-256 version")
+            if isinstance(page_index, bool) or not isinstance(page_index, int) or page_index < 0:
+                raise RuntimeError("Mnemosyne reader page index must be a non-negative integer")
+            mnemosyne_reader_context = {
+                "document_id": document_id,
+                "version_id": version_id,
+                "page_index": page_index,
+            }
         linked_task_ids = raw_config.pop("linked_task_ids", None)
         resource_reuse = raw_config.pop("_resource_reuse", None)
         persistent_kbs = raw_config.pop("_persistent_knowledge_bases", None)
@@ -373,6 +397,7 @@ class TurnRequestPreparer:
             **payload,
             "capability": capability,
             "_mnemosyne_content_language": mnemosyne_content_language,
+            "_mnemosyne_reader_context": mnemosyne_reader_context,
             "workspace_mode": workspace_mode,
             "course_id": requested_course_id,
             # Rendered here, where the course is already loaded and validated,
