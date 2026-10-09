@@ -44,6 +44,13 @@
 - `get_state`, `submit_attempt`, `save_activity`, `review_memory`는 사용자 분리와 revision 검사를 적용한다. review/attempt/activity 실패가 일부 progress만 기록하는 상태를 만들지 않도록 transaction fixture를 제공한다.
 - Fixtures는 공개 응답의 rubric 비노출, 중복 replay, 같은 ID/다른 payload conflict, base revision 경합, 재시작 replay, provider 실패, 다중 사용자 격리, citation 검증 실패를 다룬다. 실제 사용자 문서·자격증명·정답 rubric을 로그나 fixture에 넣지 않는다.
 
+### Integrator/UNIT-01에 전달할 정확한 LearningStateStore consumer surface
+
+- 현재 integrator-owned `mnemosyne/ports.py`는 `get_state(document_id)`와 `submit_attempt(attempt)`만 선언하지만, Unit02 `TutorAdapter`는 version identity가 필요한 `get_state(document_id, version_id)`와 `get_quiz(quiz_id)`를 호출한다. 문서 ID만으로 최신 state를 반환하면 이전 immutable quiz version의 state 요청을 잘못된 원본에 결합할 수 있으므로 인자 수를 임의 호환 처리하지 않는다.
+- Unit02 `MnemosyneAssessmentService`가 durable store에 요구하는 grading transaction은 `begin_attempt(attempt, payload_sha256) -> claim`, `get_grading_input(quiz_id, document_id, version_id) -> private key/rubric`, `commit_assessment(attempt, payload_sha256, assessment, question_results=...) -> persisted assessment`, `release_attempt_for_retry(attempt_id, payload_sha256, error_code) -> None`이다. 기존 `submit_attempt` 단일 메서드만으로는 provider 호출 전 claim, 재시도, 충돌 감지 및 채점 결과 원자 저장을 표현할 수 없다.
+- 필요한 전체 consumer surface는 `get_quiz(quiz_id)`, version-scoped `get_state(document_id, version_id)`, 위 네 grading method, `save_activity(activity, mutation_id, base_revision)`, `review_memory(review)`다. 통합 담당이 port signature/fixture를 조정하고 UNIT-01이 사용자 분리, immutable quiz/private grading input, revision/transaction 및 restart replay를 구현한 뒤, bootstrap이 같은 store를 TutorAdapter와 AssessmentService에 제공해야 한다.
+- 검증 fixture는 public Quiz/state에서 answer key/rubric 제외, 다른 version으로부터 state/grading input 격리, 같은 attempt ID/hash replay, 동일 ID/different hash conflict, claim 충돌, provider 취소/오류 시 retry release, 원자 commit/revision 충돌, close/reopen 뒤 동일 Assessment replay를 포함한다. Unit02 adapter fixture만으로 durable/restart 보장을 주장하지 않는다.
+
 ### 추가 연결 명세 — persistent Quiz와 계약 이벤트
 
 - 현재 `contracts/models.schema.json`의 `Quiz`, `Attempt`, `Assessment`, `LearningState`와 `contracts/events.schema.json`의 `quiz.show`, `question.show`, `learning.updated` shape는 이미 있다. OpenAPI에는 `GET /v1/quizzes/{quiz_id}`와 attempt/state 경로만 있고 모두 `planned-unit-extension`이며 quiz generation/create route는 없다. `TurnRequest` action `quiz`와 native `/ws`는 유지한다.
