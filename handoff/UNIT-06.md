@@ -12,18 +12,21 @@
 - graceful shutdown은 upstream runtime의 60초 turn drain에 맞춰 Supervisor가 backend를 75초 기다리고, Compose가 컨테이너에 90초를 준다. 프로세스 그룹에도 TERM/KILL 신호를 전달하도록 했다.
 - `upstreams/DeepTutor/requirements.txt`를 지정 snapshot의 `pyproject.toml`과 `[project.optional-dependencies].partners`에서 해석한 Python 3.11 대상 backend runtime lock으로 교체했다. uv 0.11.21이 192개 고정 항목을 해석했고 잠금에는 3,587개의 SHA-256 해시가 있다. 기존 소유 경로를 사용해 새 파일 배정은 필요하지 않다. Dockerfile은 `pip install --require-hashes`로 잠금과 해시를 강제한다. 소스 프로젝트 자체는 build context에서 설치하므로 lock에서 제외했다. Docker base 이미지 tag와 apt 시스템 패키지는 이 Python lock 범위에 포함되지 않는다.
 - Dockerfile의 Node 22/Python 3.11 base image는 검증 당시 Docker가 resolve한 manifest digest로 고정했다. OS `apt` package index/version은 snapshot lock에 포함되지 않는다.
-- `checks/requirements.txt`는 contract fixture와 source probe에서 쓰는 고정 Python 검증 환경을 `checks/audit-environment.txt`에 연결하고 OpenAPI validator를 고정한다. 이것은 backend lock과 별도의 검증 도구 환경이다.
+- `checks/audit-environment.txt`는 uv 0.11.21의 Python 3.12 universal resolution으로 만든 검증 도구 전체 lock이며 110개 패키지 항목에 SHA-256 해시 2,456개를 기록한다. 기존 106개 버전 pin은 바꾸지 않았고 플랫폼 조건부 네 패키지만 포함했다. `checks/requirements.txt`가 이를 포함하며 `pip install --require-hashes`로 설치한다. Backend production lock과 별도 환경이다.
 - `checks/validate_contracts.py`에서 fixture 검사와 완전한 readiness gate를 분리했다. 기본 실행은 계약 fixture만 검사한다. `--require-ready`는 ownership 및 upstream/source gate를 독립 실행해 양쪽 결과를 보고하고, 원본 snapshot SHA 불일치는 전체 경로와 실제 SHA-256을 출력한다. 기본 PASS를 제품 통합 PASS로 해석하지 않는다.
+- `checks/source_adapters.py`는 실제 DeepTutor OpenAI-compatible streaming adapter를 ephemeral loopback SSE server에 연결한다. 키나 외부 네트워크 없이 두 content delta와 terminal reason을 확인하며, server/client 오류는 PASS로 낮추지 않는다. 이는 provider HTTP adapter 검증이지 실제 Tutor `/ws` 제품 흐름 검증은 아니다.
 
 ## 실행 결과
 
 | 검사 | 결과 | 범위 |
 |---|---|---|
-| `/tmp` 임시 venv에 `pip install -r checks/requirements.txt`에 필요한 고정 패키지 설치 | PASS | Python 3.12.13, macOS arm64. 승인된 네트워크 설치. Windows/Linux 설치는 미검증. |
-| `checks/validate_contracts.py` on clean archive `5bb0a23` | PASS | OpenAPI 30 operations, 4 schemas, 80 schema instances, 19 negative cases, 10 sync steps, 4 geometry cases. 소스/readiness gate는 실행하지 않음. |
+| 새 `/tmp` venv에서 `pip install --require-hashes -r checks/requirements.txt`와 `pip check` | PASS | Python 3.12.13, macOS arm64. 110개 universal lock 패키지와 2,456개 artifact SHA-256 해시. Windows/Linux 설치는 미검증. |
+| uv 0.11.21로 checks lock 재해석 및 version/hash 비교 | PASS | `uv pip compile checks/requirements.txt --python-version 3.12 --universal --generate-hashes --no-header`; 110개 패키지의 version/artifact hash가 모두 일치. 생성 provenance 주석은 달라 byte-identical 비교는 아님. |
+| `checks/validate_contracts.py` on clean archive `bf174ab` | PASS | OpenAPI 30 operations, 4 schemas, 80 schema instances, 19 negative cases, 10 sync steps, 4 geometry cases. 소스/readiness gate는 실행하지 않음. |
 | Backend runtime lock 정적 검사 (위 fixture 검사에 포함) | PASS | 192개 Python 3.11 대상 잠금 항목, 3,587개 해시, 필수 backend 패키지, Docker `--require-hashes` 적용을 확인. 같은 uv 명령의 재해석 결과와 잠금 파일이 바이트 단위로 일치. |
-| `checks/validate_contracts.py --require-ready` on clean archive `5bb0a23` | FAIL | Ownership: `docs/handoffs/unit-02.md` is unassigned; `absent=[]`. Source gate: 79 tracked upstream files differ from pinned snapshot hashes without `current_sha256` exceptions (UNIT-02 42, UNIT-05 34, UNIT-06 3); output includes each path's current SHA-256. Other source/provenance, contract-copy, registration and license checks completed. |
-| `checks/source_adapters.py` on clean archive `5bb0a23` and pinned DeepTutor `6cf793bd868ba5ecbe64722936d4be8fab5a01df` | PASS | Actual-source adapter checks passed: PDF pages 2, native frames 12, native commands 5, SQLite reopen/replay true, duplicate append creates no events, capability mappings 6. Product readiness remains false. |
+| `checks/validate_contracts.py --require-ready` on clean archive `bf174ab` | FAIL | Ownership: `docs/handoffs/unit-02.md` is unassigned; `absent=[]`. Source gate: 79 tracked upstream files differ from pinned snapshot hashes without `current_sha256` exceptions (UNIT-02 42, UNIT-05 34, UNIT-06 3); output includes each path's current SHA-256. Other source/provenance, contract-copy, registration and license checks completed. |
+| `checks/source_adapters.py` on clean archive `bf174ab` and pinned DeepTutor `6cf793bd868ba5ecbe64722936d4be8fab5a01df` | PASS | PDF pages 2, native frames 12, native commands 5, SQLite reopen/replay true, duplicate append creates no events, capability mappings 6. Actual OpenAI-compatible provider streamed two deltas from a loopback server without credentials or external network. `product_ready=false`. |
+| `ruff check checks/source_adapters.py` | PASS | Probe is executable and import-sorted. |
 | DeepTutor `tests/api/test_unified_ws_turn_runtime.py` on clean archive `5bb0a23` | FAIL, 54/55 | One test cannot import `LibraryError` from `deeptutor.mnemosyne.library`; the class exists only in the current uncommitted UNIT-01 library changes. The same test against the dirty shared worktree advances farther but fails at `library.py:1095` with SQLite's “statement uses 4, 3 supplied” bindings error. The test was read-only; neither failure was changed by UNIT-06. |
 | `docker compose -f upstreams/DeepTutor/compose.yaml config --quiet` | PASS | YAML/Compose 구성 정적 검사. 1개 앱 서비스, 루프백 포트, persistence와 종료 유예를 확인. |
 | `docker compose -f upstreams/DeepTutor/docker-compose.yml config --quiet` | PASS | 기존 upstream compose 구성 정적 검사. 새 Mnemosyne 프로필의 기동 증거는 아님. |
@@ -40,7 +43,7 @@
 | iPad macOS/Xcode build 및 signing 분리 job | 미실행 | 이 호스트는 full Xcode/XcodeGen이 없다. GitHub Mac runner도 실행되지 않았다. |
 | Windows/WSL2 서버, 실제 iPad Pencil, 실제 LLM provider | 대기 | 이 실행에서 해당 장치/서버를 사용할 수 없었다. fixture 검사는 이 인수 검증을 대체하지 않는다. |
 
-계약 fixture/source-adapter 검사와 두 readiness gate는 clean archive commit `5bb0a238251c8911b51e969e7152e8b01d860c2b`에서 실행했다. scratch Git index는 `git add -f -A`로 복원해 upstream `.gitignore`의 ignored-but-tracked 파일을 보존했다. `absent=[]`이며 검사 출력 파일은 archive 밖에 두었다. Web 전체 검사는 clean archive `f62813b`에서 Node 22.23.3으로 실행했고, Web 파일은 `f62813b..5bb0a23` 사이 바뀌지 않았다. Clean archive와 달리 현재 shared worktree에는 UNIT-01/03 변경이 미커밋 상태이므로 그 소스를 포함한 targeted backend 재실행 결과를 별도로 기록했다. 다른 유닛 파일은 stage하거나 commit하지 않았다.
+계약 fixture/source-adapter 검사와 두 readiness gate는 clean source archive commit `bf174ab643fadd5e020f0fae9a4a4d06da7b0213`에서 실행했다. 해시 설치 검증에는 현재 UNIT-06 checks lock 두 파일을 archive에 덮어 복사했으며 제품 소스는 수정하지 않았다. scratch Git index는 `git add -f -A`로 복원해 upstream `.gitignore`의 ignored-but-tracked 파일을 보존했다. `absent=[]`이며 검사 출력과 venv는 archive 밖에 두었다. Web 전체 검사는 clean archive `f62813b`에서 Node 22.23.3으로 실행했고, Web 파일은 `f62813b..bf174ab` 사이 바뀌지 않았다. Clean archive와 달리 현재 shared worktree에는 UNIT-01/03 변경이 미커밋 상태이므로 그 소스를 포함한 targeted backend 재실행 결과를 별도로 기록했다. 다른 유닛 파일은 stage하거나 commit하지 않았다.
 
 ## 계약 fixture와 제품 인수의 경계
 
@@ -52,7 +55,7 @@
 | 마이그레이션·export | 이번 검사에서 실행 안 함 | UNIT-01 storage/migration 적용 뒤 원본 보존, export 산출물, rollback 검사 |
 | 사설 접속·최소 보호·secret | Compose loopback 기본값 및 env의 key/token/secret 부재를 정적 검사 | 앱 pairing/Origin 보호는 UNIT-02, WSL2 firewall/Tailscale는 실제 기기에서 검사 |
 | 백업·복원 | 생성된 기본 `data/` 디렉터리의 tar→extract→recursive diff smoke PASS | 업로드 원본과 실제 SQLite 학습 상태를 포함한 복원 및 재기동 검사는 미실행 |
-| LLM no-secret 경로 | PublicSettings의 secret 필드 거부 fixture PASS | Compose 기동 시 active model이 없어 실제 `/ws` Tutor streaming은 미검증. `checks/source_adapters.py`는 LLM을 호출하지 않으며, 테스트 전용 provider를 연결한 Tutor harness도 아직 없음. 실제 provider 연결 검사는 별도 실행 필요 |
+| LLM no-secret 경로 | 실제 OpenAI-compatible client가 loopback fake SSE server에서 두 content delta를 받고 `finish_reason=stop`을 반환, key/external network 없음 | 이는 provider HTTP adapter만 검증한다. Compose에 active model이 없어 실제 Tutor `/ws` streaming 및 실제 provider 연결은 미검증. |
 
 fixture PASS는 표의 runtime 검사를 완료했다는 뜻이 아니다.
 
@@ -69,7 +72,7 @@ python3.11 -m venv .venv/unit06-runtime
 .venv/unit06-runtime/bin/python -m pip install --require-hashes -r upstreams/DeepTutor/requirements.txt
 
 python3.11 -m venv .venv/unit06-checks
-.venv/unit06-checks/bin/python -m pip install -r checks/requirements.txt
+.venv/unit06-checks/bin/python -m pip install --require-hashes -r checks/requirements.txt
 
 cd upstreams/DeepTutor/web
 npm ci --legacy-peer-deps
@@ -135,11 +138,12 @@ docker compose -f compose.yaml start
 1. `integration/ownership.json`에서 tracked 상태인 `docs/handoffs/unit-02.md`에 단독 담당자를 배정한다. Corrected archive check에서 다른 소유 경로의 누락은 없다.
 2. root CI 파일(예: `.github/workflows/mnemosyne.yml`)을 UNIT-06에 배정한다. 현재 할당된 `.github/workflows/tests.yml`은 upstream 하위 경로라 이 Mnemosyne root 저장소의 GitHub Actions workflow로 실행되지 않는다. Backend runtime lock은 기존 UNIT-06 소유 경로인 `upstreams/DeepTutor/requirements.txt`에 작성했다.
 3. 목표에서 지정한 `docs/handoffs/unit-06.md`는 현재 정확한 소유 목록에 없고 기존 배정 파일은 `handoff/UNIT-06.md`다. 이 handoff는 허용된 경로를 사용했다. 새 문서 경로를 원하면 먼저 배정한다.
-4. Clean source `5bb0a23`에서 79개 tracked upstream 수정의 사유와 실제 SHA-256을 `integration/upstreams.json`의 수정 예외에 반영한다. 계산된 분포는 UNIT-02 42개, UNIT-05 34개, UNIT-06 3개다. `--require-ready` source gate 출력에 현재 SHA-256이 포함된다. 해당 metadata는 통합 담당 소유라 여기서는 고치지 않았다. UNIT-06 변경의 현재 SHA-256:
+4. Clean source `bf174ab`에서 79개 tracked upstream 수정의 사유와 실제 SHA-256을 `integration/upstreams.json`의 수정 예외에 반영한다. 계산된 분포는 UNIT-02 42개, UNIT-05 34개, UNIT-06 3개다. `--require-ready` source gate 출력에 현재 SHA-256이 포함된다. 해당 metadata는 통합 담당 소유라 여기서는 고치지 않았다. UNIT-06 변경의 현재 SHA-256:
    - `upstreams/DeepTutor/compose.yaml`: `a86bfe994c63763b93125f3c3861e32c9942a618fb2d191a83d9a0e3629a8bab`
    - `upstreams/DeepTutor/Dockerfile`: `c42b5bdf68bc4bd6811c0022b8ac01c5d7abaaee7aacd0c3b9ac39cd698e07cb`
    - `upstreams/DeepTutor/requirements.txt`: `c4c5917e5cb1288e80e21bafc6daab70b713eb39f89a59186cce07a2c44a32b5`
-5. 최종 통합에는 의도한 UNIT-01/03/04의 정확한 revision 또는 PR URL이 필요하다. 검사 당시 history에는 UNIT-02의 변경이 `5bb0a23`까지, UNIT-05의 이전 커밋이 포함되어 있었다. 선택한 정확한 revision을 정한 뒤 소유 gate와 통합 검사를 다시 실행한다. UNIT-04는 iPad simulator/device 검증 결과도 제공해야 한다.
+5. 최종 통합에는 의도한 UNIT-01/03/04의 정확한 revision 또는 PR URL이 필요하다. 검사 당시 history에는 UNIT-02의 변경이 `bf174ab`까지, UNIT-05의 이전 커밋이 포함되어 있었다. 선택한 정확한 revision을 정한 뒤 소유 gate와 통합 검사를 다시 실행한다. UNIT-04는 iPad simulator/device 검증 결과도 제공해야 한다.
+6. `docs/VALIDATION.md`는 integrator 소유이며 설치 예시가 아직 `pip install -r checks/audit-environment.txt`를 가리킨다. 새 lock을 검증된 방식으로 쓰도록 `pip install --require-hashes -r checks/requirements.txt`로 갱신한다.
 
 ## 대기 인수
 
