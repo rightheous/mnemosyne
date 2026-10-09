@@ -6,20 +6,161 @@ import hashlib
 import json
 import sys
 import tempfile
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from threading import Thread
 from types import SimpleNamespace
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "upstreams/DeepTutor"))
 from deeptutor.api.contracts.turn_protocol import ClientCommand, StreamEvent
 from deeptutor.mnemosyne.bootstrap import register_mnemosyne
-from deeptutor.mnemosyne.library import extract_pdf_pages, normalized_rect_to_pdf, viewport_point
-from deeptutor.mnemosyne.tutor import native_turn_request, semantic_event, CAPABILITY_MAP
-from deeptutor.runtime.bootstrap.builtin_capabilities import BUILTIN_CAPABILITY_CLASSES
-from deeptutor.reading.store import ReadingStore
+from deeptutor.mnemosyne.library import (
+    extract_pdf_pages,
+    normalized_rect_to_pdf,
+    viewport_point,
+)
+from deeptutor.mnemosyne.tutor import (
+    CAPABILITY_MAP,
+    native_turn_request,
+    semantic_event,
+)
 from deeptutor.reading.service import verify_quote
+from deeptutor.reading.store import ReadingStore
+from deeptutor.runtime.bootstrap.builtin_capabilities import BUILTIN_CAPABILITY_CLASSES
 from deeptutor.services.session.sqlite_store import SQLiteSessionStore
 from pydantic import TypeAdapter
+
+
+def check_fake_provider_stream():
+    """Exercise DeepTutor's real OpenAI-compatible streaming adapter locally.
+
+    The loopback server is test-only and never forwards requests. No provider
+    credential is configured; the SDK's public ``no-key`` placeholder is used.
+    """
+    from deeptutor.services.llm.provider_core.openai_compat_provider import (
+        OpenAICompatProvider,
+    )
+
+    received = []
+
+    class Handler(BaseHTTPRequestHandler):
+        protocol_version = "HTTP/1.1"
+
+        def log_message(self, *_args):
+            pass
+
+        def do_POST(self):
+            if self.path != "/v1/chat/completions":
+                self.send_error(404)
+                return
+            body = json.loads(self.rfile.read(int(self.headers.get("Content-Length", "0"))))
+            received.append(
+                {
+                    "path": self.path,
+                    "placeholder_auth": self.headers.get("Authorization") == "Bearer no-key",
+                    "body": body,
+                }
+            )
+            events = [
+                {
+                    "id": "chatcmpl-unit06",
+                    "object": "chat.completion.chunk",
+                    "created": 1,
+                    "model": "unit06-fake",
+                    "choices": [
+                        {"index": 0, "delta": {"content": "한국어 "}, "finish_reason": None}
+                    ],
+                },
+                {
+                    "id": "chatcmpl-unit06",
+                    "object": "chat.completion.chunk",
+                    "created": 1,
+                    "model": "unit06-fake",
+                    "choices": [
+                        {"index": 0, "delta": {"content": "응답"}, "finish_reason": None}
+                    ],
+                },
+                {
+                    "id": "chatcmpl-unit06",
+                    "object": "chat.completion.chunk",
+                    "created": 1,
+                    "model": "unit06-fake",
+                    "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}],
+                },
+                {
+                    "id": "chatcmpl-unit06",
+                    "object": "chat.completion.chunk",
+                    "created": 1,
+                    "model": "unit06-fake",
+                    "choices": [],
+                    "usage": {"prompt_tokens": 2, "completion_tokens": 2, "total_tokens": 4},
+                },
+            ]
+            payload = "".join(
+                f"data: {json.dumps(event, ensure_ascii=False)}\n\n" for event in events
+            ) + "data: [DONE]\n\n"
+            encoded = payload.encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+            self.send_header("Cache-Control", "no-cache")
+            self.send_header("Content-Length", str(len(encoded)))
+            self.send_header("Connection", "close")
+            self.end_headers()
+            self.wfile.write(encoded)
+            self.wfile.flush()
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    thread = Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+
+    async def request_stream():
+        provider = OpenAICompatProvider(
+            api_key=None,
+            api_base=f"http://127.0.0.1:{server.server_port}/v1",
+            default_model="unit06-fake",
+            provider_name="ollama",
+            wire_api="chat_completions",
+            configure_env=False,
+        )
+        deltas = []
+
+        async def capture_delta(text):
+            deltas.append(text)
+
+        try:
+            response = await provider.chat_stream(
+                [{"role": "user", "content": "fixture probe"}],
+                model="unit06-fake",
+                on_content_delta=capture_delta,
+            )
+        finally:
+            await provider.aclose()
+        return response, deltas
+
+    try:
+        response, deltas = asyncio.run(request_stream())
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2)
+
+    assert response.content == "한국어 응답", response.content
+    assert deltas == ["한국어 ", "응답"], deltas
+    assert response.finish_reason == "stop", response.finish_reason
+    assert len(received) == 1, len(received)
+    request = received[0]
+    assert request["path"] == "/v1/chat/completions"
+    assert request["placeholder_auth"] is True
+    assert request["body"]["model"] == "unit06-fake"
+    assert request["body"]["stream"] is True
+    return {
+        "provider": "actual-openai-compatible-adapter",
+        "network": "loopback-only",
+        "credential": "none",
+        "content_deltas": len(deltas),
+        "finish_reason": response.finish_reason,
+    }
 
 
 def run_integration_checks():
@@ -134,11 +275,13 @@ def run_integration_checks():
         canonical = normalized_rect_to_pdf(native, g)
         assert all(abs(a-b) < 1e-6 for a,b in zip(canonical, [x,y,rw,rh]))
     assert hashlib.sha256(pdf.read_bytes()).hexdigest() == original_hash
+    fake_provider = check_fake_provider_stream()
     print(json.dumps({"result": "PASS", "consumer": "actual-source-adapters",
                       "pdf_pages": len(pages), "native_frames": len(fixture["wire"]["events"]),
                       "native_commands": len(fixture["wire"]["commands"]),
                       "sqlite_reopen_replay": True, "duplicate_append_creates_no_events": True,
-                      "capability_mappings": len(CAPABILITY_MAP), "product_ready": False}))
+                      "capability_mappings": len(CAPABILITY_MAP),
+                      "fake_provider_stream": fake_provider, "product_ready": False}))
 
 
 if __name__ == "__main__":
