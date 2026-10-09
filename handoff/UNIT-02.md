@@ -135,6 +135,7 @@
 
 - Mnemosyne assessment provider가 대기 중인 상태에서 호출자가 task를 취소하는 fixture를 추가했다. 취소가 공개 provider 오류로 바뀌지 않고 `CancelledError`로 전파되며, claim이 `assessment_cancelled` 코드로 retry 해제되고 assessment commit은 실행되지 않는 것을 확인한다.
 - 실행: `tests/api/test_unified_ws_turn_runtime.py -k mnemosyne_assessment_service_releases_failed_claim_for_retry` — **3 passed, 53 deselected**. 이 fixture는 fake evaluator/store 경계만 검사하며 durable store의 process-restart replay, provider credential/API, mounted HTTP, 제품 인수는 검증하지 않는다.
+- 전체 `tests/api/test_unified_ws_turn_runtime.py` 재실행은 **55 passed, 1 failed, 9 warnings**다. 유일한 실패는 `test_tutor_revalidates_bilingual_quiz_citations_against_source_pdf`이며 UNIT-01 `library.py:1095–1099`가 네 placeholder에 세 값을 바인딩하는 기존 문제와 동일하다. UNIT-02는 그 파일을 수정하지 않았다.
 - 취소 중 retry 해제에 대한 이 fixture 결과는 기존 provider-error/commit-error 케이스와 함께 확인했다. 저장소가 claim/release를 영속화하고 transaction으로 보장하는 구현은 UNIT-01/통합 wiring이 아직 필요하다.
 
 검증 명령:
