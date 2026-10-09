@@ -1071,21 +1071,42 @@ class TutorAdapter:
         )
 
     async def save_activity(
-        self, activity: dict[str, Any], mutation_id: str, base_revision: int
+        self,
+        activity: dict[str, Any],
+        mutation_id: str,
+        base_revision: int,
+        *,
+        document_id: str,
+        version_id: str,
     ) -> dict[str, Any]:
         if not isinstance(activity, dict):
             raise ValueError("activity must be an object")
+        normalized_document_id = _required_id(document_id, "document_id", uuid_value=True)
+        normalized_version_id = str(version_id or "").strip()
+        if not _VERSION_RE.fullmatch(normalized_version_id):
+            raise ValueError("version_id must be a full SHA-256 version")
         normalized_revision = _safe_integer(
             base_revision, "base_revision", minimum=0
         )
         normalized_activity = _validate_learning_activity(dict(activity))
-        state = await _learning_store(self.learning_store).save_activity(
+        store = _learning_store(self.learning_store)
+        saver = getattr(store, "save_activity", None)
+        if not callable(saver):
+            raise RuntimeError("Learning state is not ready; activity storage is unavailable")
+        state = await saver(
             normalized_activity,
             _required_id(mutation_id, "mutation_id", uuid_value=True),
             normalized_revision,
+            document_id=normalized_document_id,
+            version_id=normalized_version_id,
         )
         return _verify_learning_state_citations(
-            self.library, _validate_learning_state(state)
+            self.library,
+            _validate_learning_state(
+                state,
+                document_id=normalized_document_id,
+                version_id=normalized_version_id,
+            ),
         )
 
     async def review_memory(self, review: dict[str, Any]) -> dict[str, Any]:

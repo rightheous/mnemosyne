@@ -2426,9 +2426,12 @@ async def test_tutor_learning_mutations_match_contract_revision_fields():
             observed["review"] = review
             return state
 
-        async def save_activity(self, saved_activity, mutation_id, base_revision):
+        async def save_activity(
+            self, saved_activity, mutation_id, base_revision, *, document_id, version_id
+        ):
             observed["activity"] = saved_activity
             observed["activity_mutation"] = (mutation_id, base_revision)
+            observed["activity_scope"] = (document_id, version_id)
             return state
 
     class RecordingLibrary:
@@ -2496,9 +2499,16 @@ async def test_tutor_learning_mutations_match_contract_revision_fields():
     assert reviewed_state["memory"][0]["citations"][0]["verification_id"].endswith(
         "000000000039"
     )
-    saved_state = await tutor.save_activity(activity, activity_mutation_id, 1)
+    saved_state = await tutor.save_activity(
+        activity,
+        activity_mutation_id,
+        1,
+        document_id=document_id,
+        version_id=version_id,
+    )
     assert observed["activity"] == activity
     assert observed["activity_mutation"] == (activity_mutation_id, 1)
+    assert observed["activity_scope"] == (document_id, version_id)
     assert saved_state["memory"][0]["citations"][0]["verification_id"].endswith(
         "000000000040"
     )
@@ -2748,7 +2758,58 @@ async def test_tutor_save_activity_rejects_malformed_activity_before_store_write
             },
             "00000000-0000-0000-0000-000000000036",
             0,
+            document_id="00000000-0000-0000-0000-000000000001",
+            version_id="sha256:" + "a" * 64,
         )
+
+
+@pytest.mark.asyncio
+async def test_tutor_save_activity_rejects_state_from_another_document_version():
+    from deeptutor.mnemosyne.tutor import TutorAdapter
+
+    document_id = "00000000-0000-0000-0000-000000000001"
+    version_id = "sha256:" + "a" * 64
+    activity = {
+        "activity_id": "00000000-0000-0000-0000-000000000034",
+        "kind": "reading",
+        "turn_id": None,
+        "summary_ko": "2쪽을 읽음",
+        "created_at": "2026-10-09T07:00:00Z",
+    }
+    state = {
+        "document_id": document_id,
+        "version_id": "sha256:" + "b" * 64,
+        "learning_revision": 2,
+        "quiz_attempts": [],
+        "mastery": [],
+        "memory": [],
+        "progress": {
+            "last_page_index": 1,
+            "pages_read": [1],
+            "reading_seconds": 120,
+            "next_review_at": "2026-10-10T07:00:00Z",
+        },
+        "activities": [activity],
+    }
+    observed = {}
+
+    class LearningStore:
+        async def save_activity(
+            self, _activity, _mutation_id, _base_revision, *, document_id, version_id
+        ):
+            observed["scope"] = (document_id, version_id)
+            return state
+
+    tutor = TutorAdapter(object(), SimpleNamespace(annotation_sync=object()), LearningStore())
+    with pytest.raises(ValueError, match="another document version"):
+        await tutor.save_activity(
+            activity,
+            "00000000-0000-0000-0000-000000000036",
+            1,
+            document_id=document_id,
+            version_id=version_id,
+        )
+    assert observed["scope"] == (document_id, version_id)
 
 
 @pytest.mark.asyncio
