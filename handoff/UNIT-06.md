@@ -13,7 +13,7 @@
 - `upstreams/DeepTutor/requirements.txt`를 지정 snapshot의 `pyproject.toml`과 `[project.optional-dependencies].partners`에서 해석한 Python 3.11 대상 backend runtime lock으로 교체했다. uv 0.11.21이 192개 고정 항목을 해석했고 잠금에는 3,587개의 SHA-256 해시가 있다. 기존 소유 경로를 사용해 새 파일 배정은 필요하지 않다. Dockerfile은 `pip install --require-hashes`로 잠금과 해시를 강제한다. 소스 프로젝트 자체는 build context에서 설치하므로 lock에서 제외했다. Docker base 이미지 tag와 apt 시스템 패키지는 이 Python lock 범위에 포함되지 않는다.
 - Dockerfile의 Node 22/Python 3.11 base image는 검증 당시 Docker가 resolve한 manifest digest로 고정했다. OS `apt` package index/version은 snapshot lock에 포함되지 않는다.
 - `checks/requirements.txt`는 contract fixture와 source probe에서 쓰는 고정 Python 검증 환경을 `checks/audit-environment.txt`에 연결하고 OpenAPI validator를 고정한다. 이것은 backend lock과 별도의 검증 도구 환경이다.
-- `checks/validate_contracts.py`에서 fixture 검사와 완전한 readiness gate를 분리했다. 기본 실행은 계약 fixture만 검사한다. `--require-ready`는 ownership 및 upstream/source gate를 독립 실행해 양쪽 결과를 보고하고, 원본 snapshot SHA 불일치는 전체 경로를 모아 출력한다. 기본 PASS를 제품 통합 PASS로 해석하지 않는다.
+- `checks/validate_contracts.py`에서 fixture 검사와 완전한 readiness gate를 분리했다. 기본 실행은 계약 fixture만 검사한다. `--require-ready`는 ownership 및 upstream/source gate를 독립 실행해 양쪽 결과를 보고하고, 원본 snapshot SHA 불일치는 전체 경로와 실제 SHA-256을 출력한다. 기본 PASS를 제품 통합 PASS로 해석하지 않는다.
 
 ## 실행 결과
 
@@ -22,7 +22,7 @@
 | `/tmp` 임시 venv에 `pip install -r checks/requirements.txt`에 필요한 고정 패키지 설치 | PASS | Python 3.12.14, macOS arm64. 승인된 네트워크 설치. Windows/Linux 설치는 미검증. |
 | `checks/validate_contracts.py` on clean archive `cf38839` | PASS | OpenAPI 30 operations, 4 schemas, 80 schema instances, 19 negative cases, 10 sync steps, 4 geometry cases. 소스/readiness gate는 실행하지 않음. |
 | Backend runtime lock 정적 검사 (위 fixture 검사에 포함) | PASS | 192개 Python 3.11 대상 잠금 항목, 3,587개 해시, 필수 backend 패키지, Docker `--require-hashes` 적용을 확인. 같은 uv 명령의 재해석 결과와 잠금 파일이 바이트 단위로 일치. |
-| `checks/validate_contracts.py --require-ready` on clean archive `cf38839` | FAIL | Ownership: `docs/handoffs/unit-02.md` is unassigned; `absent=[]`. Source gate: 76 tracked upstream files differ from their pinned snapshot hashes without `current_sha256` exceptions (UNIT-02 39, UNIT-05 34, UNIT-06 3). Other source/provenance, contract-copy, registration and license checks completed. |
+| `checks/validate_contracts.py --require-ready` on clean archive `cf38839` | FAIL | Ownership: `docs/handoffs/unit-02.md` is unassigned; `absent=[]`. Source gate: 76 tracked upstream files differ from their pinned snapshot hashes without `current_sha256` exceptions (UNIT-02 39, UNIT-05 34, UNIT-06 3); output includes each path's current SHA-256. Other source/provenance, contract-copy, registration and license checks completed. |
 | `checks/source_adapters.py` on clean archive `cf38839` and pinned DeepTutor `6cf793bd868ba5ecbe64722936d4be8fab5a01df` | PASS | Actual-source adapter checks passed: PDF pages 2, native frames 12, native commands 5, SQLite reopen/replay true, duplicate append creates no events, capability mappings 6. UNIT-02's source-language context fix resolves the prior language-mapping failure. Product readiness remains false. |
 | `docker compose -f upstreams/DeepTutor/compose.yaml config --quiet` | PASS | YAML/Compose 구성 정적 검사. 1개 앱 서비스, 루프백 포트, persistence와 종료 유예를 확인. |
 | `docker compose -f upstreams/DeepTutor/docker-compose.yml config --quiet` | PASS | 기존 upstream compose 구성 정적 검사. 새 Mnemosyne 프로필의 기동 증거는 아님. |
@@ -134,7 +134,7 @@ docker compose -f compose.yaml start
 1. `integration/ownership.json`에서 tracked 상태인 `docs/handoffs/unit-02.md`에 단독 담당자를 배정한다. Corrected archive check에서 다른 소유 경로의 누락은 없다.
 2. root CI 파일(예: `.github/workflows/mnemosyne.yml`)을 UNIT-06에 배정한다. 현재 할당된 `.github/workflows/tests.yml`은 upstream 하위 경로라 이 Mnemosyne root 저장소의 GitHub Actions workflow로 실행되지 않는다. Backend runtime lock은 기존 UNIT-06 소유 경로인 `upstreams/DeepTutor/requirements.txt`에 작성했다.
 3. 목표에서 지정한 `docs/handoffs/unit-06.md`는 현재 정확한 소유 목록에 없고 기존 배정 파일은 `handoff/UNIT-06.md`다. 이 handoff는 허용된 경로를 사용했다. 새 문서 경로를 원하면 먼저 배정한다.
-4. Clean source `cf38839`에서 76개 tracked upstream 수정의 사유와 실제 SHA-256을 `integration/upstreams.json`의 수정 예외에 반영한다. 계산된 분포는 UNIT-02 39개, UNIT-05 34개, UNIT-06 3개다. 해당 메타데이터는 통합 담당 소유라 여기서는 고치지 않았다. UNIT-06 변경의 현재 SHA-256:
+4. Clean source `cf38839`에서 76개 tracked upstream 수정의 사유와 실제 SHA-256을 `integration/upstreams.json`의 수정 예외에 반영한다. 계산된 분포는 UNIT-02 39개, UNIT-05 34개, UNIT-06 3개다. `--require-ready` source gate 출력에 현재 SHA-256이 포함된다. 해당 metadata는 통합 담당 소유라 여기서는 고치지 않았다. UNIT-06 변경의 현재 SHA-256:
    - `upstreams/DeepTutor/compose.yaml`: `a86bfe994c63763b93125f3c3861e32c9942a618fb2d191a83d9a0e3629a8bab`
    - `upstreams/DeepTutor/Dockerfile`: `c42b5bdf68bc4bd6811c0022b8ac01c5d7abaaee7aacd0c3b9ac39cd698e07cb`
    - `upstreams/DeepTutor/requirements.txt`: `c4c5917e5cb1288e80e21bafc6daab70b713eb39f89a59186cce07a2c44a32b5`

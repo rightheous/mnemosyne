@@ -328,8 +328,9 @@ def source_gate():
             path = original['path']
             override = provenance['modified_originals'].get(path)
             digest = override['current_sha256'] if override else original['sha256']
-            if sha((ROOT/path).read_bytes()) != digest:
-                snapshot_mismatches.append(path)
+            actual_digest = sha((ROOT/path).read_bytes())
+            if actual_digest != digest:
+                snapshot_mismatches.append(f'{path}={actual_digest}')
     ensure((C/'native-turn.schema.json').read_bytes() == (ROOT/'upstreams/DeepTutor/web/contracts/schema/turn-protocol.json').read_bytes(), 'Native wire schema copy differs')
     for copy_path in state['contract_copies']:
         for path in C.rglob('*'):
