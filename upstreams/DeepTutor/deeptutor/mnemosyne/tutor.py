@@ -1100,13 +1100,16 @@ class TutorAdapter:
             document_id=normalized_document_id,
             version_id=normalized_version_id,
         )
+        validated_state = _validate_learning_state(
+            state,
+            document_id=normalized_document_id,
+            version_id=normalized_version_id,
+        )
+        if normalized_activity not in validated_state["activities"]:
+            raise ValueError("learning state does not contain the saved activity")
         return _verify_learning_state_citations(
             self.library,
-            _validate_learning_state(
-                state,
-                document_id=normalized_document_id,
-                version_id=normalized_version_id,
-            ),
+            validated_state,
         )
 
     async def review_memory(self, review: dict[str, Any]) -> dict[str, Any]:

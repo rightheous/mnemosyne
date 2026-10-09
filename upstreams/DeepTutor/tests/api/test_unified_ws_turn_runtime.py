@@ -2813,6 +2813,54 @@ async def test_tutor_save_activity_rejects_state_from_another_document_version()
 
 
 @pytest.mark.asyncio
+async def test_tutor_save_activity_requires_the_activity_in_persisted_state():
+    from deeptutor.mnemosyne.tutor import TutorAdapter
+
+    document_id = "00000000-0000-0000-0000-000000000001"
+    version_id = "sha256:" + "a" * 64
+    activity = {
+        "activity_id": "00000000-0000-0000-0000-000000000034",
+        "kind": "reading",
+        "turn_id": None,
+        "summary_ko": "2쪽을 읽음",
+        "created_at": "2026-10-09T07:00:00Z",
+    }
+    state = {
+        "document_id": document_id,
+        "version_id": version_id,
+        "learning_revision": 2,
+        "quiz_attempts": [],
+        "mastery": [],
+        "memory": [],
+        "progress": {
+            "last_page_index": 1,
+            "pages_read": [1],
+            "reading_seconds": 120,
+            "next_review_at": "2026-10-10T07:00:00Z",
+        },
+        "activities": [],
+    }
+
+    class LearningStore:
+        async def save_activity(
+            self, _activity, _mutation_id, _base_revision, *, document_id, version_id
+        ):
+            assert document_id == "00000000-0000-0000-0000-000000000001"
+            assert version_id == "sha256:" + "a" * 64
+            return state
+
+    tutor = TutorAdapter(object(), SimpleNamespace(annotation_sync=object()), LearningStore())
+    with pytest.raises(ValueError, match="does not contain the saved activity"):
+        await tutor.save_activity(
+            activity,
+            "00000000-0000-0000-0000-000000000036",
+            1,
+            document_id=document_id,
+            version_id=version_id,
+        )
+
+
+@pytest.mark.asyncio
 async def test_mnemosyne_assessment_service_keeps_grading_private_and_replays_persisted_result():
     from datetime import datetime, timezone
 
