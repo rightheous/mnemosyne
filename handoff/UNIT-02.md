@@ -123,6 +123,13 @@
 - 실행 검증: `tests/api/test_unified_ws_turn_runtime.py -k 'native_protocol_turn_adapter or native_tutor_consumes_versioned_mnemosyne_web_envelope or native_tutor_rejects_invalid_or_unresolved_mnemosyne_actions or assessment_action_keeps_its_event_and_model_identity or turn_runtime_replays_events_and_materializes_messages'` — **13 passed, 42 deselected, 3 warnings**. 이 결과에는 기존 Chat runtime fixture의 private config 제거와 의미 이벤트, action/model identity mapping 단위 검증이 포함된다. 실제 assessment provider 호출 및 durable Assessment commit/restart 검증은 아니다.
 - `ruff check`는 수정한 Python 4개 파일에 **PASS**했고 `git diff --check` 및 문법 compile probe도 통과했다. 계약 `0.1.0`과 `product_ready:false`를 유지한다.
 
+## 공통 gate 확인 — 2026-10-09
+
+- `DEEPTUTOR_HOME=/private/tmp/mnemosyne-unit02-test-home uv run --directory upstreams/DeepTutor --no-project --with ... -- python ../../checks/source_adapters.py` — **PASS**. 현재 source adapter 기준 PDF pages 2, native frames 12, commands 5, SQLite reopen/replay와 duplicate append 검증 true, capability mapping 6, `product_ready:false`.
+- `python3 checks/sync_contracts.py --check` — **PASS**, contract `0.1.0`, 2 copies, bundle files 10.
+- `uv run --no-project --with-requirements checks/requirements.txt -- python3 checks/validate_contracts.py --require-ready` — **FAIL**. ownership gate는 미할당 `docs/handoffs/unit-02.md`와 `handoff/UNIT-03 2.md`, `handoff/UNIT-06 2.md`, `compose 2.yaml` 및 이름 끝에 `2`가 붙은 web 파일들을 보고했다. source gate는 upstream snapshot이 87개 파일에서 달라졌다고 보고했고 UNIT-01/03 변경, 제품 코드 변경 및 현재 작업 트리의 수정이 포함된다. `integration/ownership.json` 및 upstream snapshot/exception manifest는 통합 담당 소유이므로 UNIT-02는 고치지 않았다. 이 gate 실패를 product fixture 성공이나 제품 준비 완료로 대체하지 않는다.
+- 현재 branch는 `codex/unit-06-cloud-runtime`; 직전 기능 commit은 `7b9dbef`다. `git remote -v`는 비어 있어 Cloud 게시 또는 PR은 없다. 현재 worktree에는 다른 담당 소유의 수정과 미추적 중복 파일이 남아 있으며 보존했다.
+
 검증 명령:
 
 ```text
