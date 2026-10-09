@@ -2905,7 +2905,7 @@ async def test_mnemosyne_assessment_service_releases_invalid_private_claim_witho
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("failure_phase", ["provider", "commit"])
+@pytest.mark.parametrize("failure_phase", ["provider", "commit", "cancelled"])
 async def test_mnemosyne_assessment_service_releases_failed_claim_for_retry(failure_phase):
     from deeptutor.learning.service import MnemosyneAssessmentError, MnemosyneAssessmentService
 
@@ -2957,6 +2957,7 @@ async def test_mnemosyne_assessment_service_releases_failed_claim_for_retry(fail
         ],
     }
     observed: dict[str, object] = {}
+    provider_started = asyncio.Event()
 
     class AssessmentStore:
         async def begin_attempt(self, *_args):
@@ -2966,8 +2967,8 @@ async def test_mnemosyne_assessment_service_releases_failed_claim_for_retry(fail
             return grading_input
 
         async def commit_assessment(self, *_args, **_kwargs):
-            if failure_phase == "provider":
-                raise AssertionError("provider failure must not commit")
+            if failure_phase in {"provider", "cancelled"}:
+                raise AssertionError("failed or cancelled grading must not commit")
             raise RuntimeError("private commit diagnostic")
 
         async def release_attempt_for_retry(self, attempt_id, payload_sha256, error_code):
@@ -2976,6 +2977,9 @@ async def test_mnemosyne_assessment_service_releases_failed_claim_for_retry(fail
     async def fail_provider(_payload):
         if failure_phase == "provider":
             raise RuntimeError("private provider diagnostic")
+        if failure_phase == "cancelled":
+            provider_started.set()
+            await asyncio.Future()
         return {
             "results": [
                 {
@@ -2989,6 +2993,15 @@ async def test_mnemosyne_assessment_service_releases_failed_claim_for_retry(fail
         }
 
     service = MnemosyneAssessmentService(AssessmentStore(), evaluator=fail_provider)
+    if failure_phase == "cancelled":
+        submission = asyncio.create_task(service.submit_attempt(attempt, quiz))
+        await provider_started.wait()
+        submission.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await submission
+        assert observed["release"][2] == "assessment_cancelled"
+        return
+
     with pytest.raises(MnemosyneAssessmentError) as captured:
         await service.submit_attempt(attempt, quiz)
 
