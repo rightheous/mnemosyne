@@ -153,6 +153,12 @@
 - UNIT-02 runtime fixture 2개(`ko-KR` open reader, `ko` empty reader)는 **2 passed, 56 deselected**. 기존 reading capability의 영어·중국어 prompt 및 no-material prompt 확인은 **4 passed, 42 deselected**. 변경 Python 파일 Ruff 검사와 `git diff --check`도 통과했다.
 - 실제 LLM 응답이나 화면 문자열 렌더는 검증하지 않았다. 이 prompt는 문서/source resolver나 citation store를 대체하지 않으며, 해당 경계 및 durable learning storage는 여전히 UNIT-01/통합 연결이 필요하다.
 
+## 추가 checkpoint — 한국어 locale 지시 일관성 — 2026-10-09
+
+- 공용 `language_directive`에서 `ko-KR` 같은 한국어 locale 태그가 `ko` 전용 개인 튜터 지침 대신 영어 일반 지시로 처리되는 경로를 수정했다. `ko`와 `ko-*` 모두 한국어 응답·인용 보존·오답 힌트·재시도 지침 및 한국어 사용자 언어 전환 안내를 사용한다.
+- 실행: `tests/services/prompt/test_language_directive.py`, `tests/services/test_parse_language.py`, `tests/agents/question/test_language_prompts.py` — **46 passed**. `ruff check` 대상 두 Python 파일 **PASS**, `git diff --check` **PASS**.
+- 이 fixture는 prompt 구성만 검사한다. 실제 provider 출력, 브라우저 표시와 음성/다른 클라이언트의 `ko-KR` 저장은 검증하지 않았다. native ReplyLanguage 설정은 현재 `ko`를 사용한다.
+
 검증 명령:
 
 ```text

@@ -98,7 +98,7 @@ def language_directive(language: str | None, *, allow_user_override: bool = Fals
             "original form."
         )
         return f"{body} {_OVERRIDE_EN}" if allow_user_override else body
-    if code == "ko":
+    if code == "ko" or code.startswith("ko-"):
         body = (
             "\n\n[한국어 응답·개인 튜터 지침] 모든 설명, 제목, 힌트, 문항과 피드백을 "
             "한국어로 작성하세요. 문서가 영어여도 기본 설명은 한국어로 합니다. 원문 인용, "

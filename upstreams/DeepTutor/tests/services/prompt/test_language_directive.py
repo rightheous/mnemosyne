@@ -38,6 +38,21 @@ def test_the_override_rides_on_the_appended_prompt() -> None:
     assert "明确要求" in prompt
 
 
+@pytest.mark.parametrize("language", ["ko", "ko-KR"])
+def test_korean_locale_uses_the_personal_tutor_directive(language: str) -> None:
+    directive = language_directive(language)
+    assert "[한국어 응답·개인 튜터 지침]" in directive
+    assert "오답이면" in directive
+    assert "Do NOT switch languages" not in directive
+
+
+@pytest.mark.parametrize("language", ["ko", "ko-KR"])
+def test_korean_locale_uses_korean_for_the_conversational_override(language: str) -> None:
+    directive = language_directive(language, allow_user_override=True)
+    assert "사용자가 이번 요청에서 다른 언어로 답해 달라고 명시하면" in directive
+    assert "explicitly asks" not in directive
+
+
 @pytest.mark.parametrize(
     ("language", "marker"),
     [("en", "explicitly asks"), ("zh", "明确要求")],
