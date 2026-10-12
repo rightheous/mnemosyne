@@ -1,6 +1,6 @@
 # 공통 시작점과 연결 경계
 
-계약 `0.1.0`. 현재 통합 작업 branch `codex/mnemosyne-integration`은 확인된 UNIT-01/04/06 PR을 준비 기준 `5715a32927e3a73dc28782d306880e3dd1f62441`에서 갈라진 `origin/main` 위에 합쳤다. Library router와 pairing/session 경계도 연결했다. `product_ready=false`이며 UNIT-03 concrete Reader와 durable LearningStateStore/API는 공급되지 않았다. 세부 refs와 기능별 상태는 `docs/handoffs/integration.md`를 본다.
+계약 `0.1.0`. 현재 통합 작업 branch `codex/mnemosyne-integration`은 확인된 UNIT-01/04/05/06 결과를 준비 기준 `5715a32927e3a73dc28782d306880e3dd1f62441`에서 갈라진 `origin/main` 위에 합쳤다. Library router와 pairing/session 경계도 연결했다. `product_ready=false`이며 UNIT-03 concrete Reader와 durable LearningStateStore/API는 공급되지 않았다. 세부 refs와 기능별 상태는 `docs/handoffs/integration.md`를 본다.
 
 ## 실제 등록 함수와 호출자
 

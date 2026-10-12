@@ -86,6 +86,8 @@ cd upstreams/DeepTutor/web
 npm ci
 npm run contracts:check
 npm run typecheck
+npm run test:node
+npm run test:unit -- --maxWorkers=1 --reporter=dot
 npm run build
 ```
 

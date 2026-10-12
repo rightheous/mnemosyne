@@ -10,10 +10,10 @@
 | UNIT-02 | 제공된 별도 branch/PR 없음. 기준 `main`에는 UNIT-02 코드가 이미 포함됨; 기준 HEAD `16130d2` | Tutor adapter 포함. LearningStateStore 실제 구현과 HTTP 학습 route는 없음. |
 | UNIT-03 | 사용할 branch/commit/PR 없음. UNIT-04 handoff가 언급한 `3a98ac43474722c98eded510ec6428f8329cd3d2`는 원격 ref/commit에서 찾을 수 없음 | 통합 불가. 실제 Pumice tree에 `PersistentMnemosyneReaderFacade`, `FileMnemosyneLocalStore`, `PumiceReaderEngine` 정의가 없다. |
 | UNIT-04 | `codex/unit-04-ipad-app` · `ced01afba5138598601c3b25933329d23a41282b` · [PR #3](https://github.com/rightheous/mnemosyne/pull/3) | clean merge. App composition은 UNIT-03 concrete type을 참조하므로 제품 빌드 차단. 개발 유닛 번호가 표시되던 사용자 문구는 제거. |
-| UNIT-05 | 제공된 별도 branch/commit/PR 없음. 한국어 화면과 API consumer는 기준 `main`에 이미 있음 | 화면 route는 존재. server의 Tutor/learning API가 없어 전체 학습 흐름은 동작으로 확인하지 못함. |
+| UNIT-05 | `codex/unit-05-api-refresh` · `e22a0e9d421adf3020e5359dcbda541e5ba378e0` · [Draft PR #4](https://github.com/rightheous/mnemosyne/pull/4) | 통합 branch에 clean merge. native Tutor capability 선택, Reader 화면/PDF geometry, save 실패 입력 유지 및 확인 UI를 보완. 서버 Reader context/document resolver/Tutor·learning API가 없어 전체 학습 흐름은 아직 확인하지 못함. |
 | UNIT-06 | `codex/unit-06-cloud-status` · `e14c599cb9977a41f5f17358a9ca17f33bce2327` · [PR #1](https://github.com/rightheous/mnemosyne/pull/1) | clean merge. Compose에 브라우저 origin 설정을 전달하도록 연결. 현재 Cloud 설정에는 Git/LLM secrets와 실행 capability가 없음. |
 
-이번 작업 입력에는 저장소 URL만 있고 여섯 유닛의 ref 목록은 없었다. 위 UNIT-01/04/06 PR은 연결된 저장소에서 정확한 unit 라벨로 확인해 사용했다. 준비 저장소에서 발견되지 않은 ref를 임의로 체크아웃하지 않았다.
+처음 작업 입력에는 저장소 URL만 있었으나 이후 UNIT-05의 정확한 branch, commit, Draft PR #4가 제공됐다. 제공된 ref `e22a0e9d421adf3020e5359dcbda541e5ba378e0`을 확인해 통합했다. UNIT-01/04/06은 연결된 저장소에서 정확한 unit 라벨로 확인한 결과다. UNIT-03은 결과가 아직 제공되지 않았고, 알려지지 않은 ref는 임의로 체크아웃하지 않았다.
 
 ## 실제 통합 변경
 
@@ -35,7 +35,7 @@
 | R05 offline/outbox/retry | 요청/adapter 경계만 있음 | durable local store 부재 |
 | R06 central document storage/index | Library persistent adapter/router 등록 | original/page/annotation SQLite 저장과 재시작 복구 확인. fixture indexing은 `failed` (`llama_index` 미설치); provider 적용 및 실제 vector/RAG 준비는 미완료. |
 | R07 Tutor/Quiz/Mastery/Memory/Progress | Tutor service adapter/UI source 존재 | durable `LearningStateStore`, mounted HTTP routes 없음; 부분 기능을 후속 완료로 표시하지 않음 |
-| R08 Mac web flow | Korean pages/routes/API consumer 존재 | contract/typecheck/PDF.js Node consumer 통과. Next production build는 Google Fonts network fetch로 실패했고 실제 브라우저 및 Tutor API 흐름은 미검증. |
+| R08 Mac web flow | Korean pages/routes/API consumer 및 UNIT-05 UI/API consumer 보완 포함 | 통합 검사: contract/typecheck 통과, Node 1,310개·unit 656개 통과, UNIT-05 화면 관련 12개 통과. Next production build는 Google Fonts fetch로 막혔고 실제 브라우저/Tutor API 흐름도 미검증. |
 | R09 Korean UI/Tutor | 한국어 화면·prompt adapter 존재 | actual provider/LLM 호출 없음 |
 | R10 verified citation and Reader targeting | Library/Tutor citation verification code 존재 | `/v1/tutor/turns` route가 없어 end-to-end 이동/강조 미검증 |
 | R11 WSL2/Docker | upstream Docker/Compose files 유지, origin env 연결 | Docker daemon에 접근 권한이 없어 실제 기동 불가; 실제 Windows 미검증 |

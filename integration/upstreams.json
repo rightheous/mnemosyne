@@ -23885,9 +23885,9 @@
       "source_commit": "69ea093ee2e0f27dc49f1492d0c47517e6aa0682"
     },
     "upstreams/DeepTutor/web/tests/reading-v2-surface.test.ts": {
-      "reason": "Integration attribution: source snapshot extension from 8330692e3b4b (feat(unit-05): add Mnemosyne web learning screens); original pinned upstream SHA remains recorded in sources.files.",
-      "current_sha256": "9562209841659dc8456f790c43ab674f817e532e8b6c24215d66fe5641ecd447",
-      "source_commit": "8330692e3b4b04e4af53b8f0c9e1259c1207007f"
+      "reason": "Integration attribution: source snapshot extension from e22a0e9d421a (feat(unit-05): align reader surfaces with native tutor); original pinned upstream SHA remains recorded in sources.files when present.",
+      "current_sha256": "887aa5e092c597a5688eac30e61b36e29f8a3736a26bedd74cf69f52fcae6257",
+      "source_commit": "e22a0e9d421adf3020e5359dcbda541e5ba378e0"
     },
     "upstreams/DeepTutor/web/tests/settings-provider-slices.test.ts": {
       "reason": "Integration attribution: source snapshot extension from 8330692e3b4b (feat(unit-05): add Mnemosyne web learning screens); original pinned upstream SHA remains recorded in sources.files.",
@@ -23898,6 +23898,31 @@
       "reason": "Integration attribution: source snapshot extension from 69ea093ee2e0 (fix(unit-05): route legacy pages to Mnemosyne); original pinned upstream SHA remains recorded in sources.files.",
       "current_sha256": "dea1aa68d50a9f09d6a2c3a00c8fdff886c3131c909164e6fd6b81f21186b2e6",
       "source_commit": "69ea093ee2e0f27dc49f1492d0c47517e6aa0682"
+    },
+    "upstreams/DeepTutor/web/components/sidebar/SidebarNav.tsx": {
+      "reason": "Integration attribution: source snapshot extension from e22a0e9d421a (feat(unit-05): align reader surfaces with native tutor); original pinned upstream SHA remains recorded in sources.files when present.",
+      "current_sha256": "c026b4246ab566d2c7da6bf70b9be5e6656ea522981b7e22162d39fbaefe5983",
+      "source_commit": "e22a0e9d421adf3020e5359dcbda541e5ba378e0"
+    },
+    "upstreams/DeepTutor/web/features/mnemosyne/register.ts": {
+      "reason": "Integration attribution: source snapshot extension from e22a0e9d421a (feat(unit-05): align reader surfaces with native tutor); original pinned upstream SHA remains recorded in sources.files when present.",
+      "current_sha256": "2fc0fbb3ff37bbd4fbba134a0f7553c37e33c50d06e805aa43a83cd329896e61",
+      "source_commit": "e22a0e9d421adf3020e5359dcbda541e5ba378e0"
+    },
+    "upstreams/DeepTutor/web/features/mnemosyne/screens.tsx": {
+      "reason": "Integration attribution: source snapshot extension from e22a0e9d421a (feat(unit-05): align reader surfaces with native tutor); original pinned upstream SHA remains recorded in sources.files when present.",
+      "current_sha256": "604a82f184f9038ed6ac899780c1f3acc0c0b4e41e9aa9891fca00165a4d81e1",
+      "source_commit": "e22a0e9d421adf3020e5359dcbda541e5ba378e0"
+    },
+    "upstreams/DeepTutor/web/tests/pdf-reading-resize.spec.tsx": {
+      "reason": "Integration attribution: source snapshot extension from e22a0e9d421a (feat(unit-05): align reader surfaces with native tutor); original pinned upstream SHA remains recorded in sources.files when present.",
+      "current_sha256": "b119537f90b2127002d77f980519a313f075152bf7caf2e8d0a2cca3c8bdd472",
+      "source_commit": "e22a0e9d421adf3020e5359dcbda541e5ba378e0"
+    },
+    "upstreams/DeepTutor/web/tests/sidebar-lazy-history.spec.tsx": {
+      "reason": "Integration attribution: source snapshot extension from e22a0e9d421a (feat(unit-05): align reader surfaces with native tutor); original pinned upstream SHA remains recorded in sources.files when present.",
+      "current_sha256": "8c2c3cda8f158f5a0c012337e6b077232f17b0936063f5d892f9e2716a8495a8",
+      "source_commit": "e22a0e9d421adf3020e5359dcbda541e5ba378e0"
     }
   }
 }
