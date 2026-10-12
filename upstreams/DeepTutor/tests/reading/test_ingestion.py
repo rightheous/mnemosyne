@@ -854,3 +854,584 @@ async def test_media_ingestion_failure_is_logged_and_persisted(
     assert failed is not None
     assert failed.status is IngestionStatus.FAILED
     assert "Reading media ingestion failed" in caplog.text
+
+
+def test_mnemosyne_pdf_upload_annotation_sync_restart_and_export(tmp_path: Path) -> None:
+    """Exercise the real PDF fixture through UNIT-01's persistent service boundary."""
+    import asyncio
+    import copy
+    import hashlib
+    import uuid
+
+    import pymupdf
+
+    from deeptutor.mnemosyne.library import (
+        CursorExpired, DocumentDeleted, LibraryAdapter, LibraryError, viewport_point,
+    )
+
+    repository_root = Path(__file__).resolve().parents[4]
+    source = repository_root / "contracts" / "fixtures" / "bilingual-geometry.pdf"
+    source_bytes = source.read_bytes()
+    source_sha = hashlib.sha256(source_bytes).hexdigest()
+    data_root = tmp_path / "user" / "workspace" / "reading"
+    def no_embedding_provider(**_kwargs):
+        raise RuntimeError("Embedding provider not configured")
+
+    adapter = LibraryAdapter(ReadingStore(data_root), rag_indexer=no_embedding_provider)
+    subject = adapter.create_subject("회로 이론")
+
+    document = adapter.upload_pdf(
+        source_bytes, "bilingual-geometry.pdf", title="Geometry fixture",
+        subject_id=subject["subject_id"],
+    )
+    assert document["index_state"] == "pending"
+    document = asyncio.run(adapter.prepare_index(document["document_id"], document["version_id"]))
+    document_id, version_id = document["document_id"], document["version_id"]
+    import stat
+
+    assert stat.S_IMODE(adapter.db.db_path.stat().st_mode) == 0o600
+    assert stat.S_IMODE(adapter.db.originals.stat().st_mode) == 0o700
+    assert stat.S_IMODE(adapter.db.original_path(source_sha).stat().st_mode) == 0o400
+    assert document["source_sha256"] == source_sha
+    assert version_id == f"sha256:{source_sha}"
+    assert document["parse_state"] == "ready"
+    assert document["page_count"] == 2
+    assert document["index_state"] == "failed"
+    assert document["index_error_code"] == "embedding_provider_unavailable"
+    assert adapter.download_original(document_id, version_id) == source_bytes
+    with adapter.db.connect(write=True) as conn:
+        conn.execute(
+            "UPDATE mnemosyne_versions SET index_state='running', index_started_at=0 "
+            "WHERE document_id=? AND version_id=?",
+            (document_id, version_id),
+        )
+    recovered_index = asyncio.run(adapter.prepare_index(document_id, version_id))
+    assert recovered_index["index_state"] == "failed"
+    assert recovered_index["index_error_code"] == "embedding_provider_unavailable"
+    assert adapter.download_original(document_id, version_id) == source_bytes
+    assert len(adapter.list_documents(subject_id=subject["subject_id"])) == 1
+    assert len(adapter.list_documents(search="Geometry fixture")) == 1
+    renamed = adapter.update_document(document_id, title="Geometry fixture v2", expected_revision=1)
+    assert renamed["title"] == "Geometry fixture v2" and renamed["server_revision"] == 2
+    unassigned = adapter.update_document(document_id, subject_id=None, expected_revision=2)
+    assert unassigned["subject_id"] is None and unassigned["server_revision"] == 3
+    assert adapter.list_documents(subject_id=subject["subject_id"]) == []
+
+    folder = adapter.create_folder("기하 fixture", "회전/CropBox fixture")
+    folder_id = folder["workspace_id"]
+    assigned = adapter.assign_folder(document_id, folder_id)
+    assert assigned["tabs"]
+    removed = adapter.remove_from_folder(document_id, folder_id)
+    assert removed["tabs"] == []
+
+    page0 = adapter.get_page(document_id, version_id, 0)
+    page1 = adapter.get_page(document_id, version_id, 1)
+    assert page0["geometry"]["rotation_degrees"] == 0
+    assert page1["geometry"]["rotation_degrees"] == 90
+    assert page0["geometry"]["crop_box"] == [20.0, 30.0, 580.0, 760.0]
+    assert page1["geometry"]["crop_box"] == [10.0, 20.0, 590.0, 770.0]
+    search_anchors = adapter.search_anchors(document_id, version_id, "CAPACITOR")
+    assert search_anchors
+    search_anchor = search_anchors[0]
+    assert search_anchor["quote"].casefold() == "capacitor"
+    assert page0["text"][search_anchor["start_scalar"]:search_anchor["end_scalar"]] == search_anchor["quote"]
+    probe_point = [80.0, 120.0]
+    assert all(
+        abs(a - b) < 1e-6
+        for a, b in zip(
+            viewport_point(viewport_point(probe_point, page1["geometry"]), page1["geometry"], inverse=True),
+            probe_point,
+        )
+    )
+
+    def uid() -> str:
+        return str(uuid.uuid4())
+
+    def mutation(operation: str, annotation_id: str, base_revision: int, annotation=None, client_id=None):
+        row = {
+            "client_mutation_id": uid(),
+            "client_id": client_id or uid(),
+            "document_id": document_id,
+            "version_id": version_id,
+            "annotation_id": annotation_id,
+            "base_revision": base_revision,
+            "created_at": "2026-10-09T01:00:00Z",
+            "operation": operation,
+        }
+        if operation == "upsert":
+            row["annotation"] = annotation
+        return row
+
+    first_segment = page0["segments"][0]
+    anchor = {
+        "document_id": document_id,
+        "version_id": version_id,
+        "page_index": 0,
+        "parse_revision": page0["parse_revision"],
+        "text_sha256": page0["text_sha256"],
+        "start_scalar": first_segment["start_scalar"],
+        "end_scalar": first_segment["end_scalar"],
+        "quote": page0["text"][first_segment["start_scalar"]:first_segment["end_scalar"]],
+        "rects": [first_segment["rect"]],
+    }
+    highlight_id, note_id, bookmark_id, ink_id = uid(), uid(), uid(), uid()
+    client_a, client_b = uid(), uid()
+    initial = [
+        mutation("upsert", highlight_id, 0, {
+            "annotation_id": highlight_id, "document_id": document_id, "version_id": version_id,
+            "page_index": 0, "kind": "highlight",
+            "payload": {"anchor": anchor, "color": "#FFDD4480"},
+        }, client_a),
+        mutation("upsert", note_id, 0, {
+            "annotation_id": note_id, "document_id": document_id, "version_id": version_id,
+            "page_index": 1, "kind": "note",
+            "payload": {"position": [30.0, 30.0], "body": "회전 페이지 메모", "anchor": None},
+        }, client_a),
+        mutation("upsert", bookmark_id, 0, {
+            "annotation_id": bookmark_id, "document_id": document_id, "version_id": version_id,
+            "page_index": 1, "kind": "bookmark", "payload": {"label": "둘째 페이지"},
+        }, client_a),
+        mutation("upsert", ink_id, 0, {
+            "annotation_id": ink_id, "document_id": document_id, "version_id": version_id,
+            "page_index": 1, "kind": "ink", "payload": {"strokes": [{
+                "stroke_id": uid(), "tool": "pen", "color": "#2040C0FF", "width_pt": 2,
+                "points": [
+                    {"x": 40.0, "y": 100.0, "pressure": 1, "t_ms": 0},
+                    {"x": 80.0, "y": 120.0, "pressure": 1.0, "t_ms": 15},
+                ],
+            }]},
+        }, client_a),
+    ]
+    batch = {"contract_version": "0.1.0", "document_id": document_id,
+             "version_id": version_id, "mutations": initial}
+    malformed_kind = mutation("upsert", uid(), 0, {
+        "annotation_id": uid(), "document_id": document_id, "version_id": version_id,
+        "page_index": 0, "kind": [], "payload": {},
+    })
+    # The mutation and draft IDs must agree before the draft kind is inspected.
+    malformed_kind["annotation"]["annotation_id"] = malformed_kind["annotation_id"]
+    malformed_result = asyncio.run(
+        adapter.apply_mutations({**batch, "mutations": [malformed_kind]})
+    )["results"][0]
+    assert malformed_result["status"] == "rejected"
+    assert malformed_result["code"] == "invalid_request"
+    assert asyncio.run(
+        adapter.apply_mutations({**batch, "mutations": [copy.deepcopy(malformed_kind)]})
+    )["results"][0] == malformed_result
+
+    malformed_anchor = mutation("upsert", uid(), 0, {
+        "annotation_id": "", "document_id": document_id, "version_id": version_id,
+        "page_index": 0, "kind": "highlight",
+        "payload": {"anchor": None, "color": "#FFDD4480"},
+    })
+    malformed_anchor["annotation"]["annotation_id"] = malformed_anchor["annotation_id"]
+    malformed_result = asyncio.run(
+        adapter.apply_mutations({**batch, "mutations": [malformed_anchor]})
+    )["results"][0]
+    assert malformed_result["status"] == "rejected"
+    assert malformed_result["code"] == "invalid_request"
+
+    receipt = asyncio.run(adapter.apply_mutations(batch))
+    assert [row["status"] for row in receipt["results"]] == ["applied"] * 4
+    assert [row["server_revision"] for row in receipt["results"]] == [1, 2, 3, 4]
+    replay = asyncio.run(adapter.apply_mutations(copy.deepcopy(batch)))
+    assert replay == receipt
+
+    # JSON key order and mathematical equality of finite numbers are ignored
+    # for an idempotency replay; the original receipt and watermark are stable.
+    numeric_replay = copy.deepcopy(batch)
+    numeric_replay["mutations"][3]["annotation"]["payload"]["strokes"][0]["width_pt"] = 2.0
+    assert asyncio.run(adapter.apply_mutations(numeric_replay)) == receipt
+
+    mismatched_replay = copy.deepcopy(batch)
+    mismatched_replay["mutations"][1]["annotation"]["payload"]["body"] = "different payload"
+    mismatch_results = asyncio.run(adapter.apply_mutations(mismatched_replay))["results"]
+    assert [row["status"] for row in mismatch_results] == ["applied", "rejected", "applied", "applied"]
+    assert mismatch_results[1]["code"] == "idempotency_mismatch"
+
+    snapshot_a = asyncio.run(adapter.snapshot(document_id, version_id))
+    assert snapshot_a["snapshot_revision"] == 4
+    assert {row["kind"] for row in snapshot_a["annotations"]} == {"highlight", "note", "bookmark", "ink"}
+    cursor = snapshot_a["next_cursor"]
+
+    note = next(row for row in snapshot_a["annotations"] if row["annotation_id"] == note_id)
+    edit = mutation("upsert", note_id, note["server_revision"], {
+        "annotation_id": note_id, "document_id": document_id, "version_id": version_id,
+        "page_index": 1, "kind": "note",
+        "payload": {"position": [35.0, 35.0], "body": "기기 B 수정", "anchor": None},
+    }, client_b)
+    edit_batch = {**batch, "mutations": [edit]}
+    applied_edit = asyncio.run(adapter.apply_mutations(edit_batch))["results"][0]
+    assert applied_edit["status"] == "applied" and applied_edit["server_revision"] == 5
+
+    stale_delete = mutation("delete", note_id, note["server_revision"], client_id=client_a)
+    stale_delete_result = asyncio.run(
+        adapter.apply_mutations({**batch, "mutations": [stale_delete]})
+    )["results"][0]
+    assert stale_delete_result["status"] == "conflict"
+    assert stale_delete_result["current"]["server_revision"] == 5
+
+    stale_edit = mutation("upsert", note_id, note["server_revision"], {
+        "annotation_id": note_id, "document_id": document_id, "version_id": version_id,
+        "page_index": 1, "kind": "note",
+        "payload": {"position": [40.0, 40.0], "body": "기기 A 오래된 수정", "anchor": None},
+    }, client_a)
+    conflict_batch = {**batch, "mutations": [stale_edit]}
+    conflict = asyncio.run(adapter.apply_mutations(conflict_batch))["results"][0]
+    assert conflict["status"] == "conflict" and conflict["current"]["server_revision"] == 5
+    assert asyncio.run(adapter.apply_mutations(copy.deepcopy(conflict_batch)))["results"][0] == conflict
+
+    change_page = asyncio.run(adapter.changes(cursor, limit=1))
+    assert len(change_page["changes"]) == 1 and change_page["changes"][0]["server_revision"] == 5
+    assert change_page["changes"][0]["payload"]["body"] == "기기 B 수정"
+    assert change_page["has_more"] is False
+
+    export = adapter.export_annotated_pdf(document_id, version_id, 5, include_ink=True)
+    exported = adapter.download_export(export["export_id"])
+    assert export["original_sha256"] == source_sha
+    assert export["export_sha256"] == hashlib.sha256(exported).hexdigest()
+    assert exported != source_bytes
+    with pymupdf.open(stream=exported, filetype="pdf") as exported_pdf:
+        assert any(row[1] == "둘째 페이지" for row in exported_pdf.get_toc())
+        assert list(exported_pdf[0].annots() or [])
+        assert list(exported_pdf[1].annots() or [])
+        assert exported_pdf.page_count == 2
+
+    # Restart from the same on-disk state: source, cursors, tombstones, and log
+    # remain durable. A stale delete cannot erase the newer edit.
+    restarted = LibraryAdapter(ReadingStore(data_root))
+    assert restarted.download_original(document_id, version_id) == source_bytes
+    restarted_snapshot = asyncio.run(restarted.snapshot(document_id, version_id))
+    assert restarted_snapshot["snapshot_revision"] == 5
+    current_note = next(row for row in restarted_snapshot["annotations"] if row["annotation_id"] == note_id)
+    delete = mutation("delete", note_id, current_note["server_revision"], client_id=client_b)
+    deleted = asyncio.run(restarted.apply_mutations({**batch, "mutations": [delete]}))["results"][0]
+    assert deleted["status"] == "applied" and deleted["current"]["deleted"] is True
+
+    revive = mutation("upsert", note_id, deleted["current"]["server_revision"], {
+        "annotation_id": note_id, "document_id": document_id, "version_id": version_id,
+        "page_index": 1, "kind": "note",
+        "payload": {"position": [35.0, 35.0], "body": "되살리기 시도", "anchor": None},
+    }, client_a)
+    tombstone_conflict = asyncio.run(restarted.apply_mutations({**batch, "mutations": [revive]}))["results"][0]
+    assert tombstone_conflict["status"] == "conflict" and tombstone_conflict["current"]["deleted"] is True
+
+    stale_edit_after_delete = mutation("upsert", note_id, current_note["server_revision"], {
+        "annotation_id": note_id, "document_id": document_id, "version_id": version_id,
+        "page_index": 1, "kind": "note",
+        "payload": {"position": [35.0, 35.0], "body": "오래된 기기 수정", "anchor": None},
+    }, client_a)
+    deleted_edit_conflict = asyncio.run(
+        restarted.apply_mutations({**batch, "mutations": [stale_edit_after_delete]})
+    )["results"][0]
+    assert deleted_edit_conflict["status"] == "conflict"
+    assert deleted_edit_conflict["current"]["deleted"] is True
+
+    expired_cursor = asyncio.run(restarted.snapshot(document_id, version_id))["next_cursor"]
+    with restarted.db.connect(write=True) as conn:
+        conn.execute(
+            "UPDATE mnemosyne_cursors SET expires_at=0 WHERE token=?", (expired_cursor,)
+        )
+    with pytest.raises(CursorExpired, match="expired"):
+        asyncio.run(restarted.changes(expired_cursor, limit=1))
+
+    assert hashlib.sha256(restarted.download_original(document_id, version_id)).hexdigest() == source_sha
+    with pytest.raises(LibraryError, match="UUID"):
+        restarted.get_document("../../etc/passwd")
+    with pytest.raises(LibraryError, match="page_index"):
+        restarted.get_page(document_id, version_id, -1)
+    invalid_anchor = copy.deepcopy(anchor)
+    invalid_anchor["quote"] = "not the source quote"
+    with pytest.raises(LibraryError, match="citation text"):
+        restarted.verify_anchor(invalid_anchor, page0)
+
+    verification = restarted.verify_citation(anchor, citation_id=uid())
+    assert verification["verified"] is True
+    assert restarted.require_verified_citation(verification) == verification["anchor"]
+    forged_verification = copy.deepcopy(verification)
+    forged_verification["anchor"]["quote"] = "forged source quote"
+    with pytest.raises(LibraryError, match="does not match this request"):
+        restarted.require_verified_citation(forged_verification)
+
+    assert restarted.delete_document(
+        document_id,
+        confirm_action=f"document.delete:{document_id}",
+        expected_revision=3,
+    )
+    with pytest.raises(DocumentDeleted):
+        restarted.get_document(document_id)
+
+
+def test_library_http_router_settings_and_pdf_round_trip(tmp_path: Path) -> None:
+    """Verify the UNIT-01 router contract without mounting shared auth/middleware."""
+    import hashlib
+    import sqlite3
+
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    from deeptutor.mnemosyne.library import LibraryAdapter, build_library_router
+
+    repository_root = Path(__file__).resolve().parents[4]
+    source = repository_root / "contracts" / "fixtures" / "bilingual-geometry.pdf"
+    source_bytes = source.read_bytes()
+    secret_store: dict[str, str] = {}
+    data_root = tmp_path / "router" / "workspace" / "reading"
+    def no_embedding_provider(**_kwargs):
+        raise RuntimeError("Embedding provider not configured")
+
+    library = LibraryAdapter(
+        ReadingStore(data_root),
+        rag_indexer=no_embedding_provider,
+        settings_defaults_provider=lambda: {
+            "provider": {
+                "adapter": "openai-compatible",
+                "base_url": "https://llm.example.test/v1",
+                "model": "fixture-model",
+            },
+            "response_language": "ko",
+        },
+        settings_secret_writer=lambda value: secret_store.__setitem__("api_key", value),
+        settings_credential_reader=lambda: "api_key" in secret_store,
+        settings_base_url_validator=lambda value: value.startswith("https://llm.example.test/"),
+    )
+    app = FastAPI()
+    app.include_router(build_library_router(library))
+    headers = {"X-Mnemosyne-Contract-Version": "0.1.0"}
+
+    with TestClient(app) as client:
+        settings = client.get("/v1/settings", headers=headers)
+        assert settings.status_code == 200, settings.text
+        assert settings.headers["ETag"] == '"1"'
+        updated = client.put(
+            "/v1/settings",
+            headers={**headers, "If-Match": '"1"', "X-Confirm-Action": "settings.update"},
+            json={
+                "provider": {
+                    "adapter": "openai-compatible",
+                    "base_url": "https://llm.example.test/v1",
+                    "model": "fixture-model-v2",
+                    "api_key": "unit-test-secret-must-not-enter-sqlite",
+                },
+                "response_language": "ko",
+            },
+        )
+        assert updated.status_code == 200
+        assert updated.headers["ETag"] == '"2"'
+        assert updated.json()["provider"]["credential_configured"] is True
+        assert "api_key" not in updated.text
+        assert secret_store["api_key"] == "unit-test-secret-must-not-enter-sqlite"
+        with sqlite3.connect(data_root / "_mnemosyne.sqlite3") as db:
+            serialized = " ".join(str(row) for row in db.execute("SELECT public_json FROM mnemosyne_public_settings"))
+        assert "unit-test-secret-must-not-enter-sqlite" not in serialized
+
+        denied_provider_url = client.put(
+            "/v1/settings",
+            headers={**headers, "If-Match": '"2"', "X-Confirm-Action": "settings.update"},
+            json={
+                "provider": {
+                    "adapter": "openai-compatible",
+                    "base_url": "http://127.0.0.1:8080/v1",
+                    "model": "fixture-model-v3",
+                },
+                "response_language": "ko",
+            },
+        )
+        assert denied_provider_url.status_code == 400
+        assert denied_provider_url.json()["code"] == "invalid_request"
+
+        upload = client.post(
+            "/v1/documents",
+            headers=headers,
+            files={"file": ("bilingual-geometry.pdf", source_bytes, "application/pdf")},
+            data={"title": "Router fixture"},
+        )
+        assert upload.status_code == 201, upload.text
+        document = upload.json()
+        assert document["source_sha256"] == hashlib.sha256(source_bytes).hexdigest()
+        assert document["parse_state"] == "ready"
+        assert document["index_state"] == "failed"
+        stored_document = library.get_document(document["document_id"])
+        assert stored_document["index_error_code"] == "embedding_provider_unavailable"
+        original = client.get(
+            f"/v1/documents/{document['document_id']}/file",
+            params={"version_id": document["version_id"]},
+            headers=headers,
+        )
+        assert original.status_code == 200
+        assert original.content == source_bytes
+
+        page_response = client.get(
+            f"/v1/documents/{document['document_id']}/pages/0",
+            params={"version_id": document["version_id"]},
+            headers=headers,
+        )
+        assert page_response.status_code == 200, page_response.text
+        page = page_response.json()
+        segment = page["segments"][0]
+        citation_anchor = {
+            "document_id": document["document_id"],
+            "version_id": document["version_id"],
+            "page_index": 0,
+            "parse_revision": page["parse_revision"],
+            "text_sha256": page["text_sha256"],
+            "start_scalar": segment["start_scalar"],
+            "end_scalar": segment["end_scalar"],
+            "quote": page["text"][segment["start_scalar"]:segment["end_scalar"]],
+            "rects": [segment["rect"]],
+        }
+        verified_citation = client.post(
+            "/v1/citations/verify", headers=headers, json=citation_anchor
+        )
+        assert verified_citation.status_code == 200, verified_citation.text
+        assert verified_citation.json()["verified"] is True
+
+
+def test_library_parser_unavailable_preserves_original_pdf(tmp_path: Path, monkeypatch) -> None:
+    """Keep the immutable source available when the parser cannot run."""
+    import hashlib
+
+    from deeptutor.mnemosyne.library import LibraryAdapter, LibraryError
+
+    repository_root = Path(__file__).resolve().parents[4]
+    source = repository_root / "contracts" / "fixtures" / "bilingual-geometry.pdf"
+    source_bytes = source.read_bytes()
+    source_sha = hashlib.sha256(source_bytes).hexdigest()
+    store = ReadingStore(tmp_path / "parser-unavailable" / "reading")
+
+    def parser_unavailable(_source, *, filename: str):
+        raise ImportError("PyMuPDF parser is unavailable")
+
+    monkeypatch.setattr(store, "ingest", parser_unavailable)
+    library = LibraryAdapter(store)
+    document = library.upload_pdf(source_bytes, "bilingual-geometry.pdf", title="Parser unavailable")
+
+    assert document["parse_state"] == "failed"
+    assert document["parse_error_code"] == "parser_unavailable"
+    assert document["index_state"] == "failed"
+    assert document["source_sha256"] == source_sha
+    assert document["page_count"] == 2  # Best-effort page count does not mark parsing ready.
+    assert library.download_original(document["document_id"], document["version_id"]) == source_bytes
+    with pytest.raises(LibraryError, match="parsing is not ready"):
+        library.get_page(document["document_id"], document["version_id"], 0)
+
+
+def test_library_indexer_requires_explicit_ready_result(tmp_path: Path) -> None:
+    """A no-op or malformed callback must not make the RAG index look ready."""
+    import asyncio
+
+    from deeptutor.mnemosyne.library import LibraryAdapter
+
+    repository_root = Path(__file__).resolve().parents[4]
+    source = repository_root / "contracts" / "fixtures" / "bilingual-geometry.pdf"
+    source_bytes = source.read_bytes()
+
+    for case, result in (("none", None), ("empty", {}), ("empty_name", {"ready": True, "kb_name": ""})):
+        store = ReadingStore(tmp_path / "indexer-result" / case)
+        library = LibraryAdapter(store, rag_indexer=lambda **_kwargs: result)
+        document = asyncio.run(
+            library.upload_pdf_async(source_bytes, "bilingual-geometry.pdf", title=case)
+        )
+
+        assert document["parse_state"] == "ready"
+        assert document["index_state"] == "failed"
+        assert document["index_error_code"] == "index_failed"
+        with library.db.connect() as conn:
+            indexed = conn.execute(
+                "SELECT index_kb FROM mnemosyne_versions WHERE document_id=? AND version_id=?",
+                (document["document_id"], document["version_id"]),
+            ).fetchone()
+        assert indexed["index_kb"] is None
+
+
+def test_library_pdf_image_assets_are_listable_and_hash_checked(tmp_path: Path) -> None:
+    """Exercise the UNIT-02 in-process page-assets and asset-byte ports."""
+    import asyncio
+    import hashlib
+
+    import pymupdf
+
+    from deeptutor.mnemosyne.library import LibraryAdapter
+
+    pdf = pymupdf.open()
+    page = pdf.new_page(width=300, height=300)
+    page.insert_text((24, 32), "Embedded figure fixture")
+    artwork = pymupdf.open()
+    artwork_page = artwork.new_page(width=256, height=256)
+    for y in range(0, 256, 8):
+        for x in range(0, 256, 8):
+            value = (x * 17 + y * 31 + x * y * 7) % 256
+            color = (value / 255, ((value * 73) % 256) / 255, ((value * 151) % 256) / 255)
+            artwork_page.draw_rect(
+                pymupdf.Rect(x, y, x + 8, y + 8), color=None, fill=color
+            )
+    png = artwork_page.get_pixmap(colorspace=pymupdf.csRGB, alpha=False).tobytes("png")
+    artwork.close()
+    assert len(png) > 1200  # DeepTutor's image extraction budget excludes tiny artifacts.
+    page.insert_image(pymupdf.Rect(40, 60, 160, 180), stream=png)
+    source = pdf.tobytes()
+    pdf.close()
+
+    library = LibraryAdapter(ReadingStore(tmp_path / "asset-store" / "reading"))
+    document = library.upload_pdf(source, "embedded-image.pdf")
+    assert document["parse_state"] == "ready"
+    records = asyncio.run(
+        library.documents.get_page_assets(document["document_id"], document["version_id"], 0)
+    )
+    assert records
+    assert all(record["page_index"] == 0 and record["mime"].startswith("image/") for record in records)
+    for record in records:
+        data = asyncio.run(
+            library.documents.get_asset(document["document_id"], document["version_id"], record["asset_id"])
+        )
+        assert hashlib.sha256(data).hexdigest() == record["sha256"]
+
+
+def test_library_schema_v2_database_migrates_index_run_timestamp(tmp_path: Path) -> None:
+    """Upgrade a persisted v2 table without replacing existing columns."""
+    import sqlite3
+
+    from deeptutor.mnemosyne.library import LibraryAdapter
+
+    root = tmp_path / "schema-upgrade" / "reading"
+    initial = LibraryAdapter(ReadingStore(root))
+    with sqlite3.connect(initial.db.db_path) as conn:
+        conn.execute("ALTER TABLE mnemosyne_versions DROP COLUMN index_started_at")
+        conn.execute("UPDATE mnemosyne_schema SET version=2")
+
+    upgraded = LibraryAdapter(ReadingStore(root))
+    with sqlite3.connect(upgraded.db.db_path) as conn:
+        columns = {row[1] for row in conn.execute("PRAGMA table_info(mnemosyne_versions)")}
+        version = conn.execute("SELECT version FROM mnemosyne_schema").fetchone()[0]
+    assert "index_started_at" in columns
+    assert version == 3
+
+
+def test_library_folder_listing_paginates_and_rejects_empty_names(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from deeptutor.mnemosyne.library import LibraryAdapter, LibraryError
+
+    library = LibraryAdapter(ReadingStore(tmp_path / "folder-list" / "reading"))
+    calls: list[int] = []
+
+    class Folder:
+        def __init__(self, folder_id: int) -> None:
+            self.folder_id = folder_id
+
+        def to_dict(self) -> dict[str, int]:
+            return {"folder_id": self.folder_id}
+
+    def list_workspaces(*, limit: int, offset: int):
+        calls.append(offset)
+        if offset == 0:
+            return [Folder(folder_id) for folder_id in range(limit)]
+        if offset == 500:
+            return [Folder(500)]
+        return []
+
+    monkeypatch.setattr(library.catalog, "list_workspaces", list_workspaces)
+    assert len(library.list_folders()) == 501
+    assert calls == [0, 500]
+    with pytest.raises(LibraryError, match="folder name"):
+        library.create_folder("   ")
