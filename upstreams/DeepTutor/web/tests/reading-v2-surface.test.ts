@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import test from "node:test";
+import { nativeTutorCapability } from "../features/mnemosyne/register";
 
 const WORKSPACE_DIR = "components/reading/workspace";
 const LIBRARY_DIR = "components/reading/library";
@@ -98,6 +99,46 @@ test("Mnemosyne reading route does not mount the legacy workspace providers", ()
   assert.doesNotMatch(layout, /UnifiedChatProvider|ChatRuntimeProvider/);
   assert.doesNotMatch(layout, /QuizFollowupProvider|GeogebraTabProvider/);
   assert.match(source("app/(workspace)/learning/reading/[workspaceId]/page.tsx"), /MnemosyneReader/);
+});
+
+test("Mnemosyne keeps note drafts and Tutor suggestions until the server confirms save", () => {
+  const screens = source("features/mnemosyne/screens.tsx");
+
+  assert.match(screens, /const mutate = async \([\s\S]*?\): Promise<boolean>/);
+  assert.match(
+    screens,
+    /const saved = await mutate\(annotationMutation\(document, annotation\), "노트를 서버에 저장했습니다\."\);\s*if \(saved\) \{\s*setNoteDraft\(""\);\s*setNoteComposer\(false\);/,
+  );
+  assert.match(
+    screens,
+    /if \(await mutate\(mutation, "Tutor 주석 제안을 승인해 저장했습니다\."\)\) setPendingSuggestion\(null\);/,
+  );
+});
+
+test("Mnemosyne uses accessible in-product dialogs instead of browser prompts", () => {
+  const screens = source("features/mnemosyne/screens.tsx");
+
+  assert.doesNotMatch(screens, /window\.(?:prompt|confirm)\s*\(/);
+  assert.match(screens, /role="dialog" aria-modal="true"/);
+  assert.match(screens, /function TextEntryDialog/);
+  assert.match(screens, /function ConfirmationDialog/);
+});
+
+test("Mnemosyne Tutor sends supported product actions as native capabilities", () => {
+  const screens = source("features/mnemosyne/screens.tsx");
+
+  assert.deepEqual(
+    ["chat", "reading", "quiz", "assessment", "mastery", "solve"].map((value) =>
+      nativeTutorCapability(value as Parameters<typeof nativeTutorCapability>[0]),
+    ),
+    ["chat", "immersive_reading", "deep_question", "deep_question", "mastery_path", "deep_solve"],
+  );
+  assert.equal(nativeTutorCapability("memory"), null);
+  assert.equal(nativeTutorCapability("progress"), null);
+  assert.equal(nativeTutorCapability("review"), null);
+  assert.match(screens, /capability: nativeCapability/);
+  assert.doesNotMatch(screens, /config: \{ mnemosyne: \{ contract_version:/);
+  assert.match(screens, /if \(!nativeCapability\) \{/);
 });
 
 test("Reading V2 inherits product theme tokens instead of a fixed cream palette", () => {

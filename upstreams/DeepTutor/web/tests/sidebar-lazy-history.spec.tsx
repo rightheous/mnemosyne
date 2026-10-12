@@ -42,7 +42,7 @@ vi.mock("@/components/sidebar/VersionBadge", () => ({
   VersionBadge: () => null,
 }));
 
-it("loads conversation history while navigation remains usable, then preserves session actions", async () => {
+it("loads conversation history while Mnemosyne navigation remains usable, then preserves session actions", async () => {
   const onSelect = vi.fn();
   const onRename = vi.fn();
   const onOrganize = vi.fn();
@@ -67,23 +67,18 @@ it("loads conversation history while navigation remains usable, then preserves s
     />,
   );
   expect(container.querySelector('[aria-busy="true"]')).toBeInTheDocument();
-  expect(screen.queryByRole("link", { name: "Co-Writer" })).toBeNull();
-  fireEvent.click(screen.getByRole("button", { name: /More/ }));
-  expect(screen.getByRole("link", { name: "Co-Writer" })).toHaveAttribute(
+  expect(screen.getByRole("link", { name: "라이브러리" })).toHaveAttribute(
     "href",
-    "/co-writer",
+    "/learning/reading",
   );
 
   const history = await screen.findByText("Retained session");
   const scroller = history.closest(".overflow-y-auto");
   expect(scroller).toContainElement(
-    screen.getByRole("link", { name: "Partners" }),
+    screen.getByRole("link", { name: "라이브러리" }),
   );
   expect(scroller).not.toContainElement(
-    screen.getByRole("link", { name: "Home" }),
-  );
-  expect(scroller).not.toContainElement(
-    screen.getByRole("link", { name: "Settings" }),
+    screen.getByRole("link", { name: "설정" }),
   );
 
   fireEvent.click(await screen.findByText("Retained session"));
@@ -105,7 +100,7 @@ it("loads conversation history while navigation remains usable, then preserves s
   expect(onRename).toHaveBeenCalledWith("session-1", "Renamed session");
 });
 
-it("keeps Home pinned even when a previous layout folded it into More", () => {
+it("drops removed Chat navigation from a previous sidebar layout", () => {
   localStorage.setItem(
     "deeptutor.sidebar.navLayout",
     JSON.stringify({
@@ -114,10 +109,11 @@ it("keeps Home pinned even when a previous layout folded it into More", () => {
     }),
   );
   render(<SidebarShell />);
-  expect(screen.getAllByRole("link", { name: "Home" })).toHaveLength(1);
-  expect(screen.queryByRole("button", { name: "Arrange Home" })).toBeNull();
-  fireEvent.click(screen.getByRole("link", { name: "Home" }));
-  expect(fixture.push).toHaveBeenCalledWith("/chat");
+  expect(screen.queryByRole("link", { name: "Home" })).toBeNull();
+  expect(screen.getByRole("link", { name: "라이브러리" })).toHaveAttribute(
+    "href",
+    "/learning/reading",
+  );
 });
 
 it("resizes with the keyboard, persists across mounts, and resets on double click", () => {
