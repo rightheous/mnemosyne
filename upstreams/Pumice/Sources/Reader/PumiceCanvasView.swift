@@ -111,6 +111,12 @@ final class PumiceCanvasView: UIView {
     // gesture that never moved (a tap on text) as a single-point
     // selection too.
     private var highlightFirstPoint: CGPoint?
+    private var lastReportedBoundsSize: CGSize = .zero
+
+    /// PDFKit sizes overlays during layout and may resize them after zoom.
+    /// The owner uses this callback to restore canonical sidecar strokes at
+    /// the new page scale.
+    var onBoundsChanged: ((CGSize) -> Void)?
 
     private lazy var gesture: PumicePencilGestureRecognizer = {
         let g = PumicePencilGestureRecognizer()
@@ -147,6 +153,10 @@ final class PumiceCanvasView: UIView {
         liveLayer.frame = bounds
         cursorLayer.frame = bounds
         for layer in strokeLayers { layer.frame = bounds }
+        if lastReportedBoundsSize != bounds.size {
+            lastReportedBoundsSize = bounds.size
+            if bounds.width > 0, bounds.height > 0 { onBoundsChanged?(bounds.size) }
+        }
     }
 
     /// Replace the entire pen-stroke list and rebuild the per-stroke
@@ -294,7 +304,7 @@ final class PumiceCanvasView: UIView {
 }
 
 extension PumiceCanvasView: @preconcurrency PumicePencilGestureDelegate {
-    func pencilGestureDidUpdate(path: UIBezierPath) {
+    func pencilGestureDidUpdate(path: UIBezierPath, samples: [PencilStrokeSample]) {
         let currentPoint = path.currentPoint
         switch mode {
         case .pen, .highlighter:
@@ -316,7 +326,7 @@ extension PumiceCanvasView: @preconcurrency PumicePencilGestureDelegate {
         }
     }
 
-    func pencilGestureDidFinish(path: UIBezierPath) {
+    func pencilGestureDidFinish(path: UIBezierPath, samples: [PencilStrokeSample]) {
         liveLayer.path = nil
 
         switch mode {
@@ -345,7 +355,7 @@ extension PumiceCanvasView: @preconcurrency PumicePencilGestureDelegate {
             onHighlightStrokeFinished?(first, path.currentPoint)
 
         case .pen:
-            let record = StrokeRecord(path: path, color: penColor, width: penWidth)
+            let record = StrokeRecord(path: path, color: penColor, width: penWidth, samples: samples)
             strokes.append(record)
             appendLayer(for: record)
             onPathFinished?(record)

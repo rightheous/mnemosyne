@@ -8,10 +8,29 @@ import UIKit
 /// The path is held by reference (`UIBezierPath` is `NSObject`-rooted)
 /// so we can use `===` for undo/redo identity and for "which stroke
 /// did the eraser cross."
+struct PencilStrokeSample {
+    let location: CGPoint
+    let pressure: CGFloat
+    let timeMilliseconds: Int
+}
+
 struct StrokeRecord {
+    let id: UUID
+    let annotationID: UUID?
     let path: UIBezierPath
     let color: UIColor
     let width: CGFloat
+    let samples: [PencilStrokeSample]
+
+    init(id: UUID = UUID(), annotationID: UUID? = nil, path: UIBezierPath, color: UIColor, width: CGFloat,
+         samples: [PencilStrokeSample] = []) {
+        self.id = id
+        self.annotationID = annotationID
+        self.path = path
+        self.color = color
+        self.width = width
+        self.samples = samples
+    }
 }
 
 /// The three drawing tools the reader exposes. Each owns its own
