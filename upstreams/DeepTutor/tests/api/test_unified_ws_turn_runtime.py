@@ -3220,3 +3220,176 @@ def test_next_mnemosyne_memory_due_at_rejects_naive_clock():
 
     with pytest.raises(ValueError):
         next_mnemosyne_memory_due_at(1, 0, now=datetime(2026, 10, 9, 7))
+
+
+def _mnemosyne_learning_api_client(tutor, monkeypatch):
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    from deeptutor.api.routers import auth, unified_ws
+
+    async def authenticated(**_kwargs):
+        return None
+
+    monkeypatch.setattr(auth, "AUTH_ENABLED", True)
+    monkeypatch.setattr(auth, "require_auth", authenticated)
+    app = FastAPI()
+    app.include_router(unified_ws.router)
+    app.state.mnemosyne = SimpleNamespace(tutor=tutor)
+    return TestClient(app)
+
+
+def _mnemosyne_learning_headers():
+    return {
+        "Authorization": "Bearer test-token",
+        "X-Mnemosyne-Contract-Version": "0.1.0",
+    }
+
+
+def test_mnemosyne_learning_api_requires_bearer_and_returns_contract_error(monkeypatch):
+    called = []
+
+    class Tutor:
+        async def get_quiz(self, quiz_id):
+            called.append(quiz_id)
+            return {"quiz_id": quiz_id}
+
+    client = _mnemosyne_learning_api_client(Tutor(), monkeypatch)
+    response = client.get(
+        "/v1/quizzes/123e4567-e89b-42d3-a456-426614174000",
+        headers={"X-Mnemosyne-Contract-Version": "0.1.0"},
+    )
+    assert response.status_code == 401
+    assert response.json()["code"] == "unauthorized"
+    assert response.json()["contract_version"] == "0.1.0"
+    assert called == []
+
+    response = client.get(
+        "/v1/quizzes/123e4567-e89b-42d3-a456-426614174000",
+        headers={
+            **_mnemosyne_learning_headers(),
+            "X-Mnemosyne-Contract-Version": "0.9.0",
+        },
+    )
+    assert response.status_code == 400
+    assert response.json()["code"] == "contract_mismatch"
+    assert called == []
+
+
+def test_mnemosyne_learning_api_reads_quiz_and_version_scoped_state(monkeypatch):
+    quiz_id = "123e4567-e89b-42d3-a456-426614174000"
+    document_id = "123e4567-e89b-42d3-a456-426614174001"
+    version_id = "sha256:" + "a" * 64
+    calls = []
+
+    class Tutor:
+        async def get_quiz(self, received_quiz_id):
+            calls.append(("quiz", received_quiz_id))
+            return {"quiz_id": received_quiz_id}
+
+        async def get_learning_state(self, received_document_id, received_version_id):
+            calls.append(("state", received_document_id, received_version_id))
+            return {
+                "document_id": received_document_id,
+                "version_id": received_version_id,
+            }
+
+    client = _mnemosyne_learning_api_client(Tutor(), monkeypatch)
+    headers = _mnemosyne_learning_headers()
+    quiz = client.get(f"/v1/quizzes/{quiz_id}", headers=headers)
+    state = client.get(
+        f"/v1/documents/{document_id}/learning",
+        params={"version_id": version_id},
+        headers=headers,
+    )
+
+    assert quiz.status_code == 200
+    assert quiz.json() == {"quiz_id": quiz_id}
+    assert state.status_code == 200
+    assert state.json() == {"document_id": document_id, "version_id": version_id}
+    assert calls == [
+        ("quiz", quiz_id),
+        ("state", document_id, version_id),
+    ]
+
+
+def test_mnemosyne_learning_api_submits_attempt_only_for_path_quiz(monkeypatch):
+    quiz_id = "123e4567-e89b-42d3-a456-426614174000"
+    other_quiz_id = "123e4567-e89b-42d3-a456-426614174009"
+    calls = []
+
+    class Tutor:
+        async def submit_attempt(self, attempt):
+            calls.append(attempt)
+            return {"attempt_id": attempt["attempt_id"]}
+
+    client = _mnemosyne_learning_api_client(Tutor(), monkeypatch)
+    headers = _mnemosyne_learning_headers()
+    body = {
+        "attempt_id": "123e4567-e89b-42d3-a456-426614174010",
+        "quiz_id": quiz_id,
+    }
+
+    response = client.post(
+        f"/v1/quizzes/{quiz_id}/attempts",
+        headers=headers,
+        json=body,
+    )
+    assert response.status_code == 201
+    assert response.json() == {"attempt_id": body["attempt_id"]}
+    assert calls == [body]
+
+    mismatch = client.post(
+        f"/v1/quizzes/{quiz_id}/attempts",
+        headers=headers,
+        json={**body, "quiz_id": other_quiz_id},
+    )
+    assert mismatch.status_code == 400
+    assert mismatch.json()["code"] == "invalid_request"
+    assert calls == [body]
+
+
+def test_mnemosyne_learning_api_reviews_memory_for_matching_path_id(monkeypatch):
+    memory_id = "123e4567-e89b-42d3-a456-426614174020"
+    calls = []
+
+    class Tutor:
+        async def review_memory(self, review):
+            calls.append(review)
+            return {"learning_revision": 2}
+
+    client = _mnemosyne_learning_api_client(Tutor(), monkeypatch)
+    headers = _mnemosyne_learning_headers()
+    review = {"memory_id": memory_id, "grade": 2}
+    response = client.post(
+        f"/v1/memory/{memory_id}/reviews",
+        headers=headers,
+        json=review,
+    )
+    assert response.status_code == 200
+    assert response.json() == {"learning_revision": 2}
+    assert calls == [review]
+
+    mismatch = client.post(
+        f"/v1/memory/{memory_id}/reviews",
+        headers=headers,
+        json={**review, "memory_id": "123e4567-e89b-42d3-a456-426614174021"},
+    )
+    assert mismatch.status_code == 400
+    assert mismatch.json()["code"] == "invalid_request"
+    assert calls == [review]
+
+
+def test_mnemosyne_learning_api_fails_closed_without_durable_store(monkeypatch):
+    from deeptutor.mnemosyne.tutor import TutorAdapter
+
+    tutor = TutorAdapter(turns=None, library=None, learning_store=None)
+    client = _mnemosyne_learning_api_client(tutor, monkeypatch)
+    response = client.get(
+        "/v1/documents/123e4567-e89b-42d3-a456-426614174001/learning",
+        params={"version_id": "sha256:" + "a" * 64},
+        headers=_mnemosyne_learning_headers(),
+    )
+    assert response.status_code == 503
+    assert response.json()["code"] == "not_ready"
+    assert response.json()["retryable"] is True
