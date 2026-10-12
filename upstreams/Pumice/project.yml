@@ -41,7 +41,7 @@ targets:
       Release: Config/Local.xcconfig
     settings:
       base:
-        PRODUCT_NAME: Pumice
+        PRODUCT_NAME: Mnemosyne
         TARGETED_DEVICE_FAMILY: "2"
         GENERATE_INFOPLIST_FILE: YES
         # The Generation flag's nested-key auto-mapping (UIImageName etc.)
@@ -56,7 +56,7 @@ targets:
         INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
         INFOPLIST_KEY_UIFileSharingEnabled: YES
         INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace: YES
-        INFOPLIST_KEY_CFBundleDisplayName: Pumice
+        INFOPLIST_KEY_CFBundleDisplayName: 므네모시네
         INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: NO
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
@@ -85,6 +85,8 @@ targets:
     deploymentTarget: "18.0"
     sources:
       - path: Tests/PumiceUITests
+    resources:
+      - path: MnemosyneContracts/fixtures/study-session.json
     dependencies:
       - target: Pumice
     configFiles:
