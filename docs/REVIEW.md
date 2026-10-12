@@ -1,5 +1,3 @@
-# 통합 draft PR 본문
-
 ## 요약
 
 `origin/main` (`16130d21410d1b2349ffee0757d44462c899ebbf`)과 준비 커밋
@@ -12,15 +10,15 @@
 ## 적용한 정확한 unit refs
 
 - UNIT-01: `c1f1f16b1cf12c9e66da1b3f24755cdb1412550f`, PR #2
+- UNIT-02: baseline `main` commit `16130d21410d1b2349ffee0757d44462c899ebbf`; no separate branch/PR
+- UNIT-03: user-supplied branch `codex/unit-03-reader`, commit `ae202f0cf1096d5fcc0ab1ecd325ac20a0d8e4b1`; no PR
 - UNIT-04: `ced01afba5138598601c3b25933329d23a41282b`, PR #3
 - UNIT-05: `e22a0e9d421adf3020e5359dcbda541e5ba378e0`, branch `codex/unit-05-api-refresh`, Draft PR #4
 - UNIT-06: `e14c599cb9977a41f5f17358a9ca17f33bce2327`, PR #1
 
 요청에 처음 포함된 값은 저장소 URL뿐이었으나 이후 UNIT-05 정확한 ref가 제공돼
-통합했습니다. 저장소의 정확한 unit ref로 확인된 결과를 적용했습니다. UNIT-03 결과와 UNIT-04 handoff가 참조한
-`3a98ac43474722c98eded510ec6428f8329cd3d2`는 원격 ref/object에서 찾지 못했습니다.
-UNIT-02의 별도 ref는 제공되지 않았고 기준 `main`에 이미 코드가 있음을 확인했습니다.
-UNIT-05는 위의 exact commit으로 통합했습니다.
+통합했습니다. UNIT-03의 정확한 식별 정보는 제공됐으나 현재 workspace의 local refs/object DB와 `origin` 어느 쪽에서도
+`ae202f0cf1096d5fcc0ab1ecd325ac20a0d8e4b1`를 가져오지 못했습니다. 정확한 branch fetch는 `couldn't find remote ref`, SHA fetch는 `not our ref`, GitHub commit API는 422 `No commit found for SHA`를 반환해 소스 diff는 통합되지 않았습니다. 사용자 보고에 따르면 UNIT-03 별도 PR 생성은 자동 승인 검토의 `429 Too Many Requests`로 중단됐습니다. 이 검토 제한을 우회하는 재시도는 하지 않았습니다. UNIT-02는 별도 결과가 아니라 기준 main의 `16130d21410d1b2349ffee0757d44462c899ebbf`를 사용했습니다. UNIT-01/#2, UNIT-04/#3, UNIT-06/#1은 현재 열린 draft PR이며 main에는 병합되지 않았습니다. UNIT-05는 위 exact commit으로 통합했습니다.
 
 ## 검증
 

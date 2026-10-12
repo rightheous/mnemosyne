@@ -1,6 +1,6 @@
 # 공통 시작점과 연결 경계
 
-계약 `0.1.0`. 현재 통합 작업 branch `codex/mnemosyne-integration`은 확인된 UNIT-01/04/05/06 결과를 준비 기준 `5715a32927e3a73dc28782d306880e3dd1f62441`에서 갈라진 `origin/main` 위에 합쳤다. Library router와 pairing/session 경계도 연결했다. `product_ready=false`이며 UNIT-03 concrete Reader와 durable LearningStateStore/API는 공급되지 않았다. 세부 refs와 기능별 상태는 `docs/handoffs/integration.md`를 본다.
+계약 `0.1.0`. 현재 통합 작업 branch `codex/mnemosyne-integration`은 확인된 UNIT-01/04/05/06 결과를 준비 기준 `5715a32927e3a73dc28782d306880e3dd1f62441`에서 갈라진 `origin/main` 위에 합쳤다. Library router와 pairing/session 경계도 연결했다. `product_ready=false`이며 사용자가 알려준 UNIT-03 ref(`codex/unit-03-reader`, `ae202f0cf1096d5fcc0ab1ecd325ac20a0d8e4b1`)는 현재 local object DB와 origin에서 가져올 수 없어 diff 및 구현을 통합하지 못했다. durable LearningStateStore/API도 연결되지 않았다. 세부 refs와 기능별 상태는 `docs/handoffs/integration.md`를 본다.
 
 ## 실제 등록 함수와 호출자
 
@@ -10,7 +10,7 @@
 |---|---|---|
 | 01 | upstreams/DeepTutor/deeptutor/mnemosyne/library.py · register_library(store, annotation_sync=None) | ReadingStore→LibraryAdapter(search, verify_anchor). AnnotationSync/UUID mapping/DB transaction 구현. 02가 검색/검증을 호출. |
 | 02 | upstreams/DeepTutor/deeptutor/mnemosyne/tutor.py · register_tutor(turns, library, learning_store=None) | 기존 container.turns + 01 ports→TutorAdapter. 한국어 native request와 metadata.mnemosyne 이벤트 구현. LearningStateStore 구현은 없음. |
-| 03 | upstreams/Pumice/Packages/PumiceCore/Sources/PumiceCore/Mnemosyne/ReaderFacade.swift · makeReaderFacade(factory, localStore) | protocol/factory seam만 있음. 실제 factory가 필요하나 참조된 UNIT-03 SHA는 제공 저장소에서 찾을 수 없어 연결되지 않음. |
+| 03 | upstreams/Pumice/Packages/PumiceCore/Sources/PumiceCore/Mnemosyne/ReaderFacade.swift · makeReaderFacade(factory, localStore) | protocol/factory seam만 있음. 사용자가 제공한 `ae202f0cf1096d5fcc0ab1ecd325ac20a0d8e4b1` 소스 객체를 local refs/object DB나 origin에서 가져오지 못해 concrete factory/local store는 연결되지 않음. |
 | 04 | upstreams/Pumice/App/MnemosyneAppDependencies.swift · makeIPadApp(reader,syncWorker,serverURL) | app dependency seam와 Sources/Network/MnemosyneTurnWire.swift의 native frame decoder. 04가 PumiceApp/LaunchView에서 실제 화면을 연결. 네트워크 worker는 facade만 호출. |
 | 05 | upstreams/DeepTutor/web/features/mnemosyne/register.ts · mountMnemosyneWeb(dependencies) | native StreamEvent consumer와 한국어 화면이 `app/(workspace)/learning/` 및 settings route에 연결돼 있음. API end-to-end는 server handler 부재로 미완료. |
 | 06 | checks/source_adapters.py · run_integration_checks() | 실제 upstream import/ReadingStore/PDF/parser/native protocol/등록 검증. scripts/Docker/CI 및 manifests 소유. |

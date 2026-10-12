@@ -2,8 +2,10 @@
 
 This branch integrates the available Mnemosyne work on top of `main`. The
 integrated source is runnable for the Library/session API and the existing
-DeepTutor web shell, but it is **not product ready**: no reachable UNIT-03
-Reader implementation or durable Mnemosyne learning store was provided.
+DeepTutor web shell, but it is **not product ready**: the supplied UNIT-03 ref
+(`codex/unit-03-reader` at `ae202f0cf1096d5fcc0ab1ecd325ac20a0d8e4b1`) is not
+fetchable from this workspace or its configured origin, and no durable
+Mnemosyne learning store is connected.
 
 ## Run the server
 
@@ -104,8 +106,10 @@ integration branch and the limits of each result.
   quiz, assessment, memory, progress, and review API handlers. Those routes
   return no success state because they are absent.
 - The UNIT-04 iPad composition references durable Reader/Pencil types that do
-  not exist in the supplied Pumice tree. The source cannot produce an iPad app
-  until the exact UNIT-03 result is supplied and integrated.
+  not exist in the supplied Pumice tree. The exact UNIT-03 ref is known, but
+  its source commit is unavailable from this workspace and origin, so the
+  source cannot produce an iPad app until that source is made reachable and
+  integrated.
 - The contract remains 0.1.0 because this change wires existing DTOs and does
   not alter their schemas. The integrated branch does not claim product
   readiness or Cloud/device acceptance.

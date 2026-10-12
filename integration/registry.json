@@ -93,6 +93,6 @@
   "integration_base_sha": "16130d21410d1b2349ffee0757d44462c899ebbf",
   "integration_preparation_sha": "5715a32927e3a73dc28782d306880e3dd1f62441",
   "missing_unit_results": [
-    "UNIT-03 exact commit/branch/PR unavailable"
+    "UNIT-03 ref supplied: branch codex/unit-03-reader at ae202f0cf1096d5fcc0ab1ecd325ac20a0d8e4b1; no PR. Exact branch/SHA cannot be fetched from the current workspace or origin, so its diff is not integrated."
   ]
 }

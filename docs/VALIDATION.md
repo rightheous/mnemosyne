@@ -4,6 +4,9 @@
 The contract/source gate passes, but this branch is **not product ready**. Every
 result below reflects the merged source and the integrated wiring. A check of a
 fixture, source adapter, or bridge does not imply a complete app/device flow.
+UNIT-03's supplied branch/SHA is recorded in the integration handoff, but its
+commit is not reachable from this checkout or configured origin; no UNIT-03
+source diff was integrated or built.
 ## Checks run
 | Check | Result and scope |
 |---|---|
@@ -32,7 +35,8 @@ pinned lockfile includes a small number of `npmmirror.com` tarballs that the
 managed network rejected with HTTP 403. The repository lockfile was not changed.
 ## Requirement implementation and verification
 See [the integration handoff](handoffs/integration.md) for the per-requirement
-implementation/verification table and the exact unavailable unit refs. The
+implementation/verification table and the exact unit refs that were applied or
+remain inaccessible. The
 main product blockers in this branch are concrete missing code: UNIT-03's
 durable iPad Reader/local store, a durable Mnemosyne LearningStateStore and
 mounted Tutor/Quiz/Assessment/Memory APIs, and provider/settings callbacks.

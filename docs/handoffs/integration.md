@@ -6,14 +6,14 @@
 
 | Unit | 적용한 정확한 결과 | 통합 상태 |
 |---|---|---|
-| UNIT-01 | `codex/unit-01-library-sync` · `c1f1f16b1cf12c9e66da1b3f24755cdb1412550f` · [PR #2](https://github.com/rightheous/mnemosyne/pull/2) | clean merge. Library adapter와 보존 가능한 PDF/주석 서비스 포함. API router는 bearer/Origin guard 뒤 startup에 등록. 실제 fixture upload/parse/search/annotation/export 흐름을 확인했다. |
-| UNIT-02 | 제공된 별도 branch/PR 없음. 기준 `main`에는 UNIT-02 코드가 이미 포함됨; 기준 HEAD `16130d2` | Tutor adapter 포함. LearningStateStore 실제 구현과 HTTP 학습 route는 없음. |
-| UNIT-03 | 사용할 branch/commit/PR 없음. UNIT-04 handoff가 언급한 `3a98ac43474722c98eded510ec6428f8329cd3d2`는 원격 ref/commit에서 찾을 수 없음 | 통합 불가. 실제 Pumice tree에 `PersistentMnemosyneReaderFacade`, `FileMnemosyneLocalStore`, `PumiceReaderEngine` 정의가 없다. |
-| UNIT-04 | `codex/unit-04-ipad-app` · `ced01afba5138598601c3b25933329d23a41282b` · [PR #3](https://github.com/rightheous/mnemosyne/pull/3) | clean merge. App composition은 UNIT-03 concrete type을 참조하므로 제품 빌드 차단. 개발 유닛 번호가 표시되던 사용자 문구는 제거. |
+| UNIT-01 | `codex/unit-01-library-sync` · `c1f1f16b1cf12c9e66da1b3f24755cdb1412550f` · [Draft PR #2](https://github.com/rightheous/mnemosyne/pull/2), 아직 main에 미병합 | integration branch에 clean merge. Library adapter와 보존 가능한 PDF/주석 서비스 포함. API router는 bearer/Origin guard 뒤 startup에 등록. 실제 fixture upload/parse/search/annotation/export 흐름을 확인했다. |
+| UNIT-02 | 별도 branch/PR 없음. 기준 `main` HEAD `16130d21410d1b2349ffee0757d44462c899ebbf`가 사용 가능한 결과 | Tutor adapter 포함. LearningStateStore 실제 구현과 HTTP 학습 route는 없음. |
+| UNIT-03 | 사용자 제공 ref: `codex/unit-03-reader` · `ae202f0cf1096d5fcc0ab1ecd325ac20a0d8e4b1` · PR 없음 | 소스 객체를 현재 workspace의 local refs/object DB나 `origin`에서 가져올 수 없어 diff를 확인하거나 통합하지 못했다. 정확한 branch fetch는 `couldn't find remote ref`, SHA fetch는 `not our ref`, GitHub commit API는 422 `No commit found for SHA`를 반환했다. 현재 Pumice tree에는 concrete durable Reader/local store 구현이 없다. |
+| UNIT-04 | `codex/unit-04-ipad-app` · `ced01afba5138598601c3b25933329d23a41282b` · [Draft PR #3](https://github.com/rightheous/mnemosyne/pull/3), 아직 main에 미병합 | integration branch에 clean merge. App composition은 UNIT-03 concrete type을 참조하므로 제품 빌드 차단. 개발 유닛 번호가 표시되던 사용자 문구는 제거. |
 | UNIT-05 | `codex/unit-05-api-refresh` · `e22a0e9d421adf3020e5359dcbda541e5ba378e0` · [Draft PR #4](https://github.com/rightheous/mnemosyne/pull/4) | 통합 branch에 clean merge. native Tutor capability 선택, Reader 화면/PDF geometry, save 실패 입력 유지 및 확인 UI를 보완. 서버 Reader context/document resolver/Tutor·learning API가 없어 전체 학습 흐름은 아직 확인하지 못함. |
-| UNIT-06 | `codex/unit-06-cloud-status` · `e14c599cb9977a41f5f17358a9ca17f33bce2327` · [PR #1](https://github.com/rightheous/mnemosyne/pull/1) | clean merge. Compose에 브라우저 origin 설정을 전달하도록 연결. 현재 Cloud 설정에는 Git/LLM secrets와 실행 capability가 없음. |
+| UNIT-06 | `codex/unit-06-cloud-status` · `e14c599cb9977a41f5f17358a9ca17f33bce2327` · [Draft PR #1](https://github.com/rightheous/mnemosyne/pull/1), 아직 main에 미병합 | integration branch에 clean merge. Compose에 브라우저 origin 설정을 전달하도록 연결. 현재 Cloud 설정에는 Git/LLM secrets와 실행 capability가 없음. |
 
-처음 작업 입력에는 저장소 URL만 있었으나 이후 UNIT-05의 정확한 branch, commit, Draft PR #4가 제공됐다. 제공된 ref `e22a0e9d421adf3020e5359dcbda541e5ba378e0`을 확인해 통합했다. UNIT-01/04/06은 연결된 저장소에서 정확한 unit 라벨로 확인한 결과다. UNIT-03은 결과가 아직 제공되지 않았고, 알려지지 않은 ref는 임의로 체크아웃하지 않았다.
+사용자가 UNIT-03 branch/SHA를 제공했으나 그 ref의 소스는 현재 checkout과 origin에서 확인되지 않아 코드 통합을 보류했다. 단독 UNIT-03 PR은 앞서 자동 승인 검토가 `429 Too Many Requests`로 중단됐다는 사용자 보고가 있어 다시 만들지 않았다. UNIT-05 정확한 branch/commit과 Draft PR #4는 확인 후 integration branch에 통합했다. UNIT-01/04/06의 PR #2/#3/#1은 계속 열린 draft이며, 해당 변경은 이 통합 branch에만 포함돼 있다.
 
 ## 실제 통합 변경
 
