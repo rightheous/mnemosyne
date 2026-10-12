@@ -79,6 +79,10 @@ _ACTIVITY_KINDS = frozenset(
 )
 
 
+class LearningStateNotReady(RuntimeError):
+    """Raised when the durable Mnemosyne learning boundary is unavailable."""
+
+
 def _required_id(value: Any, field: str, *, uuid_value: bool = False) -> str:
     normalized = str(value or "").strip()
     if not normalized:
@@ -491,7 +495,9 @@ def _validate_assessment(
 
 def _learning_store(store: LearningStateStore | None) -> LearningStateStore:
     if store is None:
-        raise RuntimeError("Learning state is not ready; the durable learning store is unavailable")
+        raise LearningStateNotReady(
+            "Learning state is not ready; the durable learning store is unavailable"
+        )
     return store
 
 
@@ -971,7 +977,7 @@ class TutorAdapter:
         store = _learning_store(self.learning_store)
         getter = getattr(store, "get_quiz", None)
         if not callable(getter):
-            raise RuntimeError("Learning state is not ready; quiz storage is unavailable")
+            raise LearningStateNotReady("Learning state is not ready; quiz storage is unavailable")
         quiz = await getter(_required_id(quiz_id, "quiz_id", uuid_value=True))
         return _verify_quiz_citations(self.library, _validate_public_quiz(quiz))
 
@@ -981,7 +987,12 @@ class TutorAdapter:
         normalized_version_id = str(version_id or "").strip()
         if not _VERSION_RE.fullmatch(normalized_version_id):
             raise ValueError("version_id must be a full SHA-256 version")
-        state = await store.get_state(normalized_document_id, normalized_version_id)
+        getter = getattr(store, "get_state", None)
+        if not callable(getter):
+            raise LearningStateNotReady(
+                "Learning state is not ready; state storage is unavailable"
+            )
+        state = await getter(normalized_document_id, normalized_version_id)
         validated_state = _validate_learning_state(
             state, document_id=normalized_document_id, version_id=normalized_version_id
         )
@@ -1060,7 +1071,9 @@ class TutorAdapter:
             raise ValueError("attempt contains a question outside the stored quiz")
         assessment_submitter = getattr(self.assessment_service, "submit_attempt", None)
         if not callable(assessment_submitter):
-            raise RuntimeError("Learning state is not ready; private assessment service is unavailable")
+            raise LearningStateNotReady(
+                "Learning state is not ready; private assessment service is unavailable"
+            )
         result = await assessment_submitter(normalized, quiz)
         validated_assessment = _validate_assessment(result, attempt=normalized, quiz=quiz)
         return _verify_assessment_citations(
@@ -1092,7 +1105,9 @@ class TutorAdapter:
         store = _learning_store(self.learning_store)
         saver = getattr(store, "save_activity", None)
         if not callable(saver):
-            raise RuntimeError("Learning state is not ready; activity storage is unavailable")
+            raise LearningStateNotReady(
+                "Learning state is not ready; activity storage is unavailable"
+            )
         state = await saver(
             normalized_activity,
             _required_id(mutation_id, "mutation_id", uuid_value=True),
@@ -1144,7 +1159,13 @@ class TutorAdapter:
         if isinstance(grade, bool) or not isinstance(grade, int) or not 0 <= grade <= 3:
             raise ValueError("grade must be an integer between 0 and 3")
         normalized["reviewed_at"] = _required_timestamp(review.get("reviewed_at"), "reviewed_at")
-        state = await _learning_store(self.learning_store).review_memory(normalized)
+        store = _learning_store(self.learning_store)
+        reviewer = getattr(store, "review_memory", None)
+        if not callable(reviewer):
+            raise LearningStateNotReady(
+                "Learning state is not ready; memory review storage is unavailable"
+            )
+        state = await reviewer(normalized)
         return _verify_learning_state_citations(
             self.library, _validate_learning_state(state)
         )
