@@ -4,7 +4,7 @@
 
 `openapi.yaml`은 **JSON으로 직렬화된 OpenAPI 3.1.0**이다. JSON은 YAML의 부분집합이므로 YAML/OpenAPI 도구가 읽을 수 있으며 별도 YAML runtime이 없어도 웹의 JSON parser와 Python stdlib가 같은 파일을 읽는다. JSON Schema는 draft 2020-12이며 외부 `$ref`는 이 묶음 안의 상대 경로만 사용한다. `models.schema.json`에 공통 DTO, `annotations.schema.json`에 주석/mutation, `events.schema.json`에 typed event가 있다. DeepTutor의 기존 OpenAPI/JSON Schema codegen 흐름을 유지한다. 신규 계약의 실제 TS/Swift 소비는 공통 fixture로 확인한다.
 
-지정 upstream을 확인한 통합 계약이다. 외부 Tutor 스트리밍은 **DeepTutor native `/ws` WebSocket protocol 2.0 하나**다. `native-turn.schema.json`은 upstream web/contracts/schema/turn-protocol.json의 바이트 동일 복사본이다. models/events/annotations는 새 Mnemosyne 경계이며 아직 제품 구현이 필요한 부분이 있다. OpenAPI의 각 `x-implementation`이 실제 observed route와 planned unit extension을 구별한다. JSON Schema 검증은 HTTP handler 구현 완료를 뜻하지 않는다.
+지정 upstream을 확인한 통합 계약이다. 외부 Tutor 스트리밍은 **DeepTutor native `/ws` WebSocket protocol 2.0 하나**다. `native-turn.schema.json`은 upstream web/contracts/schema/turn-protocol.json의 바이트 동일 복사본이다. models/events/annotations는 새 Mnemosyne 경계이며 아직 제품 구현이 필요한 부분이 있다. OpenAPI의 `x-implementation`은 `observed-upstream`, `integration-branch-guarded`, `integration-branch-mounted-degraded`, `planned-unit-extension`으로 실제 등록 수준을 구별한다. guarded marker는 router가 등록되어 보호가 적용됐다는 뜻이며 provider, learning store, Reader 또는 제품 전체 준비 완료를 뜻하지 않는다. JSON Schema 검증은 HTTP handler 구현 완료를 뜻하지 않는다.
 
 DeepTutor locator는 1 기반이므로 `page_index+1`로 넘긴다. native material_id/16자 content hash를 document UUID/full SHA version으로 간주하지 않는다. UNIT-01이 durable 매핑을 제공한다. 현재 fixture adapter는 ReadingStore와 실제 PDF parser를 사용하고 whole-block anchor만 검증한다.
 

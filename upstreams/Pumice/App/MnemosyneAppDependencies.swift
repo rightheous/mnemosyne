@@ -491,8 +491,8 @@ final class MnemosyneAppModel: ObservableObject {
 
     func synchronizeNow() async {
         guard let syncWorker else {
-            syncSummary = "Reader outbox와 sync cursor 연결 대기"
-            alertMessage = "Reader outbox와 sync cursor를 연결하는 UNIT-03 facade가 아직 제공되지 않았습니다."
+            syncSummary = "오프라인 주석을 동기화할 수 없습니다."
+            alertMessage = "이 기기에서 문서 동기화를 사용할 수 없습니다. 다시 실행해 주세요."
             return
         }
         busyMessage = "필기와 주석을 동기화하고 있습니다"

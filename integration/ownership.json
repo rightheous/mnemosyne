@@ -3,6 +3,7 @@
   "policy": "exact paths; each file has one owner; no inherited directory ownership overrides these entries",
   "owners": {
     "UNIT-01": [
+      "docs/handoffs/unit-01.md",
       "handoff/UNIT-01.md",
       "upstreams/DeepTutor/deeptutor/book/storage.py",
       "upstreams/DeepTutor/deeptutor/capabilities/marginnote4/store.py",
@@ -334,6 +335,7 @@
       "upstreams/DeepTutor/tests/video_learning/test_reading_migration.py"
     ],
     "UNIT-02": [
+      "docs/handoffs/unit-02.md",
       "handoff/UNIT-02.md",
       "upstreams/DeepTutor/deeptutor/__init__.py",
       "upstreams/DeepTutor/deeptutor/__main__.py",
@@ -2118,6 +2120,7 @@
       "upstreams/Pumice/Tests/PumiceTests/SnapToTextTests.swift"
     ],
     "UNIT-04": [
+      "docs/handoffs/unit-04.md",
       "handoff/UNIT-04.md",
       "upstreams/Pumice/App/Assets.xcassets/AccentColor.colorset/Contents.json",
       "upstreams/Pumice/App/Assets.xcassets/AppIcon.appiconset/Contents.json",
@@ -3695,6 +3698,7 @@
       ".gitignore",
       "AGENTS.md",
       "README.md",
+      "checks/integration_pdf_flow.py",
       "checks/sync_contracts.py",
       "contracts/README.md",
       "contracts/annotations.schema.json",
@@ -3713,6 +3717,7 @@
       "docs/UI-DIRECTION.md",
       "docs/UPSTREAM-AUDIT.md",
       "docs/VALIDATION.md",
+      "docs/handoffs/integration.md",
       "integration/ownership.json",
       "integration/registry.json",
       "integration/upstreams.json",
@@ -3922,7 +3927,10 @@
       "upstreams/DeepTutor/deeptutor/app/container.py",
       "upstreams/DeepTutor/deeptutor/mnemosyne/__init__.py",
       "upstreams/DeepTutor/deeptutor/mnemosyne/bootstrap.py",
+      "upstreams/DeepTutor/deeptutor/mnemosyne/http.py",
+      "upstreams/DeepTutor/deeptutor/mnemosyne/pairing.py",
       "upstreams/DeepTutor/deeptutor/mnemosyne/ports.py",
+      "upstreams/DeepTutor/deeptutor/mnemosyne/security.py",
       "upstreams/DeepTutor/deeptutor_cli/README.md",
       "upstreams/DeepTutor/deeptutor_cli/__init__.py",
       "upstreams/DeepTutor/deeptutor_cli/__main__.py",

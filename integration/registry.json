@@ -3,10 +3,10 @@
   "status": "source_backed_bootstrap",
   "ready_for_parallel_implementation": true,
   "product_ready": false,
-  "cloud_repository_access": "local_only_no_origin",
+  "cloud_repository_access": "github_remote_configured",
   "external_transport": "websocket",
   "wire_protocol_version": "2.0",
-  "contract_manifest_sha256": "18cb8893160a1c9069a27ceb340dd3fa377d4d26063ace21489deeef1d0ed5be",
+  "contract_manifest_sha256": "ba8a51148d1c8472d6c4e4a7407152806e9d04be9403e4297e2f626f8e6d5103",
   "contract_copies": [
     "upstreams/Pumice/MnemosyneContracts",
     "upstreams/DeepTutor/MnemosyneContracts"
@@ -88,5 +88,11 @@
   "assembly_symbol": "lifespan",
   "composition_path": "upstreams/DeepTutor/deeptutor/mnemosyne/bootstrap.py",
   "composition_symbol": "register_mnemosyne",
-  "source_gate_notes": "Readiness is for source-based local bootstrap, not product completion or GitHub/Cloud publication."
+  "source_gate_notes": "Readiness is for source-based local bootstrap, not product completion or GitHub/Cloud publication.",
+  "integration_branch": "codex/mnemosyne-integration",
+  "integration_base_sha": "16130d21410d1b2349ffee0757d44462c899ebbf",
+  "integration_preparation_sha": "5715a32927e3a73dc28782d306880e3dd1f62441",
+  "missing_unit_results": [
+    "UNIT-03 exact commit/branch/PR unavailable"
+  ]
 }

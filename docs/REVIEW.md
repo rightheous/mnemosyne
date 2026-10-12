@@ -1,13 +1,42 @@
-# 저장된 PR 본문
+# 통합 draft PR 본문
 
-제목: feat: prepare source-backed Mnemosyne bootstrap
+## 요약
 
-여섯 독립 구현 작업이 같은 소스·계약·소유 경계에서 출발하도록, 지정한 Pumice와 DeepTutor의 원래 tracked 트리를 각각 a688aae2e6bce069ee256063c2a53afdcfe7de21 / 6cf793bd868ba5ecbe64722936d4be8fab5a01df에 고정했다. 내부 레이아웃·Swift/Python/Next 스택과 라이선스를 유지한다.
+`origin/main` (`16130d21410d1b2349ffee0757d44462c899ebbf`)과 준비 커밋
+`5715a32927e3a73dc28782d306880e3dd1f62441`에서 만든
+`codex/mnemosyne-integration` 브랜치에 확인 가능한 UNIT-01/04/06 변경을
+통합하고, pairing/session 인증과 보호된 Library router를 실제 서버 수명 주기에
+연결했습니다. 계약 0.1.0의 DTO는 바꾸지 않았고 두 upstream 계약 사본의 digest를
+갱신했습니다.
 
-계약 0.1.0은 문서 원본 full SHA/물리 페이지/회전·CropBox/주석 sync/Reader·학습 상태를 고정한다. DeepTutor의 native /ws protocol 2.0을 선택해 opaque turn ID와 native seq/replay/cancel을 유지한다. HTTP extension과 제품 ports의 미구현 상태는 명시한다. 동일 bundle을 두 source에 배포하고 파일 단위 소유권/provenance를 검사한다.
+## 적용한 정확한 unit refs
 
-실제 ReadingStore/PyMuPDF/SQLite/native wire adapter, Pumice Core geometry/facade와 iPad decoder, 웹 TS/PDF.js consumer와 등록 seam을 추가했다. 기존 파일 수정은 integrator-owned main.py의 lifespan 등록 한 곳이다. 필수 학습·오프라인·불변 원본·한국어·개인 보호 기능은 모두 이번 유닛 구현 범위에 유지했다.
+- UNIT-01: `c1f1f16b1cf12c9e66da1b3f24755cdb1412550f`, PR #2
+- UNIT-04: `ced01afba5138598601c3b25933329d23a41282b`, PR #3
+- UNIT-06: `e14c599cb9977a41f5f17358a9ca17f33bce2327`, PR #1
 
-검증: source gate/30 OpenAPI operations/4 schemas/동일 bundle/80 schema instances/19 거부 사례/10 sync steps PASS, 세 소비자와 실제 SQLite 재전송·reopen replay PASS, 원래 DeepTutor focused tests 116 PASS, Core library build/웹 contracts·types·production build/Compose config/architecture/new adapter Ruff PASS. 공식 Pumice test는 CLT Testing 모듈 부재로 FAIL. Full iPad/Pencil/WSL2/실제 LLM·제품 end-to-end는 미검증. 자세한 명령과 한계는 docs/VALIDATION.md.
+요청에 포함된 값은 저장소 URL뿐이었습니다. 저장소의 정확한 unit ref로 확인된 위
+세 결과만 적용했습니다. UNIT-03 결과와 UNIT-04 handoff가 참조한
+`3a98ac43474722c98eded510ec6428f8329cd3d2`는 원격 ref/object에서 찾지 못했습니다.
+UNIT-02와 UNIT-05의 별도 ref도 제공되거나 발견되지 않았습니다. 그 구현이 기준
+`main`에 있다는 사실만으로 미제공 결과를 별도 통합했다고 간주하지 않았습니다.
 
-준비 branch codex/mnemosyne-bootstrap, 시작 tag mnemosyne-bootstrap-v0.1.0. root remote가 없어 GitHub PR은 생성하지 않았다. 기본 브랜치에 직접 통합하지 않았다.
+## 검증
+
+- 계약/source/ownership 검사, 계약 사본 동기화, Python source adapter 및 live
+  loopback PDF/annotation/export flow를 실행했습니다. flow는 저장·재전송·tombstone·원본
+  SHA 보존까지 통과했지만 `llama_index` 부재로 RAG indexing은 `failed`였습니다.
+- Web 계약 검사, TypeScript typecheck, Node consumer, Compose config 검사는
+  통과했습니다. Next production build는 관리 네트워크가 Google Fonts를 가져오지
+  못해 실패했습니다.
+- Cloud 실행 capability/secrets, Docker daemon, LLM credential, macOS/Xcode/iPadOS
+  SDK 및 실제 iPad Pencil 기기는 이 환경에 없습니다. 각각의 통합 검증은 하지 않았습니다.
+
+## 미완료 필수 제품 기능
+
+이 브랜치는 `product_ready=false`입니다. UNIT-03 durable Reader/local store/Pencil
+경로가 없고, durable Mnemosyne LearningStateStore와 Tutor/Quiz/Assessment/Memory/
+Progress HTTP route가 없습니다. Provider/settings callback도 실제 runtime에 연결되지
+않았습니다. 따라서 학습 상태 저장·복구나 웹/iPad 전체 사용자 흐름을 완료로 보고하지
+않으며 이 draft PR은 제품 출시 승인용이 아닙니다. Requirement별 구현/검증 상태와
+실행 명령은 `docs/handoffs/integration.md`, `docs/VALIDATION.md`에 기록했습니다.

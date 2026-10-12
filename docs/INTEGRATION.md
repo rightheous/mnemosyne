@@ -1,6 +1,6 @@
 # 공통 시작점과 연결 경계
 
-계약 `0.1.0`, 두 지정 upstream snapshot과 최소 adapter를 포함한 소스 기반 bootstrap이다. registry의 `ready_for_parallel_implementation`은 **공통 시작점의 준비**다. `product_ready=false`이며 아래 학습·오프라인·보호 기능은 여섯 작업이 이번 범위에서 구현해야 한다. Cloud가 읽을 GitHub remote는 아직 없다. 로컬 branch/SHA는 확정할 수 있으나 온라인 Cloud dispatch/PR 생성까지 완료됐다고 보고하지 않는다.
+계약 `0.1.0`. 현재 통합 작업 branch `codex/mnemosyne-integration`은 확인된 UNIT-01/04/06 PR을 준비 기준 `5715a32927e3a73dc28782d306880e3dd1f62441`에서 갈라진 `origin/main` 위에 합쳤다. Library router와 pairing/session 경계도 연결했다. `product_ready=false`이며 UNIT-03 concrete Reader와 durable LearningStateStore/API는 공급되지 않았다. 세부 refs와 기능별 상태는 `docs/handoffs/integration.md`를 본다.
 
 ## 실제 등록 함수와 호출자
 
@@ -9,12 +9,12 @@
 | 담당 | 실제 등록 경로 / 심볼 | 입력·반환 / 연결 책임 |
 |---|---|---|
 | 01 | upstreams/DeepTutor/deeptutor/mnemosyne/library.py · register_library(store, annotation_sync=None) | ReadingStore→LibraryAdapter(search, verify_anchor). AnnotationSync/UUID mapping/DB transaction 구현. 02가 검색/검증을 호출. |
-| 02 | upstreams/DeepTutor/deeptutor/mnemosyne/tutor.py · register_tutor(turns, library, learning_store=None) | 기존 container.turns + 01 ports→TutorAdapter. 한국어 native request와 metadata.mnemosyne 이벤트, LearningStateStore 구현. |
-| 03 | upstreams/Pumice/Packages/PumiceCore/Sources/PumiceCore/Mnemosyne/ReaderFacade.swift · makeReaderFacade(factory, localStore) | 실제 factory 주입이 필수. Reader/localStore protocol, input+outbox 원자성, sidecar, geometry. 아직 concrete Reader facade 구현은 없음. |
+| 02 | upstreams/DeepTutor/deeptutor/mnemosyne/tutor.py · register_tutor(turns, library, learning_store=None) | 기존 container.turns + 01 ports→TutorAdapter. 한국어 native request와 metadata.mnemosyne 이벤트 구현. LearningStateStore 구현은 없음. |
+| 03 | upstreams/Pumice/Packages/PumiceCore/Sources/PumiceCore/Mnemosyne/ReaderFacade.swift · makeReaderFacade(factory, localStore) | protocol/factory seam만 있음. 실제 factory가 필요하나 참조된 UNIT-03 SHA는 제공 저장소에서 찾을 수 없어 연결되지 않음. |
 | 04 | upstreams/Pumice/App/MnemosyneAppDependencies.swift · makeIPadApp(reader,syncWorker,serverURL) | app dependency seam와 Sources/Network/MnemosyneTurnWire.swift의 native frame decoder. 04가 PumiceApp/LaunchView에서 실제 화면을 연결. 네트워크 worker는 facade만 호출. |
-| 05 | upstreams/DeepTutor/web/features/mnemosyne/register.ts · mountMnemosyneWeb(dependencies) | native StreamEvent 소비 adapter+화면 dependency seam. 기존 app/에서 새 한국어 화면을 연결. 아직 제품 UI mount 완료가 아님. |
+| 05 | upstreams/DeepTutor/web/features/mnemosyne/register.ts · mountMnemosyneWeb(dependencies) | native StreamEvent consumer와 한국어 화면이 `app/(workspace)/learning/` 및 settings route에 연결돼 있음. API end-to-end는 server handler 부재로 미완료. |
 | 06 | checks/source_adapters.py · run_integration_checks() | 실제 upstream import/ReadingStore/PDF/parser/native protocol/등록 검증. scripts/Docker/CI 및 manifests 소유. |
-| 통합 | upstreams/DeepTutor/deeptutor/mnemosyne/bootstrap.py · register_mnemosyne(container,store,annotation_sync,learning_store) | api/main.py lifespan에서 한 번 호출. 기존 `.turns` 그대로 사용. ports.py가 공유 signature. 신규 라우터 assembly는 통합 담당만. |
+| 통합 | `mnemosyne/bootstrap.py::register_mnemosyne`, `mnemosyne/http.py::router`, `library.py::build_library_router` | main.py lifespan에서 서비스 등록과 Library router 조립. Session/readiness route는 static mount, Library route는 실제 서비스 생성 후 bearer/Origin dependency와 함께 mount. |
 
 서버 DocumentRepository는 get_document(document_id,version_id?), get_page(document_id,version_id,page_index,parse_revision), get_asset(document_id,version_id,asset_id)다. 실제 구현은 UNIT-01이며 Tutor는 UUID/version 매핑과 접근 검증을 이 경계에서 받아야 한다. 기존 ReadingStore의 OS 경로를 client에 노출하지 않는다.
 
@@ -26,7 +26,7 @@ Reader facade는 openCached, installDownloadedOriginal, downloadState, readerCon
 
 `/ws`, protocol 2.0을 재사용한다. HTTP turn 생성/취소와 SSE 후보는 제거했다. start_turn/subscribe_turn/resume_from/cancel_turn은 원래 command schema를 사용한다. 모든 native persisted frame.seq를 checkpoint한다. semantic `metadata.mnemosyne`만 거르면 seq가 비어 있을 수 있으므로 그 subset을 다시 1부터 세지 않는다. recoverable native error를 terminal로 오인하지 않는다. native done metadata.status가 completed/failed/cancelled일 때 정확히 하나의 semantic terminal을 싣는다.
 
-`contracts/openapi.yaml`의 `x-implementation=observed-upstream`은 실제 `/health`, `/ready`다. `planned-unit-extension`은 이번 유닛이 구현할 HTTP facade이며 현재 등록된 API가 아니다. 네이티브 websocket schema는 원래 Pydantic export의 byte-identical copy다. 공통 models/events/annotations는 새로운 Mnemosyne 경계다. upstream REST를 전부 대체하거나 native schema를 임의로 갈아엎지 않는다.
+`contracts/openapi.yaml`의 `x-implementation=observed-upstream`은 실제 `/health`, `/ready`다. `integration-branch-guarded`는 이 branch에서 pairing bearer/Origin guard 아래 router가 실제 mount된 operation이다. `planned-unit-extension`은 아직 route가 없는 Tutor/learning operation이다. settings handler는 mount됐지만 provider defaults/secret writer/runtime apply callback이 없어 제품 provider 기능은 degraded다. 네이티브 websocket schema는 원래 Pydantic export의 byte-identical copy다. 공통 models/events/annotations는 새로운 Mnemosyne 경계다. upstream REST를 전부 대체하거나 native schema를 임의로 갈아엎지 않는다.
 
 ## 계약 배포와 동일 버전
 
@@ -48,4 +48,4 @@ Reader facade는 openCached, installDownloadedOriginal, downloadState, readerCon
 
 `git rev-parse mnemosyne-bootstrap-v0.1.0^{commit}`이 확정 시작 SHA다. tag는 마지막 검사와 commit 이후 만든다. 문서에 자기 자신 commit SHA를 써서 순환시키지 않는다. registry는 두 upstream SHA와 contract digest를, 로컬 tag는 공통 시작 SHA를 고정한다. 기본 브랜치에는 통합하지 않는다.
 
-GitHub remote가 없으므로 Cloud 작업을 실제 시작하려면 이 branch/tag를 사용자 GitHub 저장소에 게시해야 한다. 현재 로컬 파일과 commit은 검토 가능하며 PR 본문은 docs/REVIEW.md에 준비했다. 사용자 소유 remote를 추정하거나 두 upstream에 직접 push하지 않는다.
+GitHub remote는 `https://github.com/rightheous/mnemosyne`이다. 통합 branch는 기본 브랜치와 분리하며 draft PR로 검토한다. 연결된 Cloud runtime은 현재 execution capability/secrets를 제공하지 않으므로 실제 LLM/Docker/iPad/Xcode 검증 상태를 별도로 보고한다.

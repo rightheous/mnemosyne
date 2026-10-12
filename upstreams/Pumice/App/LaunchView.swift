@@ -344,8 +344,8 @@ private struct MnemosyneDocumentWorkspace: View {
             }
 
             if !model.hasReaderFacade {
-                ContentUnavailableView("Reader 연결 대기 중", systemImage: "doc.text.viewfinder",
-                    description: Text(model.readerSetupMessage ?? "PDF 캐시, 읽던 위치, Pencil sidecar를 Reader facade와 연결할 수 없습니다."))
+                ContentUnavailableView("문서를 열 수 없습니다", systemImage: "doc.text.viewfinder",
+                    description: Text(model.readerSetupMessage ?? "이 기기에서 문서 읽기를 사용할 수 없습니다. 다시 실행해 주세요."))
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .background(.white, in: RoundedRectangle(cornerRadius: 12))
             } else if model.activeReaderDocumentID == document.documentId,
@@ -459,7 +459,7 @@ private struct MnemosyneDocumentWorkspace: View {
                 Spacer(minLength: 0)
                 HStack(spacing: 8) {
                     Image(systemName: "text.book.closed").foregroundStyle(.secondary)
-                    Text("튜터 시작 context 연결 대기 중")
+                    Text("문서를 연 뒤 질문할 수 있습니다.")
                         .font(.footnote).foregroundStyle(.secondary)
                     Spacer(minLength: 0)
                     if model.isTutorRunning {
@@ -664,8 +664,8 @@ private struct MnemosyneSettingsView: View {
             }
 
             Section("앱 상태") {
-                LabeledContent("Reader", value: model.hasReaderFacade ? "연결됨" : "UNIT-03 연결 대기")
-                LabeledContent("Sync worker", value: model.syncWorker == nil ? "facade 연결 대기" : "준비됨")
+                LabeledContent("PDF 읽기", value: model.hasReaderFacade ? "사용 가능" : "사용할 수 없음")
+                LabeledContent("동기화", value: model.syncWorker == nil ? "연결 안 됨" : "연결됨")
                 Text("문서 언어는 서버 감지 결과를 사용하고 튜터 답변 언어는 한국어가 기본입니다. 원문 인용, 수식, 코드는 그대로 표시합니다.")
                     .font(.footnote).foregroundStyle(.secondary)
             }

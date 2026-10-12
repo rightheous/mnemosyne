@@ -107,6 +107,9 @@ services:
       - DEEPTUTOR_SANDBOX_RUNNER_URL=http://sandbox-runner:8900
       - DEEPTUTOR_WORKSPACE_ROOT=/workspace
       - DEEPTUTOR_WORKSPACE_ALLOWED_ROOTS=/workspace
+      # Exact browser-facing origin(s) used by Mnemosyne's pairing-cookie and
+      # WebSocket Origin guard. Example: https://study.example.lan
+      - MNEMOSYNE_ALLOWED_ORIGINS=${MNEMOSYNE_ALLOWED_ORIGINS:-}
 
       # Optional dependencies, re-applied on every start (#762). Installing
       # these with `docker exec` does not survive `compose down`, so declare
