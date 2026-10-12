@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import type React from "react";
 import Link from "next/link";
 import { ArrowLeft, BookOpen, Check, ChevronDown, CircleAlert, Download, FileText, FolderPlus, LoaderCircle, MessageCircle, Pencil, Plus, RefreshCw, Search, Settings2, Trash2, Upload } from "lucide-react";
@@ -18,6 +18,10 @@ import {
   MnemosyneApiError,
   consumeNativeFrame,
   mountMnemosyneWeb,
+  nativeTutorCapability,
+  pdfPointToPageUnit,
+  pdfRectToPageUnit,
+  pdfStrokeWidthToPageUnit,
   type ExportReceipt,
   type MnemosyneAnnotation,
   type MnemosyneAssessment,
@@ -171,6 +175,150 @@ function ErrorPanel({ error, onRetry, api }: { error: unknown; onRetry: () => vo
   );
 }
 
+function DialogFrame({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
+  const titleID = useId();
+  const panelRef = useRef<HTMLElement | null>(null);
+  const closeRef = useRef(onClose);
+  useEffect(() => { closeRef.current = onClose; }, [onClose]);
+
+  useEffect(() => {
+    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const focusable = () => Array.from(panelRef.current?.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [href]',
+    ) ?? []);
+    focusable()[0]?.focus();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeRef.current();
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const items = focusable();
+      if (!items.length) { event.preventDefault(); return; }
+      const first = items[0];
+      const last = items[items.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      document.body.style.overflow = previousOverflow;
+      previousFocus?.focus();
+    };
+  }, []);
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#101828]/40 px-4 py-6" onMouseDown={(event) => { if (event.target === event.currentTarget) closeRef.current(); }}>
+      <section ref={panelRef} role="dialog" aria-modal="true" aria-labelledby={titleID} tabIndex={-1} className="w-full max-w-md rounded-2xl border border-[#EAECF0] bg-white p-5 shadow-2xl" onMouseDown={(event) => event.stopPropagation()}>
+        <h2 id={titleID} className="text-base font-semibold text-[#1F2937]">{title}</h2>
+        {children}
+      </section>
+    </div>
+  );
+}
+
+function TextEntryDialog({
+  title,
+  label,
+  initialValue,
+  submitLabel,
+  onSubmit,
+  onClose,
+}: {
+  title: string;
+  label: string;
+  initialValue: string;
+  submitLabel: string;
+  onSubmit: (value: string) => Promise<void>;
+  onClose: () => void;
+}) {
+  const inputID = useId();
+  const [value, setValue] = useState(initialValue);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const close = () => { if (!busy) onClose(); };
+
+  const submit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const name = value.trim();
+    if (!name) return;
+    setBusy(true);
+    setError("");
+    try {
+      await onSubmit(name);
+      onClose();
+    } catch (caught) {
+      setError(errorMessage(caught));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <DialogFrame title={title} onClose={close}>
+      <form onSubmit={(event) => void submit(event)}>
+        <label htmlFor={inputID} className="mt-4 block text-xs font-medium text-[#475467]">{label}</label>
+        <input id={inputID} autoFocus autoComplete="off" maxLength={120} required value={value} onChange={(event) => setValue(event.target.value)} className="mt-1.5 w-full rounded-lg border border-[#D0D5DD] px-3 py-2.5 text-sm outline-none focus:border-[#315DA8] focus:ring-2 focus:ring-[#315DA8]/15" />
+        {error && <p role="alert" className="mt-2 text-xs leading-5 text-[#B42318]">{error}</p>}
+        <div className="mt-5 flex justify-end gap-2">
+          <button type="button" onClick={close} disabled={busy} className="rounded-lg border border-[#D0D5DD] px-3 py-2 text-xs font-medium text-[#475467] disabled:opacity-50">취소</button>
+          <button type="submit" disabled={busy || !value.trim()} className="rounded-lg bg-[#315DA8] px-3 py-2 text-xs font-medium text-white disabled:opacity-50">{busy ? "저장 중…" : submitLabel}</button>
+        </div>
+      </form>
+    </DialogFrame>
+  );
+}
+
+function ConfirmationDialog({
+  title,
+  description,
+  confirmLabel,
+  onConfirm,
+  onClose,
+}: {
+  title: string;
+  description: string;
+  confirmLabel: string;
+  onConfirm: () => Promise<void>;
+  onClose: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const close = () => { if (!busy) onClose(); };
+  const confirm = async () => {
+    setBusy(true);
+    setError("");
+    try {
+      await onConfirm();
+      onClose();
+    } catch (caught) {
+      setError(errorMessage(caught));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <DialogFrame title={title} onClose={close}>
+      <p className="mt-2 text-sm leading-6 text-[#667085]">{description}</p>
+      {error && <p role="alert" className="mt-3 text-xs leading-5 text-[#B42318]">{error}</p>}
+      <div className="mt-5 flex justify-end gap-2">
+        <button type="button" onClick={close} disabled={busy} className="rounded-lg border border-[#D0D5DD] px-3 py-2 text-xs font-medium text-[#475467] disabled:opacity-50">취소</button>
+        <button type="button" onClick={() => void confirm()} disabled={busy} className="rounded-lg bg-[#B42318] px-3 py-2 text-xs font-medium text-white disabled:opacity-50">{busy ? "처리 중…" : confirmLabel}</button>
+      </div>
+    </DialogFrame>
+  );
+}
+
 function ReadinessLine({ readiness, checking = false }: { readiness: Readiness | null; checking?: boolean }) {
   if (!readiness) return checking
     ? <span className="inline-flex items-center gap-1.5 text-xs text-[#667085]"><LoaderCircle size={14} className="animate-spin" />서버 준비 상태 확인 중</span>
@@ -198,6 +346,8 @@ export function MnemosyneLibrary() {
   const [subjectID, setSubjectID] = useState("");
   const [busyID, setBusyID] = useState("");
   const [notice, setNotice] = useState("");
+  const [subjectEditor, setSubjectEditor] = useState<{ mode: "create" } | { mode: "rename"; subject: MnemosyneSubject } | null>(null);
+  const [confirmAction, setConfirmAction] = useState<{ kind: "subject"; subject: MnemosyneSubject } | { kind: "document"; document: MnemosyneDocument } | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
 
   const reload = useCallback(async () => {
@@ -227,38 +377,24 @@ export function MnemosyneLibrary() {
 
   const visibleDocuments = documents.filter((item) => item.title.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()));
 
-  const addSubject = async () => {
-    const name = window.prompt("새 과목 이름");
-    if (!name?.trim()) return;
+  const addSubject = () => setSubjectEditor({ mode: "create" });
+
+  const renameSubject = (subject: MnemosyneSubject) => setSubjectEditor({ mode: "rename", subject });
+
+  const saveSubject = async (name: string) => {
+    if (!subjectEditor || !name.trim()) return;
+    const editor = subjectEditor;
     setBusyID("subject");
     setNotice("");
     try {
-      await api.createSubject(name.trim());
+      if (editor.mode === "create") await api.createSubject(name.trim());
+      else if (name.trim() !== editor.subject.name) await api.renameSubject(editor.subject, name.trim());
       await reload();
-      setNotice("과목을 저장했습니다.");
-    } catch (caught) {
-      setNotice(errorMessage(caught));
+      setNotice(editor.mode === "create" ? "과목을 저장했습니다." : "과목 이름을 저장했습니다.");
     } finally { setBusyID(""); }
   };
 
-  const renameSubject = async (subject: MnemosyneSubject) => {
-    const name = window.prompt("과목 이름 변경", subject.name);
-    if (!name?.trim() || name.trim() === subject.name) return;
-    setBusyID(subject.subject_id);
-    setNotice("");
-    try { await api.renameSubject(subject, name.trim()); await reload(); setNotice("과목 이름을 저장했습니다."); }
-    catch (caught) { setNotice(errorMessage(caught)); }
-    finally { setBusyID(""); }
-  };
-
-  const removeSubject = async (subject: MnemosyneSubject) => {
-    if (!window.confirm(`과목 “${subject.name}”을 삭제할까요?`)) return;
-    setBusyID(subject.subject_id);
-    setNotice("");
-    try { await api.deleteSubject(subject); if (subjectID === subject.subject_id) setSubjectID(""); await reload(); setNotice("과목을 삭제했습니다."); }
-    catch (caught) { setNotice(errorMessage(caught)); }
-    finally { setBusyID(""); }
-  };
+  const removeSubject = (subject: MnemosyneSubject) => setConfirmAction({ kind: "subject", subject });
 
   const uploadFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.currentTarget.files?.[0];
@@ -290,23 +426,36 @@ export function MnemosyneLibrary() {
     finally { setBusyID(""); }
   };
 
-  const removeDocument = async (item: MnemosyneDocument) => {
-    if (!window.confirm(`“${item.title}” 원본과 서버 기록을 삭제할까요? 삭제할 문서를 다시 확인했습니다.`)) return;
-    setBusyID(item.document_id);
+  const removeDocument = (item: MnemosyneDocument) => setConfirmAction({ kind: "document", document: item });
+
+  const confirmDelete = async () => {
+    if (!confirmAction) return;
+    const action = confirmAction;
+    const busyID = action.kind === "subject" ? action.subject.subject_id : action.document.document_id;
+    setBusyID(busyID);
     setNotice("");
-    try { await api.deleteDocument(item); await reload(); setNotice("문서 삭제를 서버에서 확인했습니다."); }
-    catch (caught) { setNotice(errorMessage(caught)); }
-    finally { setBusyID(""); }
+    try {
+      if (action.kind === "subject") {
+        await api.deleteSubject(action.subject);
+        if (subjectID === action.subject.subject_id) setSubjectID("");
+        await reload();
+        setNotice("과목 삭제를 서버에서 확인했습니다.");
+      } else {
+        await api.deleteDocument(action.document);
+        await reload();
+        setNotice("문서 삭제를 서버에서 확인했습니다.");
+      }
+    } finally { setBusyID(""); }
   };
 
   return (
     <div className="min-h-screen bg-[#F5F6F8] text-[#1F2937] lg:flex">
-      <MnemosyneNav active="library" subjects={subjects} selectedSubjectID={subjectID} onSelectSubject={setSubjectID} onAddSubject={() => void addSubject()} />
+      <MnemosyneNav active="library" subjects={subjects} selectedSubjectID={subjectID} onSelectSubject={setSubjectID} onAddSubject={addSubject} />
       <main className="mx-auto w-full max-w-[1500px] px-5 py-8 lg:min-w-0 lg:flex-1 lg:px-8">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div><div className="flex items-center gap-3"><h1 className="text-2xl font-semibold tracking-tight">라이브러리</h1><ReadinessLine readiness={readiness} checking={loading} /></div><p className="mt-2 text-sm text-[#667085]">원본 PDF와 분석 준비 상태를 관리합니다.</p></div>
           <div className="flex flex-wrap items-center gap-2">
-            <button type="button" onClick={() => void addSubject()} disabled={busyID === "subject"} className="inline-flex items-center gap-2 rounded-lg border border-[#D0D5DD] bg-white px-3 py-2.5 text-sm font-medium hover:bg-[#F9FAFB] disabled:opacity-50"><FolderPlus size={16} />과목 추가</button>
+            <button type="button" onClick={addSubject} disabled={busyID === "subject"} className="inline-flex items-center gap-2 rounded-lg border border-[#D0D5DD] bg-white px-3 py-2.5 text-sm font-medium hover:bg-[#F9FAFB] disabled:opacity-50"><FolderPlus size={16} />과목 추가</button>
             <button type="button" onClick={() => fileRef.current?.click()} disabled={busyID === "upload"} className="inline-flex items-center gap-2 rounded-lg bg-[#315DA8] px-4 py-2.5 text-sm font-medium text-white hover:bg-[#264B8C] disabled:opacity-50"><Upload size={16} />{busyID === "upload" ? "업로드 중…" : "PDF 올리기"}</button>
             <input ref={fileRef} type="file" accept="application/pdf,.pdf" className="sr-only" onChange={(event) => void uploadFile(event)} />
           </div>
@@ -321,44 +470,18 @@ export function MnemosyneLibrary() {
           </section>
 
           <section className="mt-4 flex flex-wrap items-center gap-2" aria-label="과목 목록">
-            {subjects.map((subject) => <div key={subject.subject_id} className={`inline-flex items-center gap-1 rounded-full border px-2 py-1.5 text-xs ${subjectID === subject.subject_id ? "border-[#9AB8E8] bg-[#EDF3FC] text-[#315DA8]" : "border-[#E4E7EC] bg-white text-[#475467]"}`}><button type="button" onClick={() => setSubjectID(subjectID === subject.subject_id ? "" : subject.subject_id)} className="px-1 font-medium">{subject.name}</button><button type="button" aria-label={`${subject.name} 이름 변경`} onClick={() => void renameSubject(subject)} disabled={busyID === subject.subject_id} className="rounded p-1 hover:bg-black/5"><Pencil size={12} /></button><button type="button" aria-label={`${subject.name} 삭제`} onClick={() => void removeSubject(subject)} disabled={busyID === subject.subject_id} className="rounded p-1 text-[#B42318] hover:bg-[#FEF3F2]"><Trash2 size={12} /></button></div>)}
+            {subjects.map((subject) => <div key={subject.subject_id} className={`inline-flex items-center gap-1 rounded-full border px-2 py-1.5 text-xs ${subjectID === subject.subject_id ? "border-[#9AB8E8] bg-[#EDF3FC] text-[#315DA8]" : "border-[#E4E7EC] bg-white text-[#475467]"}`}><button type="button" onClick={() => setSubjectID(subjectID === subject.subject_id ? "" : subject.subject_id)} className="px-1 font-medium">{subject.name}</button><button type="button" aria-label={`${subject.name} 이름 변경`} onClick={() => renameSubject(subject)} disabled={busyID === subject.subject_id} className="rounded p-1 hover:bg-black/5"><Pencil size={12} /></button><button type="button" aria-label={`${subject.name} 삭제`} onClick={() => removeSubject(subject)} disabled={busyID === subject.subject_id} className="rounded p-1 text-[#B42318] hover:bg-[#FEF3F2]"><Trash2 size={12} /></button></div>)}
             {subjects.length === 0 && !loading && <span className="text-xs text-[#667085]">과목을 만들면 문서를 주제별로 모을 수 있습니다.</span>}
           </section>
 
           <div className="mt-6 flex items-center justify-between"><h2 className="text-sm font-semibold">문서 <span className="ml-1 font-normal text-[#667085]">{visibleDocuments.length}</span></h2><button type="button" onClick={() => void reload()} className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-[#667085] hover:bg-white"><RefreshCw size={13} />상태 새로고침</button></div>
-          {loading ? <div className="mt-4 flex items-center justify-center gap-2 rounded-2xl border border-[#EAECF0] bg-white py-16 text-sm text-[#667085]"><LoaderCircle size={17} className="animate-spin" />라이브러리를 불러오는 중</div> : visibleDocuments.length === 0 ? <div className="mt-4 rounded-2xl border border-dashed border-[#D0D5DD] bg-white px-6 py-16 text-center"><FileText size={28} className="mx-auto text-[#98A2B3]" /><h3 className="mt-3 text-sm font-semibold">{query ? "검색 결과가 없습니다" : "아직 등록한 PDF가 없습니다"}</h3><p className="mt-1 text-sm text-[#667085]">{query ? "다른 제목이나 과목을 선택해 보세요." : "PDF를 올리면 원본 읽기와 분석 상태를 여기서 확인할 수 있습니다."}</p>{!query && <button onClick={() => fileRef.current?.click()} className="mt-4 rounded-lg bg-[#315DA8] px-4 py-2 text-sm font-medium text-white">첫 PDF 올리기</button>}</div> : <div className="mt-4 grid gap-3 xl:grid-cols-2">{visibleDocuments.map((item) => <article key={item.document_id} className="rounded-2xl border border-[#EAECF0] bg-white p-5 shadow-[0_1px_2px_rgba(16,24,40,.04)]"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><div className="flex items-center gap-2"><FileText size={17} className="shrink-0 text-[#315DA8]" /><h3 className="truncate text-[15px] font-semibold">{item.title}</h3></div><p className="mt-1 pl-6 text-xs text-[#667085]">{item.page_count}쪽 · {new Date(item.created_at).toLocaleDateString("ko-KR")}</p></div><label className="relative shrink-0"><span className="sr-only">{item.title} 과목</span><select value={item.subject_id ?? ""} onChange={(event) => void changeSubject(item, event.target.value)} disabled={busyID === item.document_id} className="max-w-[150px] appearance-none rounded-lg border border-[#EAECF0] bg-white px-2.5 py-2 pr-7 text-xs text-[#475467]"><option value="">과목 없음</option>{subjects.map((subject) => <option key={subject.subject_id} value={subject.subject_id}>{subject.name}</option>)}</select><ChevronDown size={13} className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[#667085]" /></label></div><div className="mt-4"><DocumentReadiness document={item} /></div><div className="mt-4 flex flex-wrap items-center gap-2 border-t border-[#F2F4F7] pt-4"><Link href={`/learning/reading/${encodeURIComponent(item.document_id)}`} className="inline-flex items-center gap-1.5 rounded-lg bg-[#315DA8] px-3 py-2 text-xs font-medium text-white no-underline hover:bg-[#264B8C]">PDF 읽기 <ArrowLeft size={13} className="rotate-180" /></Link><button type="button" onClick={() => void download(item)} disabled={!item.original_available || busyID === item.document_id} className="inline-flex items-center gap-1.5 rounded-lg border border-[#D0D5DD] px-3 py-2 text-xs font-medium text-[#475467] disabled:opacity-40"><Download size={14} />원본 다운로드</button><button type="button" onClick={() => void removeDocument(item)} disabled={busyID === item.document_id} className="ml-auto inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium text-[#B42318] hover:bg-[#FEF3F2] disabled:opacity-50"><Trash2 size={14} />삭제</button></div>{item.parse_state === "failed" || item.index_state === "failed" ? <p className="mt-3 text-xs text-[#B42318]">서버 분석이 실패했습니다. 현재 계약에는 재분석 action이 없으므로 상태만 다시 확인할 수 있습니다.</p> : null}</article>)}</div>}
+          {loading ? <div className="mt-4 flex items-center justify-center gap-2 rounded-2xl border border-[#EAECF0] bg-white py-16 text-sm text-[#667085]"><LoaderCircle size={17} className="animate-spin" />라이브러리를 불러오는 중</div> : visibleDocuments.length === 0 ? <div className="mt-4 rounded-2xl border border-dashed border-[#D0D5DD] bg-white px-6 py-16 text-center"><FileText size={28} className="mx-auto text-[#98A2B3]" /><h3 className="mt-3 text-sm font-semibold">{query ? "검색 결과가 없습니다" : "아직 등록한 PDF가 없습니다"}</h3><p className="mt-1 text-sm text-[#667085]">{query ? "다른 제목이나 과목을 선택해 보세요." : "PDF를 올리면 원본 읽기와 분석 상태를 여기서 확인할 수 있습니다."}</p>{!query && <button onClick={() => fileRef.current?.click()} className="mt-4 rounded-lg bg-[#315DA8] px-4 py-2 text-sm font-medium text-white">첫 PDF 올리기</button>}</div> : <div className="mt-4 grid gap-3 xl:grid-cols-2">{visibleDocuments.map((item) => <article key={item.document_id} className="rounded-2xl border border-[#EAECF0] bg-white p-5 shadow-[0_1px_2px_rgba(16,24,40,.04)]"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><div className="flex items-center gap-2"><FileText size={17} className="shrink-0 text-[#315DA8]" /><h3 className="truncate text-[15px] font-semibold">{item.title}</h3></div><p className="mt-1 pl-6 text-xs text-[#667085]">{item.page_count}쪽 · {new Date(item.created_at).toLocaleDateString("ko-KR")}</p></div><label className="relative shrink-0"><span className="sr-only">{item.title} 과목</span><select value={item.subject_id ?? ""} onChange={(event) => void changeSubject(item, event.target.value)} disabled={busyID === item.document_id} className="max-w-[150px] appearance-none rounded-lg border border-[#EAECF0] bg-white px-2.5 py-2 pr-7 text-xs text-[#475467]"><option value="">과목 없음</option>{subjects.map((subject) => <option key={subject.subject_id} value={subject.subject_id}>{subject.name}</option>)}</select><ChevronDown size={13} className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[#667085]" /></label></div><div className="mt-4"><DocumentReadiness document={item} /></div><div className="mt-4 flex flex-wrap items-center gap-2 border-t border-[#F2F4F7] pt-4"><Link href={`/learning/reading/${encodeURIComponent(item.document_id)}`} className="inline-flex items-center gap-1.5 rounded-lg bg-[#315DA8] px-3 py-2 text-xs font-medium text-white no-underline hover:bg-[#264B8C]">PDF 읽기 <ArrowLeft size={13} className="rotate-180" /></Link><button type="button" onClick={() => void download(item)} disabled={!item.original_available || busyID === item.document_id} className="inline-flex items-center gap-1.5 rounded-lg border border-[#D0D5DD] px-3 py-2 text-xs font-medium text-[#475467] disabled:opacity-40"><Download size={14} />원본 다운로드</button><button type="button" onClick={() => removeDocument(item)} disabled={busyID === item.document_id} className="ml-auto inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium text-[#B42318] hover:bg-[#FEF3F2] disabled:opacity-50"><Trash2 size={14} />삭제</button></div>{item.parse_state === "failed" || item.index_state === "failed" ? <p className="mt-3 text-xs text-[#B42318]">서버 분석이 실패했습니다. 현재 계약에는 재분석 action이 없으므로 상태만 다시 확인할 수 있습니다.</p> : null}</article>)}</div>}
         </>}
       </main>
+      {subjectEditor && <TextEntryDialog title={subjectEditor.mode === "create" ? "과목 추가" : "과목 이름 변경"} label="과목 이름" initialValue={subjectEditor.mode === "create" ? "" : subjectEditor.subject.name} submitLabel={subjectEditor.mode === "create" ? "과목 추가" : "이름 저장"} onSubmit={saveSubject} onClose={() => setSubjectEditor(null)} />}
+      {confirmAction && <ConfirmationDialog title={confirmAction.kind === "subject" ? "과목 삭제" : "문서 삭제"} description={confirmAction.kind === "subject" ? `“${confirmAction.subject.name}” 과목 삭제를 서버에 요청합니다. 계속할까요?` : `“${confirmAction.document.title}” 문서와 원본 PDF 삭제를 서버에 요청합니다. 계속할까요?`} confirmLabel="삭제" onConfirm={confirmDelete} onClose={() => setConfirmAction(null)} />}
     </div>
   );
-}
-
-function pdfPointToUnit(point: [number, number], geometry: PageGeometry): [number, number] {
-  const [x0, y0, x1, y1] = geometry.crop_box;
-  const width = x1 - x0;
-  const height = y1 - y0;
-  const u = point[0] - x0;
-  const v = point[1] - y0;
-  let x = 0;
-  let y = 0;
-  let viewWidth = width;
-  let viewHeight = height;
-  switch (geometry.rotation_degrees) {
-    case 0: x = u; y = height - v; break;
-    case 90: x = v; y = u; viewWidth = height; viewHeight = width; break;
-    case 180: x = width - u; y = v; break;
-    case 270: x = height - v; y = width - u; viewWidth = height; viewHeight = width; break;
-  }
-  return [x / viewWidth, y / viewHeight];
-}
-
-function pdfRectToUnit(rect: PdfRect, geometry: PageGeometry): [number, number, number, number] {
-  const [x, y, width, height] = rect;
-  const corners: Array<[number, number]> = [[x, y], [x + width, y], [x, y + height], [x + width, y + height]];
-  const unit = corners.map((point) => pdfPointToUnit(point, geometry));
-  const xs = unit.map(([pointX]) => pointX);
-  const ys = unit.map(([, pointY]) => pointY);
-  return [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)];
 }
 
 function toReaderAnnotationItems(records: MnemosyneAnnotation[], geometryByPage: Record<number, PageGeometry>): AnnotationItem[] {
@@ -368,7 +491,7 @@ function toReaderAnnotationItems(records: MnemosyneAnnotation[], geometryByPage:
     const anchor = payload && isRecord(payload.anchor) ? payload.anchor : null;
     const geometry = geometryByPage[record.page_index];
     const rawRects = anchor && Array.isArray(anchor.rects) ? anchor.rects as PdfRect[] : [];
-    const rects = geometry ? rawRects.map((rect) => pdfRectToUnit(rect, geometry)) : [];
+    const rects = geometry ? rawRects.map((rect) => pdfRectToPageUnit(rect, geometry)) : [];
     const body = payload && typeof payload.body === "string" ? payload.body : "";
     const color = payload && typeof payload.color === "string" ? payload.color : "#FFE082AA";
     if (record.kind === "highlight" && !rects.length) return [];
@@ -394,16 +517,14 @@ function toReaderInk(records: MnemosyneAnnotation[], geometryByPage: Record<numb
     if (record.deleted || record.kind !== "ink" || !record.payload || !Array.isArray(record.payload.strokes)) return [];
     const geometry = geometryByPage[record.page_index];
     if (!geometry) return [];
-    const [llx, lly, urx, ury] = geometry.crop_box;
-    const physicalWidth = (geometry.rotation_degrees === 90 || geometry.rotation_degrees === 270 ? ury - lly : urx - llx) * geometry.user_unit;
     return (record.payload.strokes as Array<Record<string, unknown>>).flatMap((stroke) => {
       if (!Array.isArray(stroke.points) || typeof stroke.stroke_id !== "string" || typeof stroke.color !== "string" || typeof stroke.width_pt !== "number" || (stroke.tool !== "pen" && stroke.tool !== "highlighter")) return [];
       const points = stroke.points.flatMap((point) => {
         if (!isRecord(point) || typeof point.x !== "number" || typeof point.y !== "number") return [];
-        return [pdfPointToUnit([point.x, point.y], geometry)];
+        return [pdfPointToPageUnit([point.x, point.y], geometry)];
       });
       if (!points.length) return [];
-      return [{ stroke_id: stroke.stroke_id, locator: record.page_index + 1, tool: stroke.tool, color: stroke.color, width: stroke.width_pt / physicalWidth, points } satisfies InkOverlayStroke];
+      return [{ stroke_id: stroke.stroke_id, locator: record.page_index + 1, tool: stroke.tool, color: stroke.color, width: pdfStrokeWidthToPageUnit(stroke.width_pt, geometry), points } satisfies InkOverlayStroke];
     });
   });
 }
@@ -490,6 +611,7 @@ export function MnemosyneReader({ documentID }: { documentID: string }) {
   const [noteComposer, setNoteComposer] = useState(false);
   const [noteDraft, setNoteDraft] = useState("");
   const [pendingSuggestion, setPendingSuggestion] = useState<{ event: SemanticEvent; citation: VerifiedCitation } | null>(null);
+  const [deleteCandidate, setDeleteCandidate] = useState<MnemosyneAnnotation | null>(null);
   const [quiz, setQuiz] = useState<MnemosyneQuiz | null>(null);
   const [learningRefresh, setLearningRefresh] = useState(0);
   const [panelMode, setPanelMode] = useState<"tutor" | "notes" | "quiz">("tutor");
@@ -609,18 +731,25 @@ export function MnemosyneReader({ documentID }: { documentID: string }) {
     finally { setSearchBusy(false); }
   };
 
-  const mutate = async (mutation: Record<string, unknown>, statusLabel: string) => {
-    if (!document) return;
+  const mutate = async (mutation: Record<string, unknown>, statusLabel: string): Promise<boolean> => {
+    if (!document) return false;
     setAnnotationBusy("save");
     setNotice("");
     try {
       const receipt = await api.mutateAnnotations(document, [mutation]);
       applyMutationReceipt(receipt, document);
-      const fresh = await api.annotationSnapshot(document);
-      setSnapshot(fresh);
-      setNotice(statusLabel);
-    } catch (caught) { setNotice(errorMessage(caught)); }
-    finally { setAnnotationBusy(""); }
+      try {
+        const fresh = await api.annotationSnapshot(document);
+        setSnapshot(fresh);
+        setNotice(statusLabel);
+      } catch (caught) {
+        setNotice(`${statusLabel} 목록을 새로 불러오지 못했습니다: ${errorMessage(caught)}`);
+      }
+      return true;
+    } catch (caught) {
+      setNotice(errorMessage(caught));
+      return false;
+    } finally { setAnnotationBusy(""); }
   };
 
   const saveHighlight = async () => {
@@ -644,14 +773,19 @@ export function MnemosyneReader({ documentID }: { documentID: string }) {
     const [llx, lly, urx, ury] = currentGeometry.crop_box;
     const position = anchor?.rects[0] ? [anchor.rects[0][0] + anchor.rects[0][2] / 2, anchor.rects[0][1] + anchor.rects[0][3] / 2] : [(llx + urx) / 2, (lly + ury) / 2];
     const annotation = { annotation_id: newUUID(), kind: "note" as const, payload: { page_index: currentPage, payload: { position, body: noteDraft.trim(), anchor } } };
-    await mutate(annotationMutation(document, annotation), "노트를 서버에 저장했습니다.");
-    setNoteDraft("");
-    setNoteComposer(false);
+    const saved = await mutate(annotationMutation(document, annotation), "노트를 서버에 저장했습니다.");
+    if (saved) {
+      setNoteDraft("");
+      setNoteComposer(false);
+    }
   };
 
-  const deleteAnnotation = async (annotation: MnemosyneAnnotation) => {
-    if (!document || !window.confirm("이 주석을 삭제할까요? 삭제 기록은 동기화용 tombstone으로 보관됩니다.")) return;
-    await mutate(annotationDeleteMutation(document, annotation), "주석 삭제를 서버에서 확인했습니다.");
+  const deleteAnnotation = (annotation: MnemosyneAnnotation) => setDeleteCandidate(annotation);
+
+  const confirmDeleteAnnotation = async () => {
+    if (!document || !deleteCandidate) return;
+    const saved = await mutate(annotationDeleteMutation(document, deleteCandidate), "주석 삭제를 서버에서 확인했습니다.");
+    if (!saved) throw new Error("서버에서 주석 삭제를 확인하지 못했습니다. 오류를 확인하고 다시 시도하세요.");
   };
 
   const exportAnnotated = async () => {
@@ -700,8 +834,7 @@ export function MnemosyneReader({ documentID }: { documentID: string }) {
     if (!["highlight", "note", "bookmark", "ink"].includes(kind)) { setReaderError("지원하지 않는 주석 제안입니다."); return; }
     const baseRecord = snapshot?.annotations.find((item) => item.annotation_id === draft.annotation_id);
     const mutation = annotationMutation(document, { annotation_id: draft.annotation_id, kind, payload: { page_index: draft.page_index, payload: draft.payload } }, suggestedMutationID, baseRecord?.server_revision ?? 0);
-    await mutate(mutation, "Tutor 주석 제안을 승인해 저장했습니다.");
-    setPendingSuggestion(null);
+    if (await mutate(mutation, "Tutor 주석 제안을 승인해 저장했습니다.")) setPendingSuggestion(null);
   };
 
   if (loading && !document) return <div className="flex min-h-screen flex-col bg-[#F5F6F8] lg:flex-row"><MnemosyneNav active="library" /><div className="flex min-h-[60vh] flex-1 items-center justify-center gap-2 text-sm text-[#667085]"><LoaderCircle size={17} className="animate-spin" />문서를 여는 중</div></div>;
@@ -755,6 +888,7 @@ export function MnemosyneReader({ documentID }: { documentID: string }) {
           </aside>
         </div>
       </div>
+      {deleteCandidate && <ConfirmationDialog title="주석 삭제" description="이 주석을 삭제할까요? 삭제 기록은 동기화용 tombstone으로 보관됩니다." confirmLabel="삭제" onConfirm={confirmDeleteAnnotation} onClose={() => setDeleteCandidate(null)} />}
     </div>
   );
 }
@@ -996,6 +1130,11 @@ function TutorPanel({
 
   const start = (message: string, selectedCapability = capability) => {
     if (!message.trim() || !geometry) return;
+    const nativeCapability = nativeTutorCapability(selectedCapability);
+    if (!nativeCapability) {
+      setError("기억 카드·진도·복습은 학습 화면의 저장된 학습 기능에서 이용해 주세요.");
+      return;
+    }
     const sessionID = makeSessionID();
     const request: MnemosyneTurnRequest = {
       client_mutation_id: newUUID(),
@@ -1019,10 +1158,12 @@ function TutorPanel({
       content: request.message,
       client_submission_id: request.client_mutation_id,
       session_id: sessionID,
-      capability: "chat",
+      capability: nativeCapability,
+      capability_once: selectedCapability !== "chat",
       reply_language_override: "ko",
-      language: document.content_language,
-      config: { mnemosyne: { contract_version: MNEMOSYNE_CONTRACT_VERSION, turn_request: request } },
+      language: "ko",
+      skills: ["__mnemosyne_disabled__"],
+      mcp: ["__mnemosyne_disabled__"],
     };
     runtimeRef.current = { request, command, sessionID, turnID: null, lastSeq: 0, reconnecting: false, shouldReconnect: true, assistantMessageID };
     citationMapRef.current.clear();
@@ -1381,6 +1522,7 @@ function MnemosyneSettingsContent() {
   const [responseLanguage, setResponseLanguage] = useState("ko");
   const [apiKey, setApiKey] = useState("");
   const [saving, setSaving] = useState(false);
+  const [revokeOpen, setRevokeOpen] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -1427,16 +1569,13 @@ function MnemosyneSettingsContent() {
     finally { setSaving(false); }
   };
 
-  const revoke = async () => {
-    if (!window.confirm("이 브라우저의 서버 페어링을 폐기할까요?")) return;
+  const confirmRevoke = async () => {
     setNotice("");
-    try {
-      const result = await api.revokeSession();
-      if (!result.revoked) throw new Error("서버가 세션 폐기를 확인하지 않았습니다.");
-      setNotice("이 브라우저의 서버 세션을 폐기했습니다.");
-      setSettings(null);
-      setReadiness(null);
-    } catch (caught) { setError(caught); }
+    const result = await api.revokeSession();
+    if (!result.revoked) throw new Error("서버가 세션 폐기를 확인하지 않았습니다.");
+    setNotice("이 브라우저의 서버 세션을 폐기했습니다.");
+    setSettings(null);
+    setReadiness(null);
   };
 
   return (
@@ -1448,7 +1587,7 @@ function MnemosyneSettingsContent() {
         {loading && <div className="mt-6 flex items-center justify-center gap-2 rounded-2xl border border-[#EAECF0] bg-white py-14 text-sm text-[#667085]"><LoaderCircle size={16} className="animate-spin" />서버 설정을 불러오는 중</div>}
         {!loading && settings && <>
           <section className="mt-6 rounded-2xl border border-[#EAECF0] bg-white p-5"><div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-sm font-semibold">서버 준비 상태</h2><p className="mt-1 text-xs text-[#667085]">연결 주소 {api.baseURL.origin} · 계약 {MNEMOSYNE_CONTRACT_VERSION}</p></div><ReadinessLine readiness={readiness} checking={loading} /></div>{readinessError && <p role="status" className="mt-3 text-xs leading-5 text-[#7A2E0E]">서버 준비 정보를 확인하지 못했습니다. {readinessError}</p>}{readiness && <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">{Object.entries(readiness.components).map(([name, status]) => <div key={name} className="rounded-lg bg-[#F8FAFC] px-3 py-2"><div className="text-[10px] uppercase text-[#667085]">{name}</div><div className={`mt-1 text-xs font-medium ${status === "ready" ? "text-[#027A48]" : status === "failed" ? "text-[#B42318]" : "text-[#B54708]"}`}>{status}</div></div>)}</div>}
-            <p className="mt-3 text-xs text-[#667085]">준비된 기능: {readiness?.capabilities.join(" · ") || "확인할 수 없음"}</p><button type="button" onClick={() => void revoke()} className="mt-4 rounded-lg border border-[#D0D5DD] px-3 py-2 text-xs text-[#B42318]">이 브라우저 페어링 폐기</button>
+            <p className="mt-3 text-xs text-[#667085]">준비된 기능: {readiness?.capabilities.join(" · ") || "확인할 수 없음"}</p><button type="button" onClick={() => setRevokeOpen(true)} className="mt-4 rounded-lg border border-[#D0D5DD] px-3 py-2 text-xs text-[#B42318]">이 브라우저 페어링 폐기</button>
           </section>
           <form onSubmit={(event) => void save(event)} className="mt-4 rounded-2xl border border-[#EAECF0] bg-white p-5">
             <div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="text-sm font-semibold">OpenAI-compatible 모델</h2><p className="mt-1 text-xs text-[#667085]">모델 선택과 기본 응답 언어를 서버 설정에 저장합니다.</p></div><span className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${settings.provider.credential_configured ? "bg-[#ECFDF3] text-[#027A48]" : "bg-[#FFFAEB] text-[#B54708]"}`}>{settings.provider.credential_configured ? "API 키 설정됨" : "API 키 미설정"}</span></div>
@@ -1460,6 +1599,7 @@ function MnemosyneSettingsContent() {
         </>}
         {!loading && !settings && !error && <div className="mt-5 rounded-2xl border border-[#EAECF0] bg-white p-5"><h2 className="text-sm font-semibold">개인 서버 페어링</h2><p className="mt-1 text-xs text-[#667085]">서버의 일회용 코드를 사용해 이 브라우저를 연결하세요.</p><PairingPanel api={api} onPaired={load} /></div>}
       </main>
+      {revokeOpen && <ConfirmationDialog title="페어링 폐기" description="이 브라우저의 서버 페어링을 폐기할까요? 폐기 후에는 다시 연결해야 합니다." confirmLabel="페어링 폐기" onConfirm={confirmRevoke} onClose={() => setRevokeOpen(false)} />}
     </div>
   );
 }

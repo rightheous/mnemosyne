@@ -538,7 +538,8 @@ export function SidebarHome({
   const pathname = usePathname();
   const { has } = useCapabilityAccess();
   const { learningPolicy } = useAuthStatus();
-  const entry = NAV_BY_HREF.get("/chat")!;
+  const entry = NAV_BY_HREF.get("/chat");
+  if (!entry) return null;
   if (
     learningPolicy &&
     !navVisibleUnderPolicy("/chat", learningPolicy.allowedSurfaces)
