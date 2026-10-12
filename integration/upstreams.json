@@ -23790,8 +23790,8 @@
       "source_commit": "69ea093ee2e0f27dc49f1492d0c47517e6aa0682"
     },
     "upstreams/DeepTutor/web/app/layout.tsx": {
-      "reason": "Integration attribution: source snapshot extension from 8330692e3b4b (feat(unit-05): add Mnemosyne web learning screens); original pinned upstream SHA remains recorded in sources.files.",
-      "current_sha256": "3079c4ab6c35fe5fa1bb6097703b97c5bd820c16eed60259bbe99ab61fa9cdfa",
+      "reason": "Integration attribution: source snapshot extension from 8330692e3b4b (feat(unit-05): add Mnemosyne web learning screens); original pinned upstream SHA remains recorded in sources.files. Mnemosyne brand icons now resolve to integration_added_files.",
+      "current_sha256": "70152a0624ede8ca2d09a0308b5c787c18486244787d186e7e6ce57ec928ae35",
       "source_commit": "8330692e3b4b04e4af53b8f0c9e1259c1207007f"
     },
     "upstreams/DeepTutor/web/components/reading/AnnotationLayer.tsx": {
@@ -23910,8 +23910,8 @@
       "source_commit": "e22a0e9d421adf3020e5359dcbda541e5ba378e0"
     },
     "upstreams/DeepTutor/web/features/mnemosyne/screens.tsx": {
-      "reason": "Integration attribution: source snapshot extension from e22a0e9d421a (feat(unit-05): align reader surfaces with native tutor); original pinned upstream SHA remains recorded in sources.files when present.",
-      "current_sha256": "f2b566b5e5692b89b1934152c9232c28b3e69bf5e797fc45011938358089625a",
+      "reason": "Integration attribution: source snapshot extension from e22a0e9d421a (feat(unit-05): align reader surfaces with native tutor); original pinned upstream SHA remains recorded in sources.files when present. Mnemosyne navigation now uses the shared user brand mark and teal active state.",
+      "current_sha256": "7d5bc62b2eca0b3b8e17ef21e3c231dd727e9b084659cea5e8be756a5d1f9858",
       "source_commit": "e22a0e9d421adf3020e5359dcbda541e5ba378e0"
     },
     "upstreams/DeepTutor/web/tests/pdf-reading-resize.spec.tsx": {
@@ -23963,6 +23963,10 @@
       "reason": "UNIT-03 integration: Add a PDFKit regression test that exports a sidecar-only highlight and verifies the source PDF bytes remain unchanged. Original pinned SHA remains recorded in sources.files.",
       "current_sha256": "c340a4352e95697ed586e49ac95ca1798ba6d145104a5173a5de862f6ae376aa",
       "source_commit": "ae202f0cf1096d5fcc0ab1ecd325ac20a0d8e4b1"
+    },
+    "upstreams/Pumice/App/Assets.xcassets/AppIcon.appiconset/pumice_icon.png": {
+      "reason": "Integrator branding override: 1024px app icon prepared from the user-provided Mnemosyne emblem; the pinned Pumice source hash remains recorded in sources.files.",
+      "current_sha256": "5db2fcdeddc6fb74e58b7a037690f29f9c769f1c8a04f7c71929b664fa422a86"
     }
   },
   "integration_added_files": [
@@ -24001,6 +24005,12 @@
       "sha256": "38db05d9621b6eceea6f62a553b64b7570952f8eca57a0b677691da43e406e97",
       "owner": "INTEGRATOR",
       "purpose": "Integration tests for the paired and versioned quiz generation HTTP route."
+    },
+    {
+      "path": "upstreams/DeepTutor/web/public/mnemosyne-mark.png",
+      "sha256": "5db2fcdeddc6fb74e58b7a037690f29f9c769f1c8a04f7c71929b664fa422a86",
+      "owner": "INTEGRATOR",
+      "purpose": "Shared Mnemosyne mark for web navigation and browser/apple site icons, faithfully reproduced from the user-provided emblem."
     }
   ]
 }

@@ -3991,6 +3991,7 @@
       "upstreams/DeepTutor/tests/mnemosyne/test_learning_store.py",
       "upstreams/DeepTutor/tests/mnemosyne/test_provider_runtime.py",
       "upstreams/DeepTutor/tests/mnemosyne/test_quiz_http.py",
+      "upstreams/DeepTutor/web/public/mnemosyne-mark.png",
       "upstreams/Pumice/.gitignore",
       "upstreams/Pumice/CLAUDE.md",
       "upstreams/Pumice/Gemfile",
@@ -4101,6 +4102,11 @@
       "integrator_scope": "Exercise paired native Tutor, verified selection and server-resolved Reading adapter behavior."
     },
     {
+      "path": "upstreams/DeepTutor/web/app/layout.tsx",
+      "file_owner": "UNIT-05",
+      "integrator_scope": "Point the Mnemosyne browser and Apple touch icons at the shared brand mark."
+    },
+    {
       "path": "upstreams/DeepTutor/web/features/mnemosyne/register.ts",
       "file_owner": "UNIT-05",
       "integrator_scope": "Connect quiz generation and idempotent attempt/review/progress APIs to contract 0.2.0."
@@ -4108,7 +4114,12 @@
     {
       "path": "upstreams/DeepTutor/web/features/mnemosyne/screens.tsx",
       "file_owner": "UNIT-05",
-      "integrator_scope": "Persist Tutor turn checkpoints and stable quiz generation, quiz attempt, Memory review and measured progress retry identities."
+      "integrator_scope": "Keep the durable Tutor, quiz and progress integrations; use the shared Mnemosyne mark in navigation and teal for the active navigation state."
+    },
+    {
+      "path": "upstreams/Pumice/App/Assets.xcassets/AppIcon.appiconset/pumice_icon.png",
+      "file_owner": "UNIT-04",
+      "integrator_scope": "Replace the placeholder with the user-provided Mnemosyne brand mark for the iOS app icon."
     },
     {
       "path": "upstreams/Pumice/App/LaunchView.swift",

@@ -55,3 +55,7 @@ UNIT-02는 제공된 전용 브랜치/commit으로 통합했고 PR 링크는 제
 ## End-to-end 수락 흐름 상태
 
 작은 PDF end-to-end는 **부분 실행**했다. `checks/integration_pdf_flow.py --allow-index-unavailable`의 loopback HTTP 요청은 pairing부터 upload, 2쪽 parse/search, verified citation, annotation retry와 tombstone, export, 원본 SHA 보존, SQLite reopen, progress retry, session revoke/WebSocket bridge까지 통과했다. index 상태는 `llama_index` 부재로 `failed`였다. 따라서 실제 Tutor LLM 답변, Reader의 선택/문장 강조, iPad 필기 sync, 웹에서 복구한 전체 UI와 RAG 기반 quiz 생성은 아직 단일 흐름에서 검증되지 않았다. SQLite 저장소 테스트는 quiz/attempt/assessment/mastery/Memory의 저장·중복 재전송·reopen을 별도 확인했으며, 이를 전체 사용자 흐름 통과로 간주하지 않는다. 실행별 자세한 결과는 [docs/VALIDATION.md](../VALIDATION.md)에 있다.
+
+## 브랜딩 후속 작업
+
+사용자가 제공한 불꽃·청록 원·M 심볼을 1024×1024 PNG로 준비해 iOS `AppIcon`과 웹 `public/mnemosyne-mark.png`에 연결했다. 웹 전역 아이콘 메타데이터와 Mnemosyne 내비게이션 헤더가 같은 자산을 사용하고, 활성 메뉴 색을 심볼의 청록 계열로 맞췄다. `integration/ownership.json`의 세 기존 경로 예외와 `integration/upstreams.json`의 원본 override·신규 통합 자산 digest를 기록했다. 웹 typecheck, consumer fixture, contract/source/ownership 검사는 통과했다. 외부 Google Fonts fetch가 막혀 production build는 계속 미완료이며, 실제 브라우저와 Xcode/iPad 빌드도 이 환경에서 확인하지 않았다.

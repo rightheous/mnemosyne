@@ -6,8 +6,9 @@
 여섯 unit의 지정 commit은 모두 통합 기준의 조상이다. 통합 과정에서 서버
 Tutor 재접속 receipt route를 실제 등록하고, semantic turn event의 계약 버전을
 `0.2.0`으로 맞췄다. Quiz 생성, attempt, assessment, mastery, Memory, progress와
-activity는 SQLite에 보존한다. 아래 결과는 구현 확인과 실행 환경의 제품 검증을
-구분한다.
+activity는 SQLite에 보존한다. 2026-10-12 후속 변경은 사용자 제공 Mnemosyne 표장을
+iOS 앱 아이콘과 웹 헤더/사이트 아이콘에 연결했다. 아래 결과는 구현 확인과 실행
+환경의 제품 검증을 구분한다.
 
 ## 실행한 검사
 
@@ -24,6 +25,7 @@ activity는 SQLite에 보존한다. 아래 결과는 구현 확인과 실행 환
 | Web `npm run architecture:check` | **PASS** — 913 modules, 2,844 dependencies. |
 | 변경한 화면의 scoped ESLint | **PASS WITH WARNINGS** — 0 errors, 38 `i18n/no-literal-ui-text` warnings. |
 | `checks/web-consumer.mjs` | **PASS** — PDF.js fixture 2쪽, geometry 4 case, 11 events, 12 native frames. `actualBrowserVerified=false`; browser 화면 테스트는 아니다. |
+| Branding follow-up | **PASS** — iOS app icon과 웹 표장 PNG가 각각 1024×1024이며, 웹 메타데이터·내비게이션이 같은 신규 자산을 참조한다. 소유권 예외와 asset digest도 source gate에서 확인했다. |
 | `npm run test:node` | **PARTIAL** — 206/209 통과. 나머지 3개는 sandbox가 `git` subprocess 및 `os.networkInterfaces()`를 차단해 실패했다. |
 | `npm run test:unit -- --maxWorkers=1 --reporter=dot` | **PARTIAL** — 146 files 중 145, 656 tests 중 652 통과. `i18n-audit`의 subprocess 실행 4개는 sandbox 제한으로 stdout/stderr 없이 실패했다. |
 | `npm run build` | **BLOCKED** — Next.js가 Google Fonts에서 Geist/Lora를 가져오지 못해 production build를 완료하지 못했다. |

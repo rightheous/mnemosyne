@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import type React from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { ArrowLeft, BookOpen, Check, ChevronDown, CircleAlert, Download, FileText, FolderPlus, LoaderCircle, MessageCircle, Pencil, Plus, RefreshCw, Search, Settings2, Trash2, Upload } from "lucide-react";
 import { PdfDocumentView, type JumpRequest, type SelectionPayload } from "@/components/reading/PdfDocumentView";
 import type { AnnotationItem } from "@/lib/reading-api";
@@ -97,12 +98,12 @@ function MnemosyneNav({
     <aside className="sticky top-0 z-30 w-full shrink-0 border-b border-[#E4E7EC] bg-white/95 backdrop-blur lg:h-screen lg:w-64 lg:border-b-0 lg:border-r">
       <div className="flex min-h-16 items-center justify-between gap-3 px-5 py-3 lg:h-full lg:flex lg:flex-col lg:items-stretch lg:px-4 lg:py-6">
         <Link href="/learning/reading" className="flex shrink-0 items-center gap-3 text-[#1F2937] no-underline">
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#315DA8] text-white"><BookOpen size={19} /></span>
+          <Image src="/mnemosyne-mark.png" alt="" width={36} height={36} className="h-9 w-9 rounded-xl border border-[#E4E7EC] bg-[#FCFCFB] object-cover" />
           <span><span className="block text-[15px] font-semibold tracking-tight">므네모시네</span><span className="block text-[11px] text-[#667085]">개인 학습 공간</span></span>
         </Link>
         <nav aria-label="주요 메뉴" className="flex items-center gap-1 lg:mt-8 lg:flex-col lg:items-stretch">
           {items.map(({ id, href, label, icon: Icon }) => (
-            <Link key={id} href={href} aria-current={active === id ? "page" : undefined} className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-[13px] no-underline transition lg:w-full ${active === id ? "bg-[#EDF3FC] font-semibold text-[#315DA8]" : "text-[#667085] hover:bg-[#F2F4F7] hover:text-[#1F2937]"}`}>
+            <Link key={id} href={href} aria-current={active === id ? "page" : undefined} className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-[13px] no-underline transition lg:w-full ${active === id ? "bg-[#E8F2F1] font-semibold text-[#155E63]" : "text-[#667085] hover:bg-[#F2F4F7] hover:text-[#1F2937]"}`}>
               <Icon size={16} aria-hidden="true" /><span className="hidden sm:inline">{label}</span>
             </Link>
           ))}
