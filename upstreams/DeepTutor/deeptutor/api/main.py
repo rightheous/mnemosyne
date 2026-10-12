@@ -127,6 +127,19 @@ async def lifespan(app: FastAPI):
     from deeptutor.mnemosyne.bootstrap import register_mnemosyne
 
     app.state.mnemosyne = register_mnemosyne(application_container)
+    # The Library router is created only after the real process-wide services
+    # exist. Every external /v1 Library operation shares the same pairing and
+    # Origin guard; Tutor continues to consume the adapters directly.
+    if not getattr(app.state, "mnemosyne_library_router_mounted", False):
+        from deeptutor.mnemosyne.http import require_mnemosyne_session
+        from deeptutor.mnemosyne.library import build_library_router
+
+        app.include_router(
+            build_library_router(app.state.mnemosyne.library),
+            dependencies=[Depends(require_mnemosyne_session)],
+        )
+        app.state.mnemosyne_library_router_mounted = True
+        app.openapi_schema = None
     from deeptutor.api.utils.progress_broadcaster import ProgressBroadcaster
     from deeptutor.api.utils.task_log_stream import get_task_stream_manager
     from deeptutor.knowledge.progress_events import install_progress_ports
@@ -414,6 +427,14 @@ app = FastAPI(
     # See: https://github.com/HKUDS/DeepTutor/issues/112
     redirect_slashes=False,
 )
+from deeptutor.mnemosyne.http import (
+    MnemosyneAuthError,
+    MnemosyneWebSocketBearerMiddleware,
+    auth_error_response,
+)
+
+app.add_exception_handler(MnemosyneAuthError, auth_error_response)
+app.add_middleware(MnemosyneWebSocketBearerMiddleware)
 app.add_middleware(WorkspaceActivityMiddleware)
 
 
@@ -794,6 +815,12 @@ app.include_router(
 # Unified WebSocket endpoint — auth is checked inside the handler (WebSockets
 # cannot use FastAPI dependencies in the standard way)
 app.include_router(unified_ws.router, tags=["unified-ws"])
+
+# Pairing and readiness endpoints are static routes; the Library router above
+# is mounted during lifespan once its service instance is available.
+from deeptutor.mnemosyne.http import router as mnemosyne_http_router
+
+app.include_router(mnemosyne_http_router)
 
 # Quiz AI-judge WebSocket — same caveat as unified_ws above; auth is checked
 # inside the handler so the WS upgrade isn't rejected by an HTTP-style dep.

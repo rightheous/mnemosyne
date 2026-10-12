@@ -1,4 +1,5 @@
 import CoreGraphics
+import CryptoKit
 import Foundation
 import PDFKit
 import PumiceCore
@@ -165,6 +166,63 @@ struct RoundTripTests {
         let expectedHighlightID = AnnotationID(pageIndex: 0, annotationUUID: highlightUUID).stringValue
         let stamps = reloadedPage.annotations.compactMap(\.userName)
         #expect(Set(stamps) == [expectedInkID, expectedHighlightID])
+    }
+
+    @Test("Derived export includes a local sidecar highlight and leaves the source unchanged")
+    func sidecarHighlightExport() throws {
+        let document = try #require(makeBlankDocument())
+        let page = try #require(document.page(at: 0))
+        let sourceMarker = PDFAnnotation(bounds: CGRect(x: 10, y: 10, width: 80, height: 20),
+                                         forType: .freeText, withProperties: nil)
+        sourceMarker.contents = UUID().uuidString
+        page.addAnnotation(sourceMarker)
+
+        let sourceURL = try writeAndExpectSuccess(document)
+        defer { try? FileManager.default.removeItem(at: sourceURL) }
+        let originalBytes = try Data(contentsOf: sourceURL)
+        let digest = SHA256.hash(data: originalBytes).map { String(format: "%02x", $0) }.joined()
+        let support = try #require(FileManager.default.urls(for: .applicationSupportDirectory,
+                                                             in: .userDomainMask).first)
+        let sidecarURL = support.appendingPathComponent("Mnemosyne/ReaderSidecars", isDirectory: true)
+            .appendingPathComponent(digest + ".json")
+        let previousSidecar = try? Data(contentsOf: sidecarURL)
+        defer {
+            if let previousSidecar {
+                try? previousSidecar.write(to: sidecarURL, options: .atomic)
+            } else {
+                try? FileManager.default.removeItem(at: sidecarURL)
+            }
+        }
+        try FileManager.default.createDirectory(at: sidecarURL.deletingLastPathComponent(),
+                                                withIntermediateDirectories: true)
+        let sidecar: [String: Any] = [
+            "schema_version": 1,
+            "source_sha256": digest,
+            "ink_pages": [],
+            "highlights": [[
+                "annotation_id": UUID().uuidString.lowercased(),
+                "page_index": 0,
+                "color": "#FFFF00FF",
+                "text": "Offline sidecar highlight",
+                "rects": [["x": 40.0, "y": 40.0, "width": 120.0, "height": 18.0]]
+            ]],
+            "last_page_index": 0
+        ]
+        try JSONSerialization.data(withJSONObject: sidecar, options: [.sortedKeys])
+            .write(to: sidecarURL, options: .atomic)
+
+        let destinationURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("pumice-sidecar-export-\(UUID().uuidString).pdf")
+        defer { try? FileManager.default.removeItem(at: destinationURL) }
+        try PDFReaderViewController.exportAnnotatedCopy(from: sourceURL,
+                                                         annotations: [],
+                                                         to: destinationURL)
+
+        #expect(try Data(contentsOf: sourceURL) == originalBytes)
+        let exported = try #require(PDFDocument(url: destinationURL))
+        let exportedPage = try #require(exported.page(at: 0))
+        let highlight = try #require(exportedPage.annotations.first { $0.type == "Highlight" })
+        #expect(highlight.contents == "Offline sidecar highlight")
     }
 
     // MARK: - Helpers

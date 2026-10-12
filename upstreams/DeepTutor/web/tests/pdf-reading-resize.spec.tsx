@@ -4,6 +4,12 @@ import {
   PdfDocumentView,
   type PdfDocumentViewProps,
 } from "@/components/reading/PdfDocumentView";
+import {
+  pdfPointToPageUnit,
+  pdfRectToPageUnit,
+  pdfStrokeWidthToPageUnit,
+  type PageGeometry,
+} from "@/features/mnemosyne/register";
 
 const pdf = vi.hoisted(() => ({ ratios: new Map<number, number>() }));
 
@@ -168,6 +174,50 @@ beforeEach(() => {
 });
 
 afterEach(() => vi.unstubAllGlobals());
+
+function geometry(
+  rotation_degrees: PageGeometry["rotation_degrees"],
+  user_unit = 1,
+  crop_box: PageGeometry["crop_box"] = [10, 20, 590, 770],
+): PageGeometry {
+  return { media_box: crop_box, crop_box, rotation_degrees, user_unit };
+}
+
+describe("Mnemosyne PDF annotation geometry", () => {
+  it("maps all four PDF rotations into the page's top-left unit square", () => {
+    const crop = [10, 20, 590, 770] as const;
+    const cases: Array<{
+      rotation: PageGeometry["rotation_degrees"];
+      lowerLeft: [number, number];
+      upperRight: [number, number];
+    }> = [
+      { rotation: 0, lowerLeft: [0, 1], upperRight: [1, 0] },
+      { rotation: 90, lowerLeft: [0, 0], upperRight: [1, 1] },
+      { rotation: 180, lowerLeft: [1, 0], upperRight: [0, 1] },
+      { rotation: 270, lowerLeft: [1, 1], upperRight: [0, 0] },
+    ];
+
+    for (const item of cases) {
+      const page = geometry(item.rotation, 1, [...crop]);
+      expect(pdfPointToPageUnit([crop[0], crop[1]], page)).toEqual(item.lowerLeft);
+      expect(pdfPointToPageUnit([crop[2], crop[3]], page)).toEqual(item.upperRight);
+    }
+  });
+
+  it("maps rotated rectangles by transforming every corner", () => {
+    const rect = pdfRectToPageUnit([10, 20, 100, 50], geometry(90));
+
+    expect(rect[0]).toBeCloseTo(0);
+    expect(rect[1]).toBeCloseTo(0);
+    expect(rect[2]).toBeCloseTo(50 / 750);
+    expect(rect[3]).toBeCloseTo(100 / 580);
+  });
+
+  it("keeps ink width in physical points across CropBox, rotation, and UserUnit", () => {
+    expect(pdfStrokeWidthToPageUnit(4, geometry(90, 2))).toBeCloseTo(4 / 1500);
+    expect(pdfStrokeWidthToPageUnit(4, geometry(0, 2))).toBeCloseTo(4 / 1160);
+  });
+});
 
 describe("PDF reading position during layout changes", () => {
   it("keeps page 99 and its within-page position when the sidebar closes and reopens", async () => {

@@ -1,57 +1,88 @@
-# 실행한 검증과 남은 제품 인수
+# 통합 구현과 검증 결과
 
-2026-10-08 · 계약 0.1.0. **소스 기반 공통 준비 PASS, 제품 준비 false, Cloud 게시 미실행.** 준비 검사는 아래 실제 소스와 같은 fixture를 사용했다. mock/fixture와 제품 빌드·기기 검증을 구별한다.
+2026-10-12 · `codex/mnemosyne-integration` · contract `0.2.0` ·
+`product_ready=false`.
 
-## 환경과 실행 결과
+여섯 unit의 지정 commit은 모두 통합 기준의 조상이다. 통합 과정에서 서버
+Tutor 재접속 receipt route를 실제 등록하고, semantic turn event의 계약 버전을
+`0.2.0`으로 맞췄다. Quiz 생성, attempt, assessment, mastery, Memory, progress와
+activity는 SQLite에 보존한다. 2026-10-12 후속 변경은 사용자 제공 Mnemosyne 표장을
+iOS 앱 아이콘과 웹 헤더/사이트 아이콘에 연결했다. 아래 결과는 구현 확인과 실행
+환경의 제품 검증을 구분한다.
 
-macOS arm64, Python 3.14.7, Node 24.19.0, Swift 6.3.3 Command Line Tools. 원래 manifests를 변경하지 않고 임시 Python 환경과 웹의 기존 lockfile로 의존성을 준비했다. 실제 검사 환경의 package 버전은 checks/audit-environment.txt다. 제품 dependency 설계가 아니라 이 실행의 재현 기록이며 UNIT-06이 실제 WSL2 환경을 검증한다. `pip check`도 PASS.
+## 실행한 검사
 
-| 검사 | 실제 결과 / 범위 |
+| 검사 | 결과 |
 |---|---|
-| `python checks/validate_contracts.py --require-ready` | PASS: OpenAPI operation 30, schema 4, schema instance 80, 거부 사례 19, sync 10단계, geometry 4, 소유 경로와 upstream provenance/source gate. 28 HTTP extension은 planned, health/ready 두 개만 observed; 모두 구현됐다는 뜻이 아님. |
-| `python checks/sync_contracts.py --check` | PASS: 두 source의 계약 복사본 각각 10파일, 같은 manifest와 전체 바이트. |
-| `python checks/source_adapters.py` | PASS: 실제 ReadingStore ingest/search/verify_quote, PyMuPDF 영문·한글 페이지/text/geometry, 엄격한 version/quote/page/rect 거부, native Pydantic command 5개, native WS frames와 capability 매핑 5개, 영문 문서 언어 en과 응답 언어 ko의 분리. 실제 SQLiteSessionStore의 native turn ID 생성, 동일 seq 중복 append, 저장소 재생성 후 after_seq=6 replay 검증. 원본 full SHA 보존. 전체 block만 geometry 검증, partial selection/OCR 미검증. |
-| Node 24 `checks/web-consumer.mjs` | PASS: source-owned TS WS adapter, Unicode scalar, 두 실제 PDF.js page의 CropBox/Rotate/viewport forward·inverse, semantic subset/terminal/replay/quiz/learning 관계. 실제 browser DOM/UI 인수는 별도. 웹 npm ci 필요. |
-| `swiftc` + `checks/ipad-consumer.swift` | PASS: 실제 PageGeometry/MnemosyneGeometry/ReaderFacade와 UNIT-04 native frame decoder를 같이 컴파일. 같은 fixture Codable와 app dependency seam typecheck, 네 회전/crop/userUnit 변환, native frame seq와 semantic subset, turn ID 문자열, 종료/재전송/annotation proposal/퀴즈 상태. 실제 PDFKit/Pencil 화면은 실행하지 않음. |
-| Pumice `swift build --package-path Packages/PumiceCore` | PASS: 새 geometry/facade를 포함한 Core 라이브러리 host 컴파일. iPad 앱 빌드가 아님. |
-| Pumice `swift test --package-path Packages/PumiceCore` | **FAIL**: 공식 test target이 `Testing` 모듈을 찾지 못함. 이 Mac의 CLT 한계. package에 macOS platform을 추가하거나 테스트를 삭제하지 않음. |
-| DeepTutor `tests/core/test_stream_bus.py`, `tests/api/test_unified_ws_protocol.py`, `tests/reading/test_engine.py`, `tests/reading/test_grounding.py` | **95 passed**, 6.45초. 원래 conftest를 적용하고 source Reading/stream/protocol을 검사. |
-| DeepTutor `tests/api/test_unified_ws_turn_runtime.py` | **20 passed**, 4 warnings, 4.39초. native turn lifecycle/replay/cancel/input. 실제 LLM 호출 테스트가 아님. |
-| DeepTutor `tests/app/test_startup_data_migrations.py` | **1 passed**, 2.04초. 원래 startup migration 경계 검사. 전체 FastAPI lifespan/서버 부팅 검증은 별도. |
-| DeepTutor `python scripts/check_architecture.py` | PASS: 원래 architecture boundary 규칙. |
-| DeepTutor `ruff check deeptutor/mnemosyne`, `ruff format --check deeptutor/mnemosyne` | PASS: 신규 adapter 5파일, 원래 Python 규칙. |
-| web `npm ci --ignore-scripts --no-audit --no-fund`, `npm run contracts:check`, `npm run typecheck` | PASS: 원래 lockfile/contract codegen과 신규 source TS adapter. |
-| web `npm run build` | **최종 PASS**: Next 16.2.3 webpack compile, TypeScript, prerender. 최초 sandbox 실행은 Google Fonts DNS 차단으로 FAIL. 네트워크 허용 후 같은 명령이 통과. 기존 웹 화면의 빌드이며 Mnemosyne UI 구현 완료가 아님. |
-| `docker compose -f docker-compose.yml config --quiet` | PASS: 원래 Docker compose 구조. Docker image build/run, WSL2 deployment/백업 인수가 아님. compose.yaml은 별도 Podman용이므로 파일을 명시. |
-| PDF 확인 | 원본 SHA/페이지 수/PageLabels/CropBox/Rotate/text 확인, 두 페이지 Poppler PNG 시각 확인. 첫 fontconfig cache 오류는 임시 cache로 해결. 실제 학습 인용의 LLM 생성 검증은 아님. |
-| Git / whitespace | 작업 branch `codex/mnemosyne-bootstrap`; authored 변경 whitespace 검사. original snapshot의 임의 재format 없음. 원래 파일 변경은 main.py 공통 등록 호출 한 곳이며 provenance에 기록. |
+| `python checks/sync_contracts.py --check` | **PASS** — contract `0.2.0`, 12-file bundle, 두 downstream copy 일치. |
+| `python checks/validate_contracts.py --require-ready` | **PASS** — 32 OpenAPI operation, 4 schemas, 82 schema instance, 19 negative case, 10 sync step, 4 geometry case, Compose service 1개, ownership/source gate. Backend lock은 192 package와 3,587 hash를 확인했다. |
+| Python compileall 및 Ruff | **PASS** — 수정한 서버/API/test 모듈 문법 검사와 통합 소유 모듈 Ruff 검사. Ruff format 검사도 통과했다. upstream unit 소유 파일 전체를 임의 재포맷하지 않았다. |
+| 통합 Python tests | **PARTIAL** — `tests/mnemosyne` 및 Tutor reconnect tests targeted run에서 42 passed, 38 deselected. 별도 `test_sqlite_quiz_create_replays_duplicate_and_rejects_changed_request`도 1 passed. 이 추가 뒤 전체 targeted pytest 재실행은 async store test에서 완료되지 않아 전체 최신 suite 재실행 결과는 없다. |
+| 중복 Tutor turn tests | **PASS** — worker 재시작 뒤 같은 submission 재생과 다중 worker 원자 예약, 2 passed. |
+| `checks/source_adapters.py` | **PASS** — 2-page parser/search fixture, 12 native frames, 5 native commands, SQLite reopen/replay/duplicate append, capability map, credential 없는 loopback OpenAI-compatible fake stream을 확인했다. 실제 LLM 호출은 아니다. |
+| `checks/integration_pdf_flow.py --allow-index-unavailable` | **PARTIAL** — loopback HTTP로 pairing, 업로드, 2쪽 파싱, 검색, 인용 검증, 주석 retry/tombstone, derived export, SQLite reopen, 원본 PDF SHA 보존, session revoke/WebSocket bridge, progress retry/recovery를 확인했다. `llama_index` 부재로 index 상태는 `failed`다. 인덱싱 이후 Tutor 답변과 생성 Quiz까지 이어지는 제품 흐름은 실행되지 않았다. |
+| Web `npm run typecheck` / `npm run contracts:check` | **PASS**. |
+| Web `npm run architecture:check` | **PASS** — 913 modules, 2,844 dependencies. |
+| 변경한 화면의 scoped ESLint | **PASS WITH WARNINGS** — 0 errors, 38 `i18n/no-literal-ui-text` warnings. |
+| `checks/web-consumer.mjs` | **PASS** — PDF.js fixture 2쪽, geometry 4 case, 11 events, 12 native frames. `actualBrowserVerified=false`; browser 화면 테스트는 아니다. |
+| Branding follow-up | **PASS** — iOS app icon과 웹 표장 PNG가 각각 1024×1024이며, 웹 메타데이터·내비게이션이 같은 신규 자산을 참조한다. 소유권 예외와 asset digest도 source gate에서 확인했다. |
+| `npm run test:node` | **PARTIAL** — 206/209 통과. 나머지 3개는 sandbox가 `git` subprocess 및 `os.networkInterfaces()`를 차단해 실패했다. |
+| `npm run test:unit -- --maxWorkers=1 --reporter=dot` | **PARTIAL** — 146 files 중 145, 656 tests 중 652 통과. `i18n-audit`의 subprocess 실행 4개는 sandbox 제한으로 stdout/stderr 없이 실패했다. |
+| `npm run build` | **BLOCKED** — Next.js가 Google Fonts에서 Geist/Lora를 가져오지 못해 production build를 완료하지 못했다. |
+| `python scripts/docker_compose.py config --quiet` | **PASS** — Compose 설정 구문만 확인했다. |
 
-## 공통 검사 재실행
+Node/unit suite의 부분 실패와 마지막 pytest 재실행 정체를 숨기지 않는다.
+pytest 정체 중 thread dump에서는 worker가 대기 상태이고 async event loop가
+완료되지 않았다. Python executor 제한 또는 남아 있는 장기 실행 프로세스가 원인인지
+단정할 수 없으므로, 제한이 없는 실행기에서 suite를 다시 실행해야 한다. 현재
+통과한 개별 검사나 이전 pytest 결과가 최종 전체 suite의 통과를 뜻하지 않는다.
 
-Python 3.14 가상 환경에서 `pip install -r checks/audit-environment.txt`, Node 24에서 `npm ci --ignore-scripts`를 upstreams/DeepTutor/web/에서 실행한다. 기본 제품 설치는 원래 DeepTutor pyproject/requirements를 따르며 이 임시 환경 기록으로 대체하지 않는다.
+## 실제 제품 환경에서 확인하지 못한 항목
 
-루트에서 다음을 실행한다.
+| 환경/흐름 | 상태와 근거 |
+|---|---|
+| Cloud 실행 | **미실행** — 이 task executor에 Cloud 실행 capability나 배포 secret이 없었다. |
+| 실제 LLM | **미실행** — provider credential이 없다. fake adapter 검사와 실제 provider 답변은 별개다. |
+| 실제 PDF RAG index | **미완료** — loopback 업로드/파싱/검색/출처 검증은 됐지만 `llama_index`가 없어 `ready`가 되지 않았다. |
+| Docker image/build/start | **미실행** — Compose config는 통과했지만 `/var/run/docker.sock` 접근이 거부됐다. Windows WSL2 복구도 확인하지 않았다. |
+| macOS/Xcode/Swift/iPad | **미실행** — Swift, Xcode, iPadOS SDK, Simulator가 없는 Linux 실행기다. |
+| 실제 Pencil | **미실행** — 기기 입력이 없었다. native Pencil sample capture는 코드와 fixture 검사 범위에 한정된다. |
+| 실제 browser E2E | **미실행** — production build가 외부 폰트 fetch에서 멈췄고 browser UI acceptance는 실행하지 않았다. |
+| 전체 작은 PDF 수락 흐름 | **부분 확인** — upload→parse/search→verified citation→annotation sync/tombstone→export와 원본 hash 보존까지 loopback으로 실행했다. 실제 인덱스/LLM Tutor 응답, Reader 선택 강조, 기기 필기, 웹에 복귀한 UI, 전체 퀴즈→Mastery/Memory 복구 흐름은 아직 한 번에 검증되지 않았다. |
+
+요구사항별 구현/검증 상태는 [통합 handoff](handoffs/integration.md)에 있다.
+제품 구현은 후속 phase로 미루지 않았지만, `product_ready`는 위 환경 및 수락
+검증이 끝날 때까지 false다.
+
+## 재실행
+
+저장소 root에서 Python audit 의존성과 backend 개발 의존성을 설치한다. 실제
+통합 검사에서는 해시 고정 `checks/requirements.txt` 환경과 임시
+`DEEPTUTOR_HOME`을 사용해 실행기 기본 설정/데이터와 분리했다.
 
 ```sh
-python checks/validate_contracts.py --require-ready
+python -m pip install -r checks/requirements.txt
+python -m pip install -e "upstreams/DeepTutor[dev]"
 python checks/sync_contracts.py --check
+python checks/validate_contracts.py --require-ready
 python checks/source_adapters.py
+python checks/integration_pdf_flow.py --allow-index-unavailable
 node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON checks/web-consumer.mjs
-swiftc -module-cache-path /tmp/mnemosyne-swift-cache -parse-as-library \
-  upstreams/Pumice/Packages/PumiceCore/Sources/PumiceCore/Coordinates/PageGeometry.swift \
-  upstreams/Pumice/Packages/PumiceCore/Sources/PumiceCore/Coordinates/MnemosyneGeometry.swift \
-  upstreams/Pumice/Packages/PumiceCore/Sources/PumiceCore/Mnemosyne/ReaderFacade.swift \
-  upstreams/Pumice/Sources/Network/MnemosyneTurnWire.swift \
-  checks/ipad-consumer.swift -o /tmp/mnemosyne-ipad-probe
-/tmp/mnemosyne-ipad-probe "$PWD"
 ```
 
-Linux Cloud에서는 Swift/UIKit/Pencil 인수를 PASS로 위장하지 않고 macOS/full Xcode 또는 실제 iPad job으로 분리한다. 기기 테스트를 fixture만으로 통과시키지 않는다.
+strict PDF run은 `--allow-index-unavailable` 없이 실행한다. 실제 인덱스가
+`ready`가 아니면 성공으로 처리하지 않는다. Web suite는 Node 24에서 실행한다.
 
-## 아직 미검증이거나 구현이 필요한 항목
+```sh
+cd upstreams/DeepTutor/web
+npm ci --replace-registry-host=always --registry=https://registry.npmjs.org
+npm run contracts:check
+npm run typecheck
+npm run architecture:check
+npm run test:node
+npm run test:unit -- --maxWorkers=1 --reporter=dot
+npm run build
+```
 
-- 전체 DeepTutor backend test suite, 전체 FastAPI lifespan 부팅, 무거운 RAG/vector/parser/OCR 설치와 실제 LLM 호출·품질. 선택 dependency를 제거해 필수 학습 capability를 없애지 않는다.
-- Pumice 전체 iPad 앱 빌드·Simulator·실제 Pencil, PDFKit ↔ canonical 화면 위치, 오프라인 입력/앱 종료 후 durable 복구, 실제 두 기기의 sync/충돌/cursor expiry/원본 불변/파생 export.
-- 새 한국어 제품 UI, 모든 필수 학습 상태 transaction/재시작, partial span citation, native auth query token 제거/header·Origin 보호, 공개 signup/다중 사용자 기능 제외, uploads/path/settings 보호. 현재 최소 ports의 빈 구현을 제품 완료로 보고하지 않는다.
-- Windows WSL2 Docker image 설치/실행·재시작·backup/restore·Tailscale/HTTPS의 실제 PC 인수.
-- GitHub push/온라인 PR/여섯 Cloud 작업의 checkout 가능성. 이 준비 저장소에 remote가 없다. 시작 tag/SHA는 로컬에서 확정하며 PR 본문은 docs/REVIEW.md에 준비했다.
+Live LLM, 실제 Docker 기동, Cloud, macOS/Xcode, iPad/Pencil 검사는 각각 접근
+가능한 환경에서 수행해야 한다. 실행하지 않은 검사를 통과로 간주하지 않는다.

@@ -4,13 +4,43 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import assert from 'node:assert/strict';
 import {fileURLToPath} from 'node:url';
-import {consumeNativeFrame} from '../upstreams/DeepTutor/web/features/mnemosyne/register.ts';
+import {createRequire, Module} from 'node:module';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = p => fs.readFileSync(path.join(root, p));
 const fixture = JSON.parse(read('contracts/fixtures/study-session.json'));
+const progressMutation = JSON.parse(read('contracts/fixtures/progress-mutation.json'));
 const api = JSON.parse(read('contracts/openapi.yaml'));
+// Load only the source-owned wire decoder. TypeScript removes its DTO imports;
+// the sole runtime web client dependency is stubbed because this probe does not
+// invoke HTTP and Node does not consume the web app's @/ path alias natively.
+const webRoot = path.join(root, 'upstreams/DeepTutor/web');
+const webRequire = createRequire(path.join(webRoot, 'package.json'));
+const ts = webRequire('typescript');
+const registerPath = path.join(webRoot, 'features/mnemosyne/register.ts');
+const compiledRegister = ts.transpileModule(fs.readFileSync(registerPath, 'utf8'), {
+  compilerOptions: {
+    module: ts.ModuleKind.CommonJS,
+    target: ts.ScriptTarget.ES2022,
+    esModuleInterop: true,
+  },
+});
+const registerModule = new Module(registerPath);
+registerModule.filename = registerPath;
+registerModule.paths = Module._nodeModulePaths(path.dirname(registerPath));
+const nativeRequire = registerModule.require.bind(registerModule);
+registerModule.require = specifier => specifier === '@/shared/api/client'
+  ? {apiFetch: async () => { throw new Error('HTTP is outside this fixture probe'); }}
+  : nativeRequire(specifier);
+registerModule._compile(compiledRegister.outputText, registerPath);
+const {consumeNativeFrame} = registerModule.exports;
 assert.equal(fixture.contract_version, api.info.version);
+assert.equal(progressMutation.version_id, fixture.document.version_id);
+assert.ok(progressMutation.page_index >= 0 && progressMutation.page_index < fixture.document.page_count);
+assert.ok(progressMutation.reading_seconds >= 0 && progressMutation.reading_seconds <= 300);
+assert.equal(api.paths['/v1/documents/{document_id}/progress'].post.operationId, 'recordReadingProgress');
+assert.match(fs.readFileSync(path.join(webRoot, 'features/mnemosyne/register.ts'), 'utf8'), /async recordProgress\(/);
+assert.match(fs.readFileSync(path.join(webRoot, 'features/mnemosyne/screens.tsx'), 'utf8'), /api\.recordProgress\(/);
 assert.equal(crypto.createHash('sha256').update(read(`contracts/fixtures/${fixture.original_file}`)).digest('hex'), fixture.document.source_sha256);
 const scalarSlice = (text, start, end) => Array.from(text).slice(start, end).join('');
 assert.equal(scalarSlice(fixture.unicode_probe.text, fixture.unicode_probe.start_scalar, fixture.unicode_probe.end_scalar), fixture.unicode_probe.quote);

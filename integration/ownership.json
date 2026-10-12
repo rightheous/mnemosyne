@@ -1,8 +1,9 @@
 {
-  "contract_version": "0.1.0",
+  "contract_version": "0.2.0",
   "policy": "exact paths; each file has one owner; no inherited directory ownership overrides these entries",
   "owners": {
     "UNIT-01": [
+      "docs/handoffs/unit-01.md",
       "handoff/UNIT-01.md",
       "upstreams/DeepTutor/deeptutor/book/storage.py",
       "upstreams/DeepTutor/deeptutor/capabilities/marginnote4/store.py",
@@ -334,6 +335,7 @@
       "upstreams/DeepTutor/tests/video_learning/test_reading_migration.py"
     ],
     "UNIT-02": [
+      "docs/handoffs/unit-02.md",
       "handoff/UNIT-02.md",
       "upstreams/DeepTutor/deeptutor/__init__.py",
       "upstreams/DeepTutor/deeptutor/__main__.py",
@@ -2118,6 +2120,7 @@
       "upstreams/Pumice/Tests/PumiceTests/SnapToTextTests.swift"
     ],
     "UNIT-04": [
+      "docs/handoffs/unit-04.md",
       "handoff/UNIT-04.md",
       "upstreams/Pumice/App/Assets.xcassets/AccentColor.colorset/Contents.json",
       "upstreams/Pumice/App/Assets.xcassets/AppIcon.appiconset/Contents.json",
@@ -3695,12 +3698,15 @@
       ".gitignore",
       "AGENTS.md",
       "README.md",
+      "checks/integration_pdf_flow.py",
       "checks/sync_contracts.py",
       "contracts/README.md",
       "contracts/annotations.schema.json",
       "contracts/events.schema.json",
       "contracts/fixtures/README.md",
       "contracts/fixtures/bilingual-geometry.pdf",
+      "contracts/fixtures/progress-mutation.json",
+      "contracts/fixtures/quiz-generation-request.json",
       "contracts/fixtures/study-session.json",
       "contracts/manifest.json",
       "contracts/models.schema.json",
@@ -3713,6 +3719,7 @@
       "docs/UI-DIRECTION.md",
       "docs/UPSTREAM-AUDIT.md",
       "docs/VALIDATION.md",
+      "docs/handoffs/integration.md",
       "integration/ownership.json",
       "integration/registry.json",
       "integration/upstreams.json",
@@ -3734,6 +3741,8 @@
       "upstreams/DeepTutor/MnemosyneContracts/events.schema.json",
       "upstreams/DeepTutor/MnemosyneContracts/fixtures/README.md",
       "upstreams/DeepTutor/MnemosyneContracts/fixtures/bilingual-geometry.pdf",
+      "upstreams/DeepTutor/MnemosyneContracts/fixtures/progress-mutation.json",
+      "upstreams/DeepTutor/MnemosyneContracts/fixtures/quiz-generation-request.json",
       "upstreams/DeepTutor/MnemosyneContracts/fixtures/study-session.json",
       "upstreams/DeepTutor/MnemosyneContracts/manifest.json",
       "upstreams/DeepTutor/MnemosyneContracts/models.schema.json",
@@ -3922,7 +3931,13 @@
       "upstreams/DeepTutor/deeptutor/app/container.py",
       "upstreams/DeepTutor/deeptutor/mnemosyne/__init__.py",
       "upstreams/DeepTutor/deeptutor/mnemosyne/bootstrap.py",
+      "upstreams/DeepTutor/deeptutor/mnemosyne/http.py",
+      "upstreams/DeepTutor/deeptutor/mnemosyne/learning_store.py",
+      "upstreams/DeepTutor/deeptutor/mnemosyne/pairing.py",
       "upstreams/DeepTutor/deeptutor/mnemosyne/ports.py",
+      "upstreams/DeepTutor/deeptutor/mnemosyne/provider.py",
+      "upstreams/DeepTutor/deeptutor/mnemosyne/quiz_generation.py",
+      "upstreams/DeepTutor/deeptutor/mnemosyne/security.py",
       "upstreams/DeepTutor/deeptutor_cli/README.md",
       "upstreams/DeepTutor/deeptutor_cli/__init__.py",
       "upstreams/DeepTutor/deeptutor_cli/__main__.py",
@@ -3973,6 +3988,10 @@
       "upstreams/DeepTutor/tests/app/test_turn_application_service.py",
       "upstreams/DeepTutor/tests/app/test_turn_parked_on_ask_user_is_reclaimable.py",
       "upstreams/DeepTutor/tests/app/test_waiting_turn_recovery.py",
+      "upstreams/DeepTutor/tests/mnemosyne/test_learning_store.py",
+      "upstreams/DeepTutor/tests/mnemosyne/test_provider_runtime.py",
+      "upstreams/DeepTutor/tests/mnemosyne/test_quiz_http.py",
+      "upstreams/DeepTutor/web/public/mnemosyne-mark.png",
       "upstreams/Pumice/.gitignore",
       "upstreams/Pumice/CLAUDE.md",
       "upstreams/Pumice/Gemfile",
@@ -3983,6 +4002,8 @@
       "upstreams/Pumice/MnemosyneContracts/events.schema.json",
       "upstreams/Pumice/MnemosyneContracts/fixtures/README.md",
       "upstreams/Pumice/MnemosyneContracts/fixtures/bilingual-geometry.pdf",
+      "upstreams/Pumice/MnemosyneContracts/fixtures/progress-mutation.json",
+      "upstreams/Pumice/MnemosyneContracts/fixtures/quiz-generation-request.json",
       "upstreams/Pumice/MnemosyneContracts/fixtures/study-session.json",
       "upstreams/Pumice/MnemosyneContracts/manifest.json",
       "upstreams/Pumice/MnemosyneContracts/models.schema.json",
@@ -4033,5 +4054,102 @@
     "upstreams/DeepTutor/deeptutor/services/workspace/session_transfer.py",
     "upstreams/DeepTutor/deeptutor/video_learning/reading_migration.py",
     "upstreams/DeepTutor/deeptutor/visualizers/store.py"
+  ],
+  "integration_exceptions": [
+    {
+      "path": "checks/ipad-consumer.swift",
+      "file_owner": "UNIT-06",
+      "integrator_scope": "Decode the shared 0.2.0 progress mutation fixture alongside Reader and learning fixtures."
+    },
+    {
+      "path": "checks/validate_contracts.py",
+      "file_owner": "UNIT-06",
+      "integrator_scope": "Validate the 0.2.0 quiz generation and progress mutation fixtures against their parsed PDF pages."
+    },
+    {
+      "path": "checks/web-consumer.mjs",
+      "file_owner": "UNIT-05",
+      "integrator_scope": "Validate the 0.2.0 progress fixture, OpenAPI operation and web API/UI connection."
+    },
+    {
+      "path": "upstreams/DeepTutor/compose.yaml",
+      "file_owner": "UNIT-06",
+      "integrator_scope": "Pass the exact browser Origin allowlist into the integrated single-user Compose profile."
+    },
+    {
+      "path": "upstreams/DeepTutor/deeptutor/api/routers/unified_ws.py",
+      "file_owner": "UNIT-02",
+      "integrator_scope": "Mount paired learning APIs, scoped provider operations, and revision/idempotency protected progress writes."
+    },
+    {
+      "path": "upstreams/DeepTutor/deeptutor/mnemosyne/library.py",
+      "file_owner": "UNIT-01",
+      "integrator_scope": "Connect provider callbacks and resolve the server-owned ReadingStore material/revision from an immutable Library document version."
+    },
+    {
+      "path": "upstreams/DeepTutor/deeptutor/mnemosyne/tutor.py",
+      "file_owner": "UNIT-02",
+      "integrator_scope": "Verify Reader selection anchors, resolve native Reading context, and persist progress through the learning store boundary."
+    },
+    {
+      "path": "upstreams/DeepTutor/deeptutor/services/session/turns/request_preparer.py",
+      "file_owner": "UNIT-02",
+      "integrator_scope": "Carry only the adapter-verified selected text anchor into the native Tutor reading context."
+    },
+    {
+      "path": "upstreams/DeepTutor/tests/api/test_unified_ws_turn_runtime.py",
+      "file_owner": "UNIT-02",
+      "integrator_scope": "Exercise paired native Tutor, verified selection and server-resolved Reading adapter behavior."
+    },
+    {
+      "path": "upstreams/DeepTutor/web/app/layout.tsx",
+      "file_owner": "UNIT-05",
+      "integrator_scope": "Point the Mnemosyne browser and Apple touch icons at the shared brand mark."
+    },
+    {
+      "path": "upstreams/DeepTutor/web/features/mnemosyne/register.ts",
+      "file_owner": "UNIT-05",
+      "integrator_scope": "Connect quiz generation and idempotent attempt/review/progress APIs to contract 0.2.0."
+    },
+    {
+      "path": "upstreams/DeepTutor/web/features/mnemosyne/screens.tsx",
+      "file_owner": "UNIT-05",
+      "integrator_scope": "Keep the durable Tutor, quiz and progress integrations; use the shared Mnemosyne mark in navigation and teal for the active navigation state."
+    },
+    {
+      "path": "upstreams/Pumice/App/Assets.xcassets/AppIcon.appiconset/pumice_icon.png",
+      "file_owner": "UNIT-04",
+      "integrator_scope": "Replace the placeholder with the user-provided Mnemosyne brand mark for the iOS app icon."
+    },
+    {
+      "path": "upstreams/Pumice/App/LaunchView.swift",
+      "file_owner": "UNIT-04",
+      "integrator_scope": "Expose the live Tutor composer and route actual Reader page changes into the learning progress outbox."
+    },
+    {
+      "path": "upstreams/Pumice/App/MnemosyneAppDependencies.swift",
+      "file_owner": "UNIT-04",
+      "integrator_scope": "Persist idempotent quiz attempts, quiz generation, Memory reviews and document-scoped progress retries on-device."
+    },
+    {
+      "path": "upstreams/Pumice/Packages/PumiceCore/Sources/PumiceCore/Mnemosyne/ReaderFacade.swift",
+      "file_owner": "UNIT-03",
+      "integrator_scope": "Fix integrated Reader context, tombstone, and local durable facade behavior required by server sync."
+    },
+    {
+      "path": "upstreams/Pumice/Packages/PumiceCore/Tests/PumiceCoreTests/PageGeometryTests.swift",
+      "file_owner": "UNIT-03",
+      "integrator_scope": "Cover integrated Reader facade persistence and annotation deletion behavior."
+    },
+    {
+      "path": "upstreams/Pumice/Sources/Network/MnemosyneTurnWire.swift",
+      "file_owner": "UNIT-04",
+      "integrator_scope": "Connect contract 0.2.0 Tutor, quiz generation, learning, review and progress transport."
+    },
+    {
+      "path": "upstreams/Pumice/Sources/Reader/PDFReaderViewController.swift",
+      "file_owner": "UNIT-03",
+      "integrator_scope": "Connect Pencil/document page state to the integrated durable Reader facade and canonical geometry boundary."
+    }
   ]
 }

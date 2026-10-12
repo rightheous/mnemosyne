@@ -23465,8 +23465,552 @@
   },
   "modified_originals": {
     "upstreams/DeepTutor/deeptutor/api/main.py": {
-      "reason": "Integrator-owned single lifespan registration call",
-      "current_sha256": "48bcbd1e59294bf330c016cdaa082289536ec388746d7b5749d8253118c08ad9"
+      "reason": "Integrator-owned application assembly and guarded Mnemosyne registration; original pinned upstream SHA remains recorded in sources.files.",
+      "current_sha256": "9a24081d2438e3f6aa86b3342efec1a533be9bc0a52d6ac827b5cba34103e3f9",
+      "source_commit": "5715a32927e3a73dc28782d306880e3dd1f62441"
+    },
+    "upstreams/Pumice/App/LaunchView.swift": {
+      "reason": "Integration attribution: UNIT-04 app composition and actual Reader progress/quiz actions; original pinned upstream SHA remains recorded in sources.files.",
+      "current_sha256": "7c7c80e4a8902eebb1aee350c86a193806df16f77bf3114e19828e73b1b55818",
+      "source_commit": "ced01afba5138598601c3b25933329d23a41282b"
+    },
+    "upstreams/Pumice/App/PumiceApp.swift": {
+      "reason": "Integration attribution: source snapshot extension from 7b7f4014d859 (feat(ipad): add Mnemosyne study app and transport); original pinned upstream SHA remains recorded in sources.files.",
+      "current_sha256": "7e8f2ba92cc2dedfc8b1005537e0507ebe941f15dc79cbdb6f58233a8c3456e4",
+      "source_commit": "7b7f4014d85972daea8c1fbbfe55f579f64ee09f"
+    },
+    "upstreams/Pumice/Tests/PumiceUITests/PumiceUITests.swift": {
+      "reason": "Integration attribution: source snapshot extension from 7b7f4014d859 (feat(ipad): add Mnemosyne study app and transport); original pinned upstream SHA remains recorded in sources.files.",
+      "current_sha256": "66ee8383a690e64a8880122d8a9a1809e4f643cdc6bf6c84d09fa677536eb1df",
+      "source_commit": "7b7f4014d85972daea8c1fbbfe55f579f64ee09f"
+    },
+    "upstreams/Pumice/project.yml": {
+      "reason": "Integration attribution: source snapshot extension from 7b7f4014d859 (feat(ipad): add Mnemosyne study app and transport); original pinned upstream SHA remains recorded in sources.files.",
+      "current_sha256": "7fbb91fbabb0917a3f8cf4cff7cf448817e5545bcb0a9f77d790eb2878e23d60",
+      "source_commit": "7b7f4014d85972daea8c1fbbfe55f579f64ee09f"
+    },
+    "upstreams/DeepTutor/Dockerfile": {
+      "reason": "Integration attribution: source snapshot extension from cf38839cd653 (build(unit-06): pin runtime bases and report readiness gates); original pinned upstream SHA remains recorded in sources.files.",
+      "current_sha256": "c42b5bdf68bc4bd6811c0022b8ac01c5d7abaaee7aacd0c3b9ac39cd698e07cb",
+      "source_commit": "cf38839cd653ee64b476b9b586f7b40b30a3d21f"
+    },
+    "upstreams/DeepTutor/compose.yaml": {
+      "reason": "Integration attribution: source snapshot extension from f2e404919ed5 (fix(unit-06): align Compose with upstream single-worker mode); original pinned upstream SHA remains recorded in sources.files.",
+      "current_sha256": "6cca159600e56009d3833ebe84f94a3e431a051fb69bf04c0784bcb577be14fd",
+      "source_commit": "f2e404919ed5ce13a4cfab54d73ab5c6f4bedeab"
+    },
+    "upstreams/DeepTutor/deeptutor/agents/_shared/tool_composition.py": {
+      "reason": "Integration attribution: source snapshot extension from 0df7cdaa78fa (feat(unit-02): gate personal tutor tools); original pinned upstream SHA remains recorded in sources.files.",
+      "current_sha256": "b7787b18992e54290dfba1a2928bb861997c5db0e425b40b43a6204bd9d99199",
+      "source_commit": "0df7cdaa78fab21bb598334ce221de7f8bc2e794"
+    },
+    "upstreams/DeepTutor/deeptutor/agents/loop/pipeline.py": {
+      "reason": "Integration attribution: source snapshot extension from 0df7cdaa78fa (feat(unit-02): gate personal tutor tools); original pinned upstream SHA remains recorded in sources.files.",
+      "current_sha256": "c77e47183bd1e5ed63d2ef6029fce4977cbeed921053f447558476483bd1c61d",
+      "source_commit": "0df7cdaa78fab21bb598334ce221de7f8bc2e794"
+    },
+    "upstreams/DeepTutor/deeptutor/agents/question/capability.py": {
+      "reason": "Integration attribution: source snapshot extension from 0df7cdaa78fa (feat(unit-02): gate personal tutor tools); original pinned upstream SHA remains recorded in sources.files.",
+      "current_sha256": "c17a572d5ff2084949db52af1c9b61e03af71ea73cc98b8375ac020e54bd74b8",
+      "source_commit": "0df7cdaa78fab21bb598334ce221de7f8bc2e794"
+    },
+    "upstreams/DeepTutor/deeptutor/agents/question/pipeline.py": {
+      "reason": "Integration attribution: source snapshot extension from 0df7cdaa78fa (feat(unit-02): gate personal tutor tools); original pinned upstream SHA remains recorded in sources.files.",
+      "current_sha256": "72ab6844c264304cbf648e70a8c0d38e692553f473df193c5b409c56e803a7b1",
+      "source_commit": "0df7cdaa78fab21bb598334ce221de7f8bc2e794"
+    },
+    "upstreams/DeepTutor/deeptutor/api/routers/quiz_judge.py": {
+      "reason": "Integration attribution: source snapshot extension from 755f4aae4f66 (feat: integrate native tutor routing and model purposes); original pinned upstream SHA remains recorded in sources.files.",
+      "current_sha256": "45f0e70f08de36a0f0085888b4b0c80742789ec7651bbea3fbcc47855e65d9e1",
+      "source_commit": "755f4aae4f66ef98414f87676556deed07a6b992"
+    },
+    "upstreams/DeepTutor/deeptutor/api/routers/tools.py": {
+      "reason": "Integration attribution: source snapshot extension from 0df7cdaa78fa (feat(unit-02): gate personal tutor tools); original pinned upstream SHA remains recorded in sources.files.",
+      "current_sha256": "55071af8ea48dd505aee7c866dce8843c2b04a2575607c6a75c80a3810736c38",
+      "source_commit": "0df7cdaa78fab21bb598334ce221de7f8bc2e794"
+    },
+    "upstreams/DeepTutor/deeptutor/api/routers/unified_ws.py": {
+      "reason": "UNIT-02 learning routes now use the shared Mnemosyne pairing/session and exact-Origin guard; this source also contains the supplied native tutor API integration. Original pinned SHA remains recorded in sources.files.",
+      "current_sha256": "a1645a76533850af9e14aa7af1a7ab3e45768f5d6f94e7bbd257f267208ce561",
+      "source_commit": "e024f81209a15b81630a5ab169013bdb868320d9"
+    },
+    "upstreams/DeepTutor/deeptutor/capabilities/reading/_tool_base.py": {
+      "reason": "Integration attribution: source snapshot extension from f62813b63e1c (feat(unit-02): emit verified reader contract events); original pinned upstream SHA remains recorded in sources.files.",
+      "current_sha256": "8a243f1808dbe3624486a4b519b9f30e7ff0f4d7a8541d0883b6a3818fe76ebd",
+      "source_commit": "f62813b63e1cbf55d692fbfd4b937eb75b08208f"
+    },
+    "upstreams/DeepTutor/deeptutor/capabilities/reading/capability.py": {
+      "reason": "Integration attribution: source snapshot extension from 99af8572cb37 (feat(unit-02): add Korean reading prompts); original pinned upstream SHA remains recorded in sources.files.",
+      "current_sha256": "a807b9be56b126e51696ea3028d9fa65ed443fa1fa3087145dc093df2c33ae33",
+      "source_commit": "99af8572cb379ddd0e95b7875c3290b2d8ba462c"
+    },
+    "upstreams/DeepTutor/deeptutor/capabilities/reading/mode.py": {
+      "reason": "Integration attribution: source snapshot extension from 0df7cdaa78fa (feat(unit-02): gate personal tutor tools); original pinned upstream SHA remains recorded in sources.files.",
+      "current_sha256": "d5d0179745aa7d7a08a795683c225ae903c5af611c933a71ef507235ae98c4ee",
+      "source_commit": "0df7cdaa78fab21bb598334ce221de7f8bc2e794"
+    },
+    "upstreams/DeepTutor/deeptutor/capabilities/reading/tools.py": {
+      "reason": "Integration attribution: source snapshot extension from f62813b63e1c (feat(unit-02): emit verified reader contract events); original pinned upstream SHA remains recorded in sources.files.",
+      "current_sha256": "e2b64ea34bb7359deae82eb18606e6b6fe36714df5039d6ff792bcdf56409ab5",
+      "source_commit": "f62813b63e1cbf55d692fbfd4b937eb75b08208f"
+    },
+    "upstreams/DeepTutor/deeptutor/capabilities/registry.py": {
+      "reason": "Integration attribution: source snapshot extension from 0df7cdaa78fa (feat(unit-02): gate personal tutor tools); original pinned upstream SHA remains recorded in sources.files.",
+      "current_sha256": "ce4056dc66c4c640e67184cc1b134af6ec33a7a8b548a83f1570de7fc44b3ab1",
+      "source_commit": "0df7cdaa78fab21bb598334ce221de7f8bc2e794"
+    },
+    "upstreams/DeepTutor/deeptutor/capabilities/solve/loop.py": {
+      "reason": "Integration attribution: source snapshot extension from 0df7cdaa78fa (feat(unit-02): gate personal tutor tools); original pinned upstream SHA remains recorded in sources.files.",
+      "current_sha256": "70fc2b6f6f8c3436a91ab4bb4f108e730cd01b16a874b268d91df0b5a25d7c8f",
+      "source_commit": "0df7cdaa78fab21bb598334ce221de7f8bc2e794"
+    },
+    "upstreams/DeepTutor/deeptutor/core/context.py": {
+      "reason": "Integration attribution: source snapshot extension from 8ff76c12b2e1 (fix(unit-02): preserve source language context); original pinned upstream SHA remains recorded in sources.files.",
+      "current_sha256": "46d33d2a7ad064f233cd57fc3208cf83eb94b4fc6bedbb7499bfb77aa2b931b5",
+      "source_commit": "8ff76c12b2e18c8ea2e367b12433ff2f97f8a1c1"
+    },
+    "upstreams/DeepTutor/deeptutor/core/turn_request.py": {
+      "reason": "Integration attribution: source snapshot extension from 8ff76c12b2e1 (fix(unit-02): preserve source language context); original pinned upstream SHA remains recorded in sources.files.",
+      "current_sha256": "3cddd323163a6b425f56694390fc12c868b3d6f88e669f2ab1bfbf8b4dc5a4d5",
+      "source_commit": "8ff76c12b2e18c8ea2e367b12433ff2f97f8a1c1"
+    },
+    "upstreams/DeepTutor/deeptutor/learning/prompts.py": {
+      "reason": "Integration attribution: source snapshot extension from 17d6e6b52457 (feat: add Mnemosyne tutor runtime); original pinned upstream SHA remains recorded in sources.files.",
+      "current_sha256": "15577f33a96c6a3ec1e2e39edb143bc5ccc88e1e6d77d1b341227d2c58516ab1",
+      "source_commit": "17d6e6b5245758aa824589327d6b92b5bfa62035"
+    },
+    "upstreams/DeepTutor/deeptutor/learning/service.py": {
+      "reason": "Integration attribution: source snapshot extension from b1d39563b1a4 (feat(unit-02): add grading service and memory scheduling); original pinned upstream SHA remains recorded in sources.files.",
+      "current_sha256": "ac9b3b198599a4006bf47a8c6d5999b6dda8e757febdd609610b9f69af2ae6cf",
+      "source_commit": "b1d39563b1a4399bea9f2f259cdf6c855997575d"
+    },
+    "upstreams/DeepTutor/deeptutor/learning/tests/test_prompt_language_fallback.py": {
+      "reason": "Integration attribution: source snapshot extension from 17d6e6b52457 (feat: add Mnemosyne tutor runtime); original pinned upstream SHA remains recorded in sources.files.",
+      "current_sha256": "d621b6df4d1b28724d903c293d0bb189ae386dff8a262a2221c8db513c95f8ca",
+      "source_commit": "17d6e6b5245758aa824589327d6b92b5bfa62035"
+    },
+    "upstreams/DeepTutor/deeptutor/runtime/agentic/tool_dispatch.py": {
+      "reason": "Integration attribution: source snapshot extension from f62813b63e1c (feat(unit-02): emit verified reader contract events); original pinned upstream SHA remains recorded in sources.files.",
+      "current_sha256": "4a8d9a7af9a30c67a67eaf6a589586ac14b83a66ee94df5b1f874f45fcb63989",
+      "source_commit": "f62813b63e1cbf55d692fbfd4b937eb75b08208f"
+    },
+    "upstreams/DeepTutor/deeptutor/runtime/bootstrap/builtin_capabilities.py": {
+      "reason": "Integration attribution: source snapshot extension from 0df7cdaa78fa (feat(unit-02): gate personal tutor tools); original pinned upstream SHA remains recorded in sources.files.",
+      "current_sha256": "481e28434f59d9f4156096722cffa6c3e4111f136b0f4ade0abcda8336556a07",
+      "source_commit": "0df7cdaa78fab21bb598334ce221de7f8bc2e794"
+    },
+    "upstreams/DeepTutor/deeptutor/runtime/registry/capability_registry.py": {
+      "reason": "Integration attribution: source snapshot extension from 17d6e6b52457 (feat: add Mnemosyne tutor runtime); original pinned upstream SHA remains recorded in sources.files.",
+      "current_sha256": "12189ed739a51c9cb678512d10806448c575deae0835f0a4deac5d75c9b7ec03",
+      "source_commit": "17d6e6b5245758aa824589327d6b92b5bfa62035"
+    },
+    "upstreams/DeepTutor/deeptutor/services/model_selection/tasks.py": {
+      "reason": "Integration attribution: source snapshot extension from 755f4aae4f66 (feat: integrate native tutor routing and model purposes); original pinned upstream SHA remains recorded in sources.files.",
+      "current_sha256": "20ef1f0a7715c63d1ac97036e800cca86c99d338fdd1a70423983623f61468e2",
+      "source_commit": "755f4aae4f66ef98414f87676556deed07a6b992"
+    },
+    "upstreams/DeepTutor/deeptutor/services/prompt/language.py": {
+      "reason": "Integration attribution: source snapshot extension from cf56097e03f0 (fix(unit-02): apply Korean tutor prompt to locale tags); original pinned upstream SHA remains recorded in sources.files.",
+      "current_sha256": "03e3acfcb957d0d882a29faf0c6798526b0673fde3df54ca8df6990989b95e89",
+      "source_commit": "cf56097e03f0768ae58e9f6dc15d1dd2384073e6"
+    },
+    "upstreams/DeepTutor/deeptutor/services/session/_turn_runtime_shared.py": {
+      "reason": "Integration attribution: source snapshot extension from 17d6e6b52457 (feat: add Mnemosyne tutor runtime); original pinned upstream SHA remains recorded in sources.files.",
+      "current_sha256": "864665bee415d904cb9e861b178de488c76f4c198b7309a9c8a660d73a170906",
+      "source_commit": "17d6e6b5245758aa824589327d6b92b5bfa62035"
+    },
+    "upstreams/DeepTutor/deeptutor/services/session/turns/executor.py": {
+      "reason": "Integration attribution: source snapshot extension from def97687f878 (fix(unit-02): ignore non-tutor event labels); original pinned upstream SHA remains recorded in sources.files.",
+      "current_sha256": "40660ac5a46d1245692d5be3f55a1d875c1b61966afa531577df5b70d28bfc7b",
+      "source_commit": "def97687f878e060e4c2aa6e338e398bc524a845"
+    },
+    "upstreams/DeepTutor/deeptutor/services/session/turns/lifecycle.py": {
+      "reason": "Integration attribution: source snapshot extension from 17d6e6b52457 (feat: add Mnemosyne tutor runtime); original pinned upstream SHA remains recorded in sources.files.",
+      "current_sha256": "15844224fd5789178e2873cb42a0a2d584a8992aa1a74cbdc76f4d718ee837ca",
+      "source_commit": "17d6e6b5245758aa824589327d6b92b5bfa62035"
+    },
+    "upstreams/DeepTutor/deeptutor/services/session/turns/request_preparer.py": {
+      "reason": "Integration attribution: source snapshot extension from 7b9dbef992c0 (fix(unit-02): preserve tutor action selection); original pinned upstream SHA remains recorded in sources.files.",
+      "current_sha256": "5035d61fb2cad17a8e6bbc7e8830e5012b8efb43cde085692fd81c0d39f52625",
+      "source_commit": "7b9dbef992c07245abfbc63efea4966fe92ffa7e"
+    },
+    "upstreams/DeepTutor/deeptutor/tools/builtin/__init__.py": {
+      "reason": "Integration attribution: source snapshot extension from 0df7cdaa78fa (feat(unit-02): gate personal tutor tools); original pinned upstream SHA remains recorded in sources.files.",
+      "current_sha256": "8424bf782b54ca3c94482a5a5f4e708cbee43f00cbfd3e47199c42ccca500e58",
+      "source_commit": "0df7cdaa78fab21bb598334ce221de7f8bc2e794"
+    },
+    "upstreams/DeepTutor/docker-compose.yml": {
+      "reason": "Integration attribution: source snapshot extension from 5715a32927e3 (feat: pin upstreams and prepare Mnemosyne bootstrap); original pinned upstream SHA remains recorded in sources.files.",
+      "current_sha256": "8ebf49cf6af129df6f2776a6e33fa34e66cdc9f68756b6ca6a9bdd8d340b4341",
+      "source_commit": "5715a32927e3a73dc28782d306880e3dd1f62441"
+    },
+    "upstreams/DeepTutor/requirements.txt": {
+      "reason": "Integration attribution: source snapshot extension from 6e7277a11739 (fix(unit-06): lock DeepTutor runtime dependencies); original pinned upstream SHA remains recorded in sources.files.",
+      "current_sha256": "c4c5917e5cb1288e80e21bafc6daab70b713eb39f89a59186cce07a2c44a32b5",
+      "source_commit": "6e7277a11739254dc70416637f58496e36bd0027"
+    },
+    "upstreams/DeepTutor/tests/agents/chat/test_agent_loop.py": {
+      "reason": "Integration attribution: source snapshot extension from 0df7cdaa78fa (feat(unit-02): gate personal tutor tools); original pinned upstream SHA remains recorded in sources.files.",
+      "current_sha256": "192046df955823b9d490c9c678a473bce2f484c226574aaeab9d7410d71a1491",
+      "source_commit": "0df7cdaa78fab21bb598334ce221de7f8bc2e794"
+    },
+    "upstreams/DeepTutor/tests/agents/question/test_pipeline.py": {
+      "reason": "Integration attribution: source snapshot extension from 0df7cdaa78fa (feat(unit-02): gate personal tutor tools); original pinned upstream SHA remains recorded in sources.files.",
+      "current_sha256": "8650304d53bf71a535c9058b465c30a086b949a278ad1f2832de76528ab78841",
+      "source_commit": "0df7cdaa78fab21bb598334ce221de7f8bc2e794"
+    },
+    "upstreams/DeepTutor/tests/api/routers/test_quiz_judge_unit.py": {
+      "reason": "Integration attribution: source snapshot extension from 17d6e6b52457 (feat: add Mnemosyne tutor runtime); original pinned upstream SHA remains recorded in sources.files.",
+      "current_sha256": "8b80b12077e6fc5f219be98f351b8b8d68aaf4a9d22ec8b06bee8b9b990ae542",
+      "source_commit": "17d6e6b5245758aa824589327d6b92b5bfa62035"
+    },
+    "upstreams/DeepTutor/tests/api/test_settings_router.py": {
+      "reason": "Integration attribution: source snapshot extension from 0df7cdaa78fa (feat(unit-02): gate personal tutor tools); original pinned upstream SHA remains recorded in sources.files.",
+      "current_sha256": "4d4c54577fa8865b9d10e6d1b4ec3cd51aa5510dd2bc4b945118c962e8912ee2",
+      "source_commit": "0df7cdaa78fab21bb598334ce221de7f8bc2e794"
+    },
+    "upstreams/DeepTutor/tests/api/test_tools_router.py": {
+      "reason": "Integration attribution: source snapshot extension from 0df7cdaa78fa (feat(unit-02): gate personal tutor tools); original pinned upstream SHA remains recorded in sources.files.",
+      "current_sha256": "28731f4f25da51baf6490222d7a09e86005ea2e9fb5e8942a2c74b05832a5e43",
+      "source_commit": "0df7cdaa78fab21bb598334ce221de7f8bc2e794"
+    },
+    "upstreams/DeepTutor/tests/api/test_unified_ws_turn_runtime.py": {
+      "reason": "UNIT-02 learning API fixtures plus integration coverage for pairing-session authentication, Origin rejection, contract-shaped errors, and readiness failures. Original pinned SHA remains recorded in sources.files.",
+      "current_sha256": "83af7d72e592896d25ff65d632def7b4f587df9e97793c31c45b149c5c3ffaf0",
+      "source_commit": "e024f81209a15b81630a5ab169013bdb868320d9"
+    },
+    "upstreams/DeepTutor/tests/core/agentic/test_tool_dispatch_events.py": {
+      "reason": "Integration attribution: source snapshot extension from f62813b63e1c (feat(unit-02): emit verified reader contract events); original pinned upstream SHA remains recorded in sources.files.",
+      "current_sha256": "273b1d6bb5cd13135e8ec9194ec266cf472c5ca44fd056152ea610d605457835",
+      "source_commit": "f62813b63e1cbf55d692fbfd4b937eb75b08208f"
+    },
+    "upstreams/DeepTutor/tests/multi_user/test_learning_reading_turns.py": {
+      "reason": "Integration attribution: source snapshot extension from 17d6e6b52457 (feat: add Mnemosyne tutor runtime); original pinned upstream SHA remains recorded in sources.files.",
+      "current_sha256": "783ac4812702ff52eb1d29b8f7838a49d2598ba9506d332c8a34eebdb9503a9c",
+      "source_commit": "17d6e6b5245758aa824589327d6b92b5bfa62035"
+    },
+    "upstreams/DeepTutor/tests/plugins/test_entrypoint_loader.py": {
+      "reason": "Integration attribution: source snapshot extension from 0df7cdaa78fa (feat(unit-02): gate personal tutor tools); original pinned upstream SHA remains recorded in sources.files.",
+      "current_sha256": "32aa90971dba64e7871a2fb5b4fc3d7a2a90156157078ed47779736763965a88",
+      "source_commit": "0df7cdaa78fab21bb598334ce221de7f8bc2e794"
+    },
+    "upstreams/DeepTutor/tests/plugins/test_registry_gating.py": {
+      "reason": "Integration attribution: source snapshot extension from 0df7cdaa78fa (feat(unit-02): gate personal tutor tools); original pinned upstream SHA remains recorded in sources.files.",
+      "current_sha256": "b9f29eb8897f721d0f272b111f1034c5fa100f6871dcec3d1e60fe39ad872eac",
+      "source_commit": "0df7cdaa78fab21bb598334ce221de7f8bc2e794"
+    },
+    "upstreams/DeepTutor/tests/reading/test_ingestion.py": {
+      "reason": "Integration attribution: source snapshot extension from 1616a6e95804 (fix(mnemosyne): validate RAG index readiness); original pinned upstream SHA remains recorded in sources.files.",
+      "current_sha256": "b3a909c74be29aa442708ec8636ed24b3270671c9bd8f928ec74a9178beb95d7",
+      "source_commit": "1616a6e958046bdea702b6ca72dc268e258db9fb"
+    },
+    "upstreams/DeepTutor/tests/runtime/test_lazy_builtin_catalogs.py": {
+      "reason": "Integration attribution: source snapshot extension from 0df7cdaa78fa (feat(unit-02): gate personal tutor tools); original pinned upstream SHA remains recorded in sources.files.",
+      "current_sha256": "1bb9e2d1bdb5f0348bce2d3697bc091fbc30228dc7093c10072c8a31482eb2ec",
+      "source_commit": "0df7cdaa78fab21bb598334ce221de7f8bc2e794"
+    },
+    "upstreams/DeepTutor/tests/services/config/test_readiness.py": {
+      "reason": "Integration attribution: source snapshot extension from 0df7cdaa78fa (feat(unit-02): gate personal tutor tools); original pinned upstream SHA remains recorded in sources.files.",
+      "current_sha256": "b580a040f4aca6de1a6cbfe51361ff4a9482a78440190d4ff1ae3eaf68dcff62",
+      "source_commit": "0df7cdaa78fab21bb598334ce221de7f8bc2e794"
+    },
+    "upstreams/DeepTutor/tests/services/prompt/test_language_directive.py": {
+      "reason": "Integration attribution: source snapshot extension from cf56097e03f0 (fix(unit-02): apply Korean tutor prompt to locale tags); original pinned upstream SHA remains recorded in sources.files.",
+      "current_sha256": "247a3feebe175d4bc9fd7102415ccb2bbf760ed9ebc4279359c06d4b5661f6a3",
+      "source_commit": "cf56097e03f0768ae58e9f6dc15d1dd2384073e6"
+    },
+    "upstreams/DeepTutor/tests/services/test_task_models.py": {
+      "reason": "Integration attribution: source snapshot extension from 755f4aae4f66 (feat: integrate native tutor routing and model purposes); original pinned upstream SHA remains recorded in sources.files.",
+      "current_sha256": "ee947afaca1654fd482ce59f0e1c07a88449699d4d911c3a72ba766e3a5e5a22",
+      "source_commit": "755f4aae4f66ef98414f87676556deed07a6b992"
+    },
+    "upstreams/DeepTutor/tests/tools/test_zotero_search.py": {
+      "reason": "Integration attribution: source snapshot extension from 0df7cdaa78fa (feat(unit-02): gate personal tutor tools); original pinned upstream SHA remains recorded in sources.files.",
+      "current_sha256": "fa15b3343897c01f44aabafbc7472b6de6b9a33d9d38df2d53acf380bbda053a",
+      "source_commit": "0df7cdaa78fab21bb598334ce221de7f8bc2e794"
+    },
+    "upstreams/DeepTutor/web/app/(settings)/layout.tsx": {
+      "reason": "Integration attribution: source snapshot extension from 8330692e3b4b (feat(unit-05): add Mnemosyne web learning screens); original pinned upstream SHA remains recorded in sources.files.",
+      "current_sha256": "56062603350a3132a535065d47c7ca5bc3bf61e8061546316f787fe62c5d0329",
+      "source_commit": "8330692e3b4b04e4af53b8f0c9e1259c1207007f"
+    },
+    "upstreams/DeepTutor/web/app/(settings)/settings/[section]/page.tsx": {
+      "reason": "Integration attribution: source snapshot extension from 8330692e3b4b (feat(unit-05): add Mnemosyne web learning screens); original pinned upstream SHA remains recorded in sources.files.",
+      "current_sha256": "a917a8b92902e23904d46ed7b10d5626a792c93c1359698c7a315a804244a165",
+      "source_commit": "8330692e3b4b04e4af53b8f0c9e1259c1207007f"
+    },
+    "upstreams/DeepTutor/web/app/(settings)/settings/layout.tsx": {
+      "reason": "Integration attribution: source snapshot extension from 8330692e3b4b (feat(unit-05): add Mnemosyne web learning screens); original pinned upstream SHA remains recorded in sources.files.",
+      "current_sha256": "d32f2ea8795b0e61bc542aa3ddae0ce2c7a69a2b40587ac0d4edaf201ad09db5",
+      "source_commit": "8330692e3b4b04e4af53b8f0c9e1259c1207007f"
+    },
+    "upstreams/DeepTutor/web/app/(settings)/settings/page.tsx": {
+      "reason": "Integration attribution: source snapshot extension from 8330692e3b4b (feat(unit-05): add Mnemosyne web learning screens); original pinned upstream SHA remains recorded in sources.files.",
+      "current_sha256": "6e718a9b7d935dff50a587b337bd0c2f76e3fdfa8fd4d0a482563fb0bc38b170",
+      "source_commit": "8330692e3b4b04e4af53b8f0c9e1259c1207007f"
+    },
+    "upstreams/DeepTutor/web/app/(workspace)/layout.tsx": {
+      "reason": "Integration attribution: source snapshot extension from 8330692e3b4b (feat(unit-05): add Mnemosyne web learning screens); original pinned upstream SHA remains recorded in sources.files.",
+      "current_sha256": "41c4c954c756b32654fe8321f442bcc1534c7006366591cdea0b739c8725abde",
+      "source_commit": "8330692e3b4b04e4af53b8f0c9e1259c1207007f"
+    },
+    "upstreams/DeepTutor/web/app/(workspace)/learning/mastery/page.tsx": {
+      "reason": "Integration attribution: source snapshot extension from 8330692e3b4b (feat(unit-05): add Mnemosyne web learning screens); original pinned upstream SHA remains recorded in sources.files.",
+      "current_sha256": "40a169724b8a73c762df4e867658e115dfc6bd25473352859142c12db54cc124",
+      "source_commit": "8330692e3b4b04e4af53b8f0c9e1259c1207007f"
+    },
+    "upstreams/DeepTutor/web/app/(workspace)/learning/page.tsx": {
+      "reason": "Integration attribution: source snapshot extension from 8330692e3b4b (feat(unit-05): add Mnemosyne web learning screens); original pinned upstream SHA remains recorded in sources.files.",
+      "current_sha256": "6d2a3de50cad8f88fe8961fe976194795ab8854a7993bf395ff8fe16d4843938",
+      "source_commit": "8330692e3b4b04e4af53b8f0c9e1259c1207007f"
+    },
+    "upstreams/DeepTutor/web/app/(workspace)/learning/practice/page.tsx": {
+      "reason": "Integration attribution: source snapshot extension from 8330692e3b4b (feat(unit-05): add Mnemosyne web learning screens); original pinned upstream SHA remains recorded in sources.files.",
+      "current_sha256": "b0ef15e2fd45241e1e49c107967c699a7f1589097be65697fcf07d9cbf9961b8",
+      "source_commit": "8330692e3b4b04e4af53b8f0c9e1259c1207007f"
+    },
+    "upstreams/DeepTutor/web/app/(workspace)/learning/reading/[workspaceId]/page.tsx": {
+      "reason": "Integration attribution: source snapshot extension from 8330692e3b4b (feat(unit-05): add Mnemosyne web learning screens); original pinned upstream SHA remains recorded in sources.files.",
+      "current_sha256": "ed6949d6fbe400046a23bb67b97ccc9b6cffc67f91ab4ce75763d2b94db2ae7b",
+      "source_commit": "8330692e3b4b04e4af53b8f0c9e1259c1207007f"
+    },
+    "upstreams/DeepTutor/web/app/(workspace)/learning/reading/layout.tsx": {
+      "reason": "Integration attribution: source snapshot extension from 8330692e3b4b (feat(unit-05): add Mnemosyne web learning screens); original pinned upstream SHA remains recorded in sources.files.",
+      "current_sha256": "3914ad26d736f8ce43fe660c39578b105035bfe64441de695114b44d87147604",
+      "source_commit": "8330692e3b4b04e4af53b8f0c9e1259c1207007f"
+    },
+    "upstreams/DeepTutor/web/app/(workspace)/learning/reading/page.tsx": {
+      "reason": "Integration attribution: source snapshot extension from 8330692e3b4b (feat(unit-05): add Mnemosyne web learning screens); original pinned upstream SHA remains recorded in sources.files.",
+      "current_sha256": "204087b0325f4a7b1976f2a84b8dc1573b804d3ced6d406db374d89156aece37",
+      "source_commit": "8330692e3b4b04e4af53b8f0c9e1259c1207007f"
+    },
+    "upstreams/DeepTutor/web/app/(workspace)/page.tsx": {
+      "reason": "Integration attribution: source snapshot extension from 69ea093ee2e0 (fix(unit-05): route legacy pages to Mnemosyne); original pinned upstream SHA remains recorded in sources.files.",
+      "current_sha256": "0f283b8da54e6777e4fa49edd0ced44cd3db8fe1bd5357241ed82852d0f0f06f",
+      "source_commit": "69ea093ee2e0f27dc49f1492d0c47517e6aa0682"
+    },
+    "upstreams/DeepTutor/web/app/layout.tsx": {
+      "reason": "Integration attribution: source snapshot extension from 8330692e3b4b (feat(unit-05): add Mnemosyne web learning screens); original pinned upstream SHA remains recorded in sources.files. Mnemosyne brand icons now resolve to integration_added_files.",
+      "current_sha256": "70152a0624ede8ca2d09a0308b5c787c18486244787d186e7e6ce57ec928ae35",
+      "source_commit": "8330692e3b4b04e4af53b8f0c9e1259c1207007f"
+    },
+    "upstreams/DeepTutor/web/components/reading/AnnotationLayer.tsx": {
+      "reason": "Integration attribution: source snapshot extension from 8330692e3b4b (feat(unit-05): add Mnemosyne web learning screens); original pinned upstream SHA remains recorded in sources.files.",
+      "current_sha256": "dcc413b187e44e2a71cd25a5b518b62d3da92988ec653a8d730e1f47cfc816c6",
+      "source_commit": "8330692e3b4b04e4af53b8f0c9e1259c1207007f"
+    },
+    "upstreams/DeepTutor/web/components/reading/PdfDocumentView.tsx": {
+      "reason": "Integration attribution: source snapshot extension from 8330692e3b4b (feat(unit-05): add Mnemosyne web learning screens); original pinned upstream SHA remains recorded in sources.files.",
+      "current_sha256": "e94bae85139ae34651bb84a3ee8834e37379fa9ea551dba8edaebd709fc54a67",
+      "source_commit": "8330692e3b4b04e4af53b8f0c9e1259c1207007f"
+    },
+    "upstreams/DeepTutor/web/components/reading/PdfPage.tsx": {
+      "reason": "Integration attribution: source snapshot extension from 8330692e3b4b (feat(unit-05): add Mnemosyne web learning screens); original pinned upstream SHA remains recorded in sources.files.",
+      "current_sha256": "daf32f99fb9f94a874f5ce74c0c91206f0cfad6ff45a3319529c4c79bb02f944",
+      "source_commit": "8330692e3b4b04e4af53b8f0c9e1259c1207007f"
+    },
+    "upstreams/DeepTutor/web/components/settings/TaskModelsWorkspace.tsx": {
+      "reason": "Integration attribution: source snapshot extension from 4ea6a8fcf15f (fix(unit-05): inherit conversation model for Mnemosyne tasks); original pinned upstream SHA remains recorded in sources.files.",
+      "current_sha256": "1e6f5f07d6675d93141b8d75daaaa0fd87e52e9427cb37cccc1f16ee8ab48ff0",
+      "source_commit": "4ea6a8fcf15faf322bfdaa1c537b0346a7fd5851"
+    },
+    "upstreams/DeepTutor/web/components/sidebar/nav-entries.ts": {
+      "reason": "Integration attribution: source snapshot extension from 69ea093ee2e0 (fix(unit-05): route legacy pages to Mnemosyne); original pinned upstream SHA remains recorded in sources.files.",
+      "current_sha256": "da67c5d3ea25c90d1f9cf5bb17a7d6cbc1fc786c2432f2395c650bcb87dee995",
+      "source_commit": "69ea093ee2e0f27dc49f1492d0c47517e6aa0682"
+    },
+    "upstreams/DeepTutor/web/lib/proxy-policy.ts": {
+      "reason": "Integration attribution: source snapshot extension from 69ea093ee2e0 (fix(unit-05): route legacy pages to Mnemosyne); original pinned upstream SHA remains recorded in sources.files.",
+      "current_sha256": "54403b0cbd21a60e901ba797a27c7f0e0f1ef146069e9739f778c54029618427",
+      "source_commit": "69ea093ee2e0f27dc49f1492d0c47517e6aa0682"
+    },
+    "upstreams/DeepTutor/web/locales/de/app.json": {
+      "reason": "Integration attribution: source snapshot extension from 75115193250f (feat(unit-05): add purpose-specific model selectors); original pinned upstream SHA remains recorded in sources.files.",
+      "current_sha256": "05a0b777b598ff89c3863019790b5ab9dd650f3d0025516d5740704dd9cb717e",
+      "source_commit": "75115193250f6b8ec1721bfe25b416f4705b5329"
+    },
+    "upstreams/DeepTutor/web/locales/en/app.json": {
+      "reason": "Integration attribution: source snapshot extension from 75115193250f (feat(unit-05): add purpose-specific model selectors); original pinned upstream SHA remains recorded in sources.files.",
+      "current_sha256": "d7f57d78633e2aec366ba02add403605d0474338a89a56acb226dced7c94b093",
+      "source_commit": "75115193250f6b8ec1721bfe25b416f4705b5329"
+    },
+    "upstreams/DeepTutor/web/locales/pl/app.json": {
+      "reason": "Integration attribution: source snapshot extension from 75115193250f (feat(unit-05): add purpose-specific model selectors); original pinned upstream SHA remains recorded in sources.files.",
+      "current_sha256": "4ce26882b05b3c799c29e7ee8257d95aa3a7e15d201656226a650cefacc42985",
+      "source_commit": "75115193250f6b8ec1721bfe25b416f4705b5329"
+    },
+    "upstreams/DeepTutor/web/locales/zh/app.json": {
+      "reason": "Integration attribution: source snapshot extension from 75115193250f (feat(unit-05): add purpose-specific model selectors); original pinned upstream SHA remains recorded in sources.files.",
+      "current_sha256": "9be9422bba79fd51ba536b83ae60de296babb5cf9c0ef2087ac225e02dfa1436",
+      "source_commit": "75115193250f6b8ec1721bfe25b416f4705b5329"
+    },
+    "upstreams/DeepTutor/web/next.config.js": {
+      "reason": "Integration attribution: source snapshot extension from 8330692e3b4b (feat(unit-05): add Mnemosyne web learning screens); original pinned upstream SHA remains recorded in sources.files.",
+      "current_sha256": "66655e121ec2fe9e25386d8c0349ab5c2b25c1e3c592501921f9998778479059",
+      "source_commit": "8330692e3b4b04e4af53b8f0c9e1259c1207007f"
+    },
+    "upstreams/DeepTutor/web/proxy.ts": {
+      "reason": "Integration attribution: source snapshot extension from 69ea093ee2e0 (fix(unit-05): route legacy pages to Mnemosyne); original pinned upstream SHA remains recorded in sources.files.",
+      "current_sha256": "6d60352a587a5370b370f648e90da4f16099fd98c71e6d13cb07eb516f1e3990",
+      "source_commit": "69ea093ee2e0f27dc49f1492d0c47517e6aa0682"
+    },
+    "upstreams/DeepTutor/web/tests/chat-provider-topology.test.ts": {
+      "reason": "Integration attribution: source snapshot extension from 8330692e3b4b (feat(unit-05): add Mnemosyne web learning screens); original pinned upstream SHA remains recorded in sources.files.",
+      "current_sha256": "014ab830398337ef6b168f121a5f43b29dfefe8a67b3bae28d1792143b4c868c",
+      "source_commit": "8330692e3b4b04e4af53b8f0c9e1259c1207007f"
+    },
+    "upstreams/DeepTutor/web/tests/guardian-management.test.ts": {
+      "reason": "Integration attribution: source snapshot extension from 8330692e3b4b (feat(unit-05): add Mnemosyne web learning screens); original pinned upstream SHA remains recorded in sources.files.",
+      "current_sha256": "a8e26caeb484f8fa9b8ea7e70f0da09467d5ad8ff44af29061309c73ea23e441",
+      "source_commit": "8330692e3b4b04e4af53b8f0c9e1259c1207007f"
+    },
+    "upstreams/DeepTutor/web/tests/learner-navigation.spec.tsx": {
+      "reason": "Integration attribution: source snapshot extension from 69ea093ee2e0 (fix(unit-05): route legacy pages to Mnemosyne); original pinned upstream SHA remains recorded in sources.files.",
+      "current_sha256": "de86d5606c73698b69697285e6aa9c6355f57f4b889aa5cd24217ade789cfc50",
+      "source_commit": "69ea093ee2e0f27dc49f1492d0c47517e6aa0682"
+    },
+    "upstreams/DeepTutor/web/tests/mastery-study-layout.test.ts": {
+      "reason": "Integration attribution: source snapshot extension from 8330692e3b4b (feat(unit-05): add Mnemosyne web learning screens); original pinned upstream SHA remains recorded in sources.files.",
+      "current_sha256": "3707c973d4cb1dba52276f74d927a9f182edc69903a9267e3bdb033bb454bed7",
+      "source_commit": "8330692e3b4b04e4af53b8f0c9e1259c1207007f"
+    },
+    "upstreams/DeepTutor/web/tests/practice-entrypoints.spec.tsx": {
+      "reason": "Integration attribution: source snapshot extension from 8330692e3b4b (feat(unit-05): add Mnemosyne web learning screens); original pinned upstream SHA remains recorded in sources.files.",
+      "current_sha256": "092ceab83d8237f415ecf9a67fb2902ed229d8edc5edf99c94e32effb977a6c3",
+      "source_commit": "8330692e3b4b04e4af53b8f0c9e1259c1207007f"
+    },
+    "upstreams/DeepTutor/web/tests/proxy-policy.test.ts": {
+      "reason": "Integration attribution: source snapshot extension from 69ea093ee2e0 (fix(unit-05): route legacy pages to Mnemosyne); original pinned upstream SHA remains recorded in sources.files.",
+      "current_sha256": "9ee0a2e344d0ff8339760bc3113388574e111e39e6ffd535203e123ca3a26abc",
+      "source_commit": "69ea093ee2e0f27dc49f1492d0c47517e6aa0682"
+    },
+    "upstreams/DeepTutor/web/tests/reading-v2-surface.test.ts": {
+      "reason": "Integration attribution: source snapshot extension from e22a0e9d421a (feat(unit-05): align reader surfaces with native tutor); original pinned upstream SHA remains recorded in sources.files when present.",
+      "current_sha256": "887aa5e092c597a5688eac30e61b36e29f8a3736a26bedd74cf69f52fcae6257",
+      "source_commit": "e22a0e9d421adf3020e5359dcbda541e5ba378e0"
+    },
+    "upstreams/DeepTutor/web/tests/settings-provider-slices.test.ts": {
+      "reason": "Integration attribution: source snapshot extension from 8330692e3b4b (feat(unit-05): add Mnemosyne web learning screens); original pinned upstream SHA remains recorded in sources.files.",
+      "current_sha256": "f1b03e6172886ade4950aa8187dc86b33fd6f1f72c833c1cadd538541d7ee1ba",
+      "source_commit": "8330692e3b4b04e4af53b8f0c9e1259c1207007f"
+    },
+    "upstreams/DeepTutor/web/tests/sidebar-defaults.spec.tsx": {
+      "reason": "Integration attribution: source snapshot extension from 69ea093ee2e0 (fix(unit-05): route legacy pages to Mnemosyne); original pinned upstream SHA remains recorded in sources.files.",
+      "current_sha256": "dea1aa68d50a9f09d6a2c3a00c8fdff886c3131c909164e6fd6b81f21186b2e6",
+      "source_commit": "69ea093ee2e0f27dc49f1492d0c47517e6aa0682"
+    },
+    "upstreams/DeepTutor/web/components/sidebar/SidebarNav.tsx": {
+      "reason": "Integration attribution: source snapshot extension from e22a0e9d421a (feat(unit-05): align reader surfaces with native tutor); original pinned upstream SHA remains recorded in sources.files when present.",
+      "current_sha256": "c026b4246ab566d2c7da6bf70b9be5e6656ea522981b7e22162d39fbaefe5983",
+      "source_commit": "e22a0e9d421adf3020e5359dcbda541e5ba378e0"
+    },
+    "upstreams/DeepTutor/web/features/mnemosyne/register.ts": {
+      "reason": "Integration attribution: source snapshot extension from e22a0e9d421a (feat(unit-05): align reader surfaces with native tutor); original pinned upstream SHA remains recorded in sources.files when present.",
+      "current_sha256": "10d3433101bec2ebfa851d2990342ebb7f73bd06ca03cdde445fa1625099e190",
+      "source_commit": "e22a0e9d421adf3020e5359dcbda541e5ba378e0"
+    },
+    "upstreams/DeepTutor/web/features/mnemosyne/screens.tsx": {
+      "reason": "Integration attribution: source snapshot extension from e22a0e9d421a (feat(unit-05): align reader surfaces with native tutor); original pinned upstream SHA remains recorded in sources.files when present. Mnemosyne navigation now uses the shared user brand mark and teal active state.",
+      "current_sha256": "7d5bc62b2eca0b3b8e17ef21e3c231dd727e9b084659cea5e8be756a5d1f9858",
+      "source_commit": "e22a0e9d421adf3020e5359dcbda541e5ba378e0"
+    },
+    "upstreams/DeepTutor/web/tests/pdf-reading-resize.spec.tsx": {
+      "reason": "Integration attribution: source snapshot extension from e22a0e9d421a (feat(unit-05): align reader surfaces with native tutor); original pinned upstream SHA remains recorded in sources.files when present.",
+      "current_sha256": "b119537f90b2127002d77f980519a313f075152bf7caf2e8d0a2cca3c8bdd472",
+      "source_commit": "e22a0e9d421adf3020e5359dcbda541e5ba378e0"
+    },
+    "upstreams/DeepTutor/web/tests/sidebar-lazy-history.spec.tsx": {
+      "reason": "Integration attribution: source snapshot extension from e22a0e9d421a (feat(unit-05): align reader surfaces with native tutor); original pinned upstream SHA remains recorded in sources.files when present.",
+      "current_sha256": "8c2c3cda8f158f5a0c012337e6b077232f17b0936063f5d892f9e2716a8495a8",
+      "source_commit": "e22a0e9d421adf3020e5359dcbda541e5ba378e0"
+    },
+    "upstreams/Pumice/Packages/PumiceCore/Tests/PumiceCoreTests/PageGeometryTests.swift": {
+      "reason": "UNIT-03 integration: Add UNIT-03 regression coverage for canonical geometry, viewport restoration, persistence, selection invalidation, mutation outbox, and explicit conflict resolution. Original pinned SHA remains recorded in sources.files.",
+      "current_sha256": "aff0524e9821bdbf48cde8fa05de8d06aef3a4b55606cec570b65b2b458de31c",
+      "source_commit": "ae202f0cf1096d5fcc0ab1ecd325ac20a0d8e4b1"
+    },
+    "upstreams/Pumice/Sources/Reader/PDFReaderController.swift": {
+      "reason": "UNIT-03 integration: Add the PumiceReaderEngine adapter that connects the existing PDFKit Reader to the UNIT-03 facade and exposes local persistence failures separately from sync failures. Original pinned SHA remains recorded in sources.files.",
+      "current_sha256": "7050060e398ca9c5ff56d7947d3e27cba994969b68e2173c3378ac6188f0c43a",
+      "source_commit": "ae202f0cf1096d5fcc0ab1ecd325ac20a0d8e4b1"
+    },
+    "upstreams/Pumice/Sources/Reader/PDFReaderView.swift": {
+      "reason": "UNIT-03 integration: Inject and attach the shared Reader engine through the existing SwiftUI PDF view lifecycle. Original pinned SHA remains recorded in sources.files.",
+      "current_sha256": "e75208d987e2d291084cd37ffcb254195722505b5f113a9ea02b6d122a1764d0",
+      "source_commit": "ae202f0cf1096d5fcc0ab1ecd325ac20a0d8e4b1"
+    },
+    "upstreams/Pumice/Sources/Reader/PDFReaderViewController.swift": {
+      "reason": "UNIT-03 integration: Persist ink, highlights, and viewport in a hash-keyed sidecar; connect search, outline, context, annotation/outbox callbacks, viewport restore, and derived-PDF export without modifying the source PDF. Original pinned SHA remains recorded in sources.files.",
+      "current_sha256": "edba468810246ad17eeca798981f9666fabf57f1fc3248159f1661d156220755",
+      "source_commit": "ae202f0cf1096d5fcc0ab1ecd325ac20a0d8e4b1"
+    },
+    "upstreams/Pumice/Sources/Reader/PenSettings.swift": {
+      "reason": "UNIT-03 integration: Extend stroke records with stable identity and Pencil sample location, pressure, and elapsed time for durable geometry-backed mutations. Original pinned SHA remains recorded in sources.files.",
+      "current_sha256": "30e164a738f99c718c817c53743b2cf642cc7fcab76fbc14a9d74dcad5f5d8e0",
+      "source_commit": "ae202f0cf1096d5fcc0ab1ecd325ac20a0d8e4b1"
+    },
+    "upstreams/Pumice/Sources/Reader/PumiceCanvasView.swift": {
+      "reason": "UNIT-03 integration: Forward canvas bounds and Pencil samples to the Reader controller for canonical-coordinate conversion and viewport updates. Original pinned SHA remains recorded in sources.files.",
+      "current_sha256": "35dacbceb7b9a9d4df2d8021cb291f2d6634eee85dffa9d72eab155fec2c6edf",
+      "source_commit": "ae202f0cf1096d5fcc0ab1ecd325ac20a0d8e4b1"
+    },
+    "upstreams/Pumice/Sources/Reader/PumicePencilGestureRecognizer.swift": {
+      "reason": "UNIT-03 integration: Collect coalesced Pencil locations, pressure, and timestamps while allowing Pencil input alongside concurrent finger touches. Original pinned SHA remains recorded in sources.files.",
+      "current_sha256": "68efa71533b9e2933a35089111683839bd26883caab2a16ff0b33f0d73048f56",
+      "source_commit": "ae202f0cf1096d5fcc0ab1ecd325ac20a0d8e4b1"
+    },
+    "upstreams/Pumice/Tests/PumiceTests/RoundTripTests.swift": {
+      "reason": "UNIT-03 integration: Add a PDFKit regression test that exports a sidecar-only highlight and verifies the source PDF bytes remain unchanged. Original pinned SHA remains recorded in sources.files.",
+      "current_sha256": "c340a4352e95697ed586e49ac95ca1798ba6d145104a5173a5de862f6ae376aa",
+      "source_commit": "ae202f0cf1096d5fcc0ab1ecd325ac20a0d8e4b1"
+    },
+    "upstreams/Pumice/App/Assets.xcassets/AppIcon.appiconset/pumice_icon.png": {
+      "reason": "Integrator branding override: 1024px app icon prepared from the user-provided Mnemosyne emblem; the pinned Pumice source hash remains recorded in sources.files.",
+      "current_sha256": "5db2fcdeddc6fb74e58b7a037690f29f9c769f1c8a04f7c71929b664fa422a86"
     }
-  }
+  },
+  "integration_added_files": [
+    {
+      "path": "upstreams/DeepTutor/deeptutor/mnemosyne/learning_store.py",
+      "sha256": "453a15743e852246b756d46532aa138f00f2cdf9a7b35c184ebc2fe6bb110423",
+      "owner": "INTEGRATOR",
+      "purpose": "Durable SQLite quiz, private grading, assessment, mastery, memory, progress and activity state."
+    },
+    {
+      "path": "upstreams/DeepTutor/deeptutor/mnemosyne/provider.py",
+      "sha256": "9484d7f3bfae15558a223c3036a3d817aa32316c9d07d49470e219e532d789b7",
+      "owner": "INTEGRATOR",
+      "purpose": "Endpoint-scoped private OpenAI-compatible credentials and runtime configuration."
+    },
+    {
+      "path": "upstreams/DeepTutor/deeptutor/mnemosyne/quiz_generation.py",
+      "sha256": "312ecd53ccf01d5eb86ff937f005e2dc9b668cb737eb39beda2169aa0b9a2c5a",
+      "owner": "INTEGRATOR",
+      "purpose": "Source-verified quiz generation and idempotent public/private quiz persistence."
+    },
+    {
+      "path": "upstreams/DeepTutor/tests/mnemosyne/test_learning_store.py",
+      "sha256": "009ac4389d0d045e6c785999f394b7ec5a99a2560cc1105671905a4c1ead894c",
+      "owner": "INTEGRATOR",
+      "purpose": "Integration tests for durable and idempotent learning storage."
+    },
+    {
+      "path": "upstreams/DeepTutor/tests/mnemosyne/test_provider_runtime.py",
+      "sha256": "3cf59c91964292eb1d8afc5dbbb056ecb4d5ebdccd3cca93290e5b0fa5a26f1d",
+      "owner": "INTEGRATOR",
+      "purpose": "Integration tests for provider URL policy and credential scoping."
+    },
+    {
+      "path": "upstreams/DeepTutor/tests/mnemosyne/test_quiz_http.py",
+      "sha256": "38db05d9621b6eceea6f62a553b64b7570952f8eca57a0b677691da43e406e97",
+      "owner": "INTEGRATOR",
+      "purpose": "Integration tests for the paired and versioned quiz generation HTTP route."
+    },
+    {
+      "path": "upstreams/DeepTutor/web/public/mnemosyne-mark.png",
+      "sha256": "5db2fcdeddc6fb74e58b7a037690f29f9c769f1c8a04f7c71929b664fa422a86",
+      "owner": "INTEGRATOR",
+      "purpose": "Shared Mnemosyne mark for web navigation and browser/apple site icons, faithfully reproduced from the user-provided emblem."
+    }
+  ]
 }

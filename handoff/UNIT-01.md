@@ -1,15 +1,105 @@
 # UNIT-01 인수 경계
 
-담당: Library·파싱/색인·검색/인용·sidecar sync·서버 DB/migration. 공통 시작 tag `mnemosyne-bootstrap-v0.1.0`, 계약 `0.1.0`.
+담당: Library·파싱/색인·검색/인용·sidecar sync·서버 DB/migration. 공통 시작 tag `mnemosyne-bootstrap-v0.1.0`, 계약 `0.1.0`. 이 handoff는 유닛 결과와 통합 차단 항목을 구분한다. 제품 전체 준비 완료를 뜻하지 않는다.
 
-실제 등록 경로: `upstreams/DeepTutor/deeptutor/mnemosyne/library.py` · `register_library`. docs/INTEGRATION.md의 signature와 callers를 읽는다.
+이 handoff는 소유권 표준 경로 `handoff/UNIT-01.md`와 목표가 지정한 `docs/handoffs/unit-01.md`에 같은 내용으로 보관한다.
 
-UUID document↔native material/revision 매핑과 full SHA 원본 version; partial span/quad 검증; immutable original; mutation/receipt/log/cursor를 같은 transaction으로; 기존 learning/session storage도 이 유닛이 migration. 기존 hard delete JSON을 sync 구현으로 보고하지 않는다.
+실제 등록 함수: `upstreams/DeepTutor/deeptutor/mnemosyne/library.py`의 `register_library`. 공유 조립 함수 `register_mnemosyne`, container, API main, ports, contracts, checks, dependency 파일은 통합/다른 유닛 소유이며 Unit01이 수정하지 않았다.
 
-현재 common seam/fixture가 있다는 것은 제품 구현 완료가 아니다. 빈 port를 success/no-op으로 채우지 않는다. 필수 기능은 모두 이번 범위다.
+## 구현된 Unit01 경계
 
-정확한 수정 가능 파일 329개는 integration/ownership.json의 owners.UNIT-01 배열이다. 주요 directory는 OWNERSHIP.md 참조. 다른 소유자의 공통 startup/계약/DB/manifest 파일을 편집하지 않는다.
+- `LibraryAdapter`는 지정 DeepTutor `ReadingStore`/`ReadingCatalogStore`와 PyMuPDF를 재사용한다. UUID document와 material ID, 전체 SHA-256 version, 페이지 text/geometry, 추출 image bytes/hash, 과목, workspace 기반 folder 관계, metadata revision, parse/index 상태를 유지한다. PDF 원본은 content-addressed 파일로 별도 보관하고 읽기 전용으로 만든다. DB, WAL/SHM은 `0600`, 전용 asset/export 디렉터리는 `0700` 권한을 적용한다. DB schema migration은 version 3이며 기존 version 2에 `index_started_at`을 추가한다.
+- 업로드는 PDF magic/크기/파일명/언어/과목을 검증하고 DeepTutor의 content ID와 원본 전체 hash를 대조한다. 원본 경로 밖의 쓰기는 허용하지 않는다. `upload_pdf`는 로컬 parse 경계이고 성공한 뒤 index 상태를 `pending`으로 남긴다. HTTP 업로드는 `upload_pdf_async`로 parse 후 `prepare_index`를 시도한다. callback이 주어지면 주입된 RAG indexer를 사용하고, 없으면 지정 DeepTutor의 knowledge-base initializer를 호출한다. 미설정 provider와 실패/취소/30분 이상 응답 없는 index run은 성공으로 가장하지 않고 오류 상태로 남긴다.
+- 문서 목록·조회·수정·확인 헤더를 요구하는 삭제, 과목 CRUD, 페이지/search/citation 검증, 원본 다운로드/hash 재검증, annotation snapshot/change/mutation/cursor, highlight/note/bookmark/ink export, provider 설정 기반을 제공한다. annotation 입력은 page/anchor/geometry와 숫자 유효성을 확인하며 JSON 모양이 잘못된 mutation은 `invalid_request`로 거절한다. 원본 수정 내보내기와 별개다.
+- `DocumentRepositoryAdapter`는 `get_document`, `get_page`, `get_page_assets`, `get_asset`을 제공한다. 이미지 인덱스는 페이지별 asset ID/MIME/hash를 돌려주고 byte 접근 때 hash를 재검증한다. 기존 `ports.py`에는 `get_page_assets` 선언이 없어 Protocol 추가가 필요하다.
+- `LibraryAdapter.create_folder/list_folders/assign_folder/remove_from_folder`는 지정 DeepTutor `ReadingCatalogStore` workspace 저장소를 재사용한다. 이름/설명 입력을 검증하고 500개 단위로 페이지를 순회해 폴더 목록을 반환한다. 현재 계약의 HTTP/OpenAPI에는 folder API가 없으므로 이 기능을 Mac/iPad에서 호출 가능한 제품 API로 보고하지 않는다.
+- Settings API는 공개 adapter/base URL/model/언어/credential 존재 여부만 SQLite에 둔다. key는 주입된 secret writer로 보내고 응답/공개 행에 저장하지 않는다. provider URL은 URI 형식 검사 뒤 필수 `settings_base_url_validator` callback이 정확히 `True`를 반환해야 저장된다. allowlist와 서버 console에서 선택 허용한 loopback은 조립 담당이 정해야 한다.
+- Citation verification은 10분 TTL을 검사하고 새 검증마다 만료 행을 정리한다. Annotation snapshot은 삭제 확인과 snapshot/cursor 발행을 writer transaction 안에서 수행한다.
+- `build_library_router(library)`는 계약 0.1.0 HTTP facade를 만들지만 router를 공통 `main.py`에 직접 등록하거나 pairing bearer/Origin 정책을 설치하지 않는다. 단독 배포 경계가 아니다.
 
-새 계약 변경은 소비자 영향·version·fixture·검증 변경을 포함해 통합 담당에게 제안한다. DB 요구는 schema/migration/transaction/검증 명세로 01에 전달한다. 사용자 지시 없이 다른 채팅에 메시지를 보내지 않는다.
+## 통합 담당이 적용할 정확한 변경
 
-인수 결과는 실행한 명령·실제 source/service/build/device 종류·실패/차단을 구별하고 기록한다. 공통 fixture PASS를 제품 오프라인/LLM/기기 검증으로 대체하지 않는다. 원본 hash, 잘못된 인용 거부, replay/cancel/error와 재시작 저장을 실제 경계에서 확인한다.
+1. **서비스 조립과 HTTP 보호** — 통합 소유 `upstreams/DeepTutor/deeptutor/mnemosyne/bootstrap.py::register_mnemosyne`, `deeptutor/app/container.py`, `deeptutor/api/main.py`에서 `register_library`에 다음 선택 인자를 전달한다: `rag_indexer`, `rag_search`, `settings_defaults_provider`, `settings_secret_writer`, `settings_credential_reader`, `settings_base_url_validator`. `settings_base_url_validator(url) -> bool`은 동기 callback이며 allowlist/정책 통과만 `True`여야 한다. 설정/비밀 저장소의 실제 소유자와 안전한 RAG provider 설정을 정한다. `app.include_router(build_library_router(services.library))`는 pairing bearer, 정확한 Origin 검사, request ID, 업로드 용량 보호가 있는 조립 뒤에 등록한다. 현재 bootstrap은 `store`/`annotation_sync`만 전달하고 router를 mount하지 않는다.
+
+2. **DocumentRepository port 확장** — 통합 소유 `upstreams/DeepTutor/deeptutor/mnemosyne/ports.py::DocumentRepository`에 다음 메서드를 추가하고 UNIT-02 Tutor adapter/consumer를 갱신한다. `asset` 목록은 OS 경로 없이 `asset_id`, `page_index`, `mime`, `sha256`만 돌려준다.
+
+   ```python
+   async def get_page_assets(
+       self, document_id: str, version_id: str, page_index: int
+   ) -> list[dict[str, Any]]: ...
+   ```
+
+3. **페이지 그림 외부 API** — `contracts/openapi.yaml`은 기존 `GET /v1/documents/{document_id}/pages/{page_index}` 외에 asset 경로를 정의하지 않는다. 계약 `0.2.0` 변경 승인 시 다음 두 동작을 추가한다.
+
+   - `GET /v1/documents/{document_id}/pages/{page_index}/assets?version_id=...`: 해당 page/version에 연결된 `{asset_id,page_index,mime,sha256}` 배열을 반환한다.
+   - `GET /v1/documents/{document_id}/assets/{asset_id}?version_id=...`: document/version/asset 관계를 검증하고 bytes를 반환한다. 응답 `Content-Type`은 저장 MIME, `ETag` 또는 명시 응답 메타데이터는 SHA-256을 사용한다. 경로/저장소 경로는 응답하지 않는다.
+
+   같은 version을 대상으로 `DocumentRepositoryAdapter.get_page_assets/get_asset`은 이미 구현돼 있다. HTTP binding과 계약은 통합 담당이 소유한다.
+
+4. **계약 0.2.0 — AI Annotation** — 현재 `contracts/annotations.schema.json`의 enum은 `highlight`, `note`, `bookmark`, `ink` 네 종류다. 다음 payload를 제안한다. 실제 생성 문구, 검증된 source anchor, 비밀이 아닌 provider/model provenance를 저장한다. API key는 기록하지 않는다.
+
+   ```json
+   {
+     "type": "object",
+     "properties": {
+       "anchor": {"$ref": "models.schema.json#/$defs/TextAnchor"},
+       "body": {"type": "string", "minLength": 1, "maxLength": 20000},
+       "provider": {"type": "string", "minLength": 1, "maxLength": 100},
+       "model": {"type": "string", "minLength": 1, "maxLength": 200},
+       "source_turn_id": {"anyOf": [{"type": "string", "maxLength": 256}, {"type": "null"}]}
+     },
+     "required": ["anchor", "body", "provider", "model", "source_turn_id"],
+     "additionalProperties": false
+   }
+   ```
+
+   `contracts/annotations.schema.json`에서 `AIAnnotationPayload` 정의를 추가하고 AnnotationDraft 및 live/tombstone AnnotationRecord의 세 kind enum, 각 payload `oneOf`, live record의 kind→payload `allOf` 조건을 함께 확장한다. 서버 `_ANNOTATION_KINDS`와 `_validate_draft`를 같은 payload로 확장한다. `x-contract-version`, OpenAPI 버전/header, `contracts/manifest.json`, `contracts/fixtures/study-session.json`과 fixture README를 0.2.0으로 갱신한다. 생성 복사본은 통합 담당이 동기화한다: `upstreams/Pumice/MnemosyneContracts/`와 `upstreams/DeepTutor/MnemosyneContracts/`. 검증기/소비자도 갱신한다: `checks/validate_contracts.py`, `checks/web-consumer.mjs`, `checks/ipad-consumer.swift`; 해당 유닛 구현 소비자는 각 소유자에게 schema 변경을 전달한다. 확인된 현 fixture consumer는 네 kind를 명시적으로 비교하므로 그대로 두면 새 fixture에서 실패한다.
+
+5. **계약 0.2.0 — parser가 모르는 page_count** — `contracts/models.schema.json`의 `Document.page_count`는 현재 최소 1인 정수지만 실제 parser 실패 시 내부 DB는 0을 저장한다. 숫자를 꾸미지 않는 제안은 non-ready 상태의 wire `page_count: null`, `parse_state: ready`의 wire `page_count >= 1`이다. DB의 내부 0 sentinel은 유지할 수 있고 `get_document` DTO만 비준비 상태를 null로 매핑한다. Document schema에 `anyOf`와 `parse_state` conditional을 넣고 `contracts/fixtures/study-session.json`, OpenAPI, Python/TS/Swift 소비 타입/negative checks를 같이 갱신한다. `checks/ipad-consumer.swift::Document.page_count`는 현재 non-null `Int`이므로 변경 대상으로 확인됐다.
+
+6. **계약 0.2.0 — 폴더 API** — 현재 내부 구현은 workspace id를 folder id로, workspace `title`을 사용자 표시명으로 대응한다. upstream 응답의 `material_id`를 새 공개 API에 그대로 노출하지 말고 Mnemosyne document UUID로 정규화한다. 제안 DTO는 `Folder {folder_id: uuid, name: string, description: string, document_ids: uuid[]}`이다. `contracts/models.schema.json`에 schema를 추가하고 OpenAPI에 `GET /v1/folders`, `POST /v1/folders` (`{name,description}`), `PUT /v1/folders/{folder_id}/documents/{document_id}?version_id=...`, `DELETE` 동일 경로를 정의한다. 각 관계 변경은 문서/version/folder 존재를 검증하며, Folder/assignment 응답은 workspace tabs를 document UUID로 변환한다. 폴더 자체 delete나 동시 수정 ETag를 원하면 storage revision/transaction 계약도 같은 변경에서 명시한다. fixture와 `checks/validate_contracts.py`, web/iPad 소비자까지 함께 바꾼다.
+
+7. **upstream 출처 예외** — Unit01이 변경한 tracked fixture test `upstreams/DeepTutor/tests/reading/test_ingestion.py`는 `integration/upstreams.json`에 원래 SHA `8878f4000c042d9480289c1a2823d56db09630eb4776d437ed29498d808fad23`, 원래 git blob `b44b1ed3d358e8b44546e728729d282e21e33c17`로 등록돼 있다. 현재 파일 SHA-256은 `b3a909c74be29aa442708ec8636ed24b3270671c9bd8f928ec74a9178beb95d7`다. 통합 담당은 SHA를 갱신하고 원 upstream commit/blob provenance를 유지하면서 Unit01 fixture 변경 예외를 기록한 뒤 source/provenance 검사를 실행한다. `integration/upstreams.json`은 Unit01 수정 권한 밖이라 여기서는 갱신하지 않았다.
+
+### 실제 로컬 통합 브랜치 확인 (2026-10-12 branch snapshot)
+
+- `codex/unit-05-api-integration` (`11b0c3c6310cf5c0913c760d3e23c9a256080bd6`)에는 `build_library_router` 구현과 router 단독 TestClient 검사가 있지만 `deeptutor/api/main.py`, `mnemosyne/bootstrap.py` 어디에도 mount가 없다.
+- 로컬 ref `codex/unit-06-cloud-runtime` (`75115193250f6b8ec1721bfe25b416f4705b5329`)은 selector UI 커밋까지 포함하지만 제품 main에 Library router를 mount하지 않는다. committed `register_mnemosyne`는 `register_library`에 store/annotation_sync만 전달하고, `ports.py::DocumentRepository`에는 `get_page_assets`가 없다. `tutor.py`에는 document search/page/asset/citation verification 소비 호출이 없다.
+- root checkout은 현재 미커밋 상태이며 `library.py`와 `test_ingestion.py`도 Unit01 경로에서 수정돼 있다. 그 dirty 파일 SHA-256은 각각 `5f26309a0d27616866b14b7ec16946aebade550d3c0d129403523c617ec016d7`, `b410facbf879de9568ba130040ffca84034c24394ae1b0669c822a4104738678`로 이 Unit01 branch 파일과 다르다. root checkout의 다른 미커밋 UNIT-02 learning service와 UNIT-03/Pumice 변경도 그대로 보존했고 Unit01 branch에 복사하지 않았다. 두 library 구현을 통합할 때 dirty copy 전체로 덮어쓰지 말고 항목별로 reconcile해야 한다.
+- 파일 비교에서 Unit01 branch의 `library.py` (`2d7247c0ea0d014ae6b5b9f82ac3f13562f93437b46f82ebf4d653710d870909`, 2,610줄)는 root dirty 사본(2,456줄)보다 DB/asset 권한, schema v3 `index_started_at` migration과 stuck-index recovery, 엄격한 RAG ready 응답, `get_page_assets`, async upload-index 경계, settings URL validator, 폴더 검증/전체 pagination, parse revision/page SQL binding, citation 만료 정리, mutation 입력 방어를 포함한다. Unit01의 `test_ingestion.py` (`b3a909c74be29aa442708ec8636ed24b3270671c9bd8f928ec74a9178beb95d7`, 1,437줄)에는 root dirty 사본(1,124줄)에 없는 replay mismatch, stale edit/delete 및 tombstone, parser/index 실패, 이미지 asset hash, schema migration, 폴더 pagination 회귀 검사가 있다. root 사본은 그대로 채택하지 말고 이 차이를 보존해 reconcile한다.
+- registry는 여전히 계약 0.1.0, `product_ready=false`, `cloud_repository_access=local_only_no_origin`이다. `integration/ownership.json`의 `owners.UNIT-01` 배열에 `docs/handoffs/unit-01.md`를 추가한 뒤 `checks/validate_contracts.py`와 `--require-ready`를 다시 실행해야 ownership preflight를 통과한다. 현재 공통 validator는 이 경로의 미배정 때문에 중단된다. 두 branch tip 모두 계약이나 준비 gate를 바꾸지 않았다.
+
+### 원격 게시 및 draft PR 준비 재확인 (2026-10-12)
+
+- `origin`은 `rightheous/mnemosyne` public repository를 가리킨다. GitHub 연결의 push 권한을 확인했고 `codex/unit-01-library-sync` 원격 branch가 존재한다.
+- 원격 `main`은 `16130d21410d1b2349ffee0757d44462c899ebbf`이며 Unit01 branch와 공통 시작 commit `5715a32927e3a73dc28782d306880e3dd1f62441`에서 갈라져 있다. GitHub compare는 diverged history와 변경 파일 4개(`library.py`, fixture test, 두 handoff)를 보여준다. 로컬 `git merge-tree --trivial-merge <start> origin/main HEAD`는 exit 0으로 파일 충돌 없이 결합 가능함을 확인했다.
+- registry는 `cloud_repository_access=local_only_no_origin`으로 남아 원격 설정/branch 게시 상태와 어긋난다. registry는 통합 소유이므로 여기서 고치지 않았다. remote branch 게시, product readiness, Cloud/device 운영 검증은 서로 다른 상태다.
+- `integration/ownership.json`은 여전히 `docs/handoffs/unit-01.md`를 배정하지 않는다. 이전 `validate_contracts.py` 실행은 그 ownership preflight에서 중단됐고, `source_adapters.py`는 임시 환경의 `aiohttp` 누락으로 시작하지 못해 PASS를 주장하지 않는다.
+
+## 검증 결과와 남은 검증
+
+`upstreams/DeepTutor` 기준으로 다음 선택 fixture 검사 7개를 실행했다.
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/private/tmp/mnemosyne-unit01-deps:. \
+  /opt/homebrew/opt/python@3.14/bin/python3.14 -m pytest \
+  --confcutdir=tests/reading -q -p no:cacheprovider \
+  tests/reading/test_ingestion.py::test_mnemosyne_pdf_upload_annotation_sync_restart_and_export \
+  tests/reading/test_ingestion.py::test_library_http_router_settings_and_pdf_round_trip \
+  tests/reading/test_ingestion.py::test_library_parser_unavailable_preserves_original_pdf \
+  tests/reading/test_ingestion.py::test_library_indexer_requires_explicit_ready_result \
+  tests/reading/test_ingestion.py::test_library_pdf_image_assets_are_listable_and_hash_checked \
+  tests/reading/test_ingestion.py::test_library_schema_v2_database_migrates_index_run_timestamp \
+  tests/reading/test_ingestion.py::test_library_folder_listing_paginates_and_rejects_empty_names
+```
+
+결과: **7 passed, 6 warnings**. 경고 6개는 PyMuPDF SWIG 타입의 `__module__` deprecation이다. 검사는 지정 `contracts/fixtures/bilingual-geometry.pdf` 업로드·원본 hash/권한·페이지 회전/CropBox·인용·주석 CRUD/conflict/replay/idempotency mismatch/tombstone/stale edit-delete 충돌/cursor expiry/재시작/export, citation verification 성공과 위조 anchor 거부, HTTP TestClient 설정/PDF 왕복/citation route, parser 불가 때 failed 상태 및 원본 읽기 보존, indexer의 no-op/invalid success 거부, 합성 embedded raster의 페이지 mapping/hash, schema v2 DB migration, 폴더 입력검증과 500개 초과 pagination을 다룬다. positive citation 검사를 처음 추가했을 때 parse_revision 지정 page 조회의 SQL binding 누락이 발견되어 `(document_id, version_id, page_index, parse_revision)` 전체를 바인딩하도록 수정했다. 이후 7개 fixture 테스트가 통과했다. RAG provider 연결 자체는 실패 callback fixture로만 확인했다. `git diff --check`도 통과했다.
+
+공통 gate 시도 결과: `checks/validate_contracts.py`와 `--require-ready`는 모두 `Ownership mismatch: unassigned=['docs/handoffs/unit-01.md']`에서 중단됐다. 이 handoff 경로는 목표에서 직접 요청했지만 `integration/ownership.json`에는 아직 배정되지 않아 `source_gate()`까지 도달하지 못했다. 통합 담당은 해당 파일을 UNIT-01에 배정한 뒤 두 gate를 다시 실행해야 한다. `checks/source_adapters.py`는 임시 backend 의존 경로로 재시도했으나 DeepTutor runtime의 `aiohttp`가 없어 시작 단계에서 중단됐다. source-adapter PASS로 보고하지 않는다.
+
+아직 실행하지 않은 검증: 전체 DeepTutor suite/build, contract manifest/source check(통합이 upstream SHA 예외를 반영한 뒤 필요), 실제 main/router 조립과 auth/Origin, 실제 RAG/LLM provider·Windows WSL2/Docker 운영, 브라우저 UI, Pumice 빌드 및 실제 iPad/offline/Pencil. registry의 `product_ready=false`, `cloud_repository_access=local_only_no_origin`은 현재도 그대로다. 공통 router/계약/보호/실기기 검증이 끝나기 전 제품 기능 완료로 보고하지 않는다.
+
+### Adapter 소비 및 indexer 응답 계약 확인
+
+- UNIT-06 `tutor.py`는 `library.annotation_sync` readiness만 확인하며 문서 검색/페이지/그림/citation 메서드는 호출하지 않는다. UNIT-02는 `library`를 `DocumentSearch`로, `library.documents`를 `DocumentRepository`로 in-process 소비하도록 연결해야 한다. `ports.py::DocumentRepository`의 `get_page_assets` 선언도 추가 대상이다.
+- 주입 `rag_indexer(document, original_path, kb_name)`은 동기/비동기 가능하며 명시적으로 `True` 또는 `{"ready": true, "kb_name": "..."}`를 반환해야 한다. `None`, 빈 object, 거짓 readiness 또는 빈 KB 이름은 ready로 처리하지 않는다. 실제 DeepTutor provider 호출은 미검증이다.

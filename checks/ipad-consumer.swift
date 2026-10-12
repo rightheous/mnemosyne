@@ -92,6 +92,7 @@ struct Answer: Decodable {let question_id:UUID; let answer:String}
 struct Attempt: Decodable {let attempt_id:UUID; let quiz_id:UUID; let answers:[Answer]}
 struct SavedAttempt: Decodable {let attempt_id:UUID; let quiz_id:UUID; let score:Double}
 struct Learning: Decodable {let learning_revision:Int; let quiz_attempts:[SavedAttempt]}
+struct ProgressMutation: Decodable {let client_mutation_id:UUID; let version_id:String; let base_learning_revision:Int; let page_index:Int; let reading_seconds:Int}
 struct Reconnect: Decodable {let last_event_id:String; let replayed_events:[Event]; let duplicate_delivery:Event}
 struct Fixture: Decodable {
     let contract_version:String
@@ -131,6 +132,8 @@ static func main() {
 do {
     let source=URL(fileURLWithPath:CommandLine.arguments.count>1 ? CommandLine.arguments[1] : FileManager.default.currentDirectoryPath)
     let data=try Data(contentsOf:source.appendingPathComponent("contracts/fixtures/study-session.json"))
+    let progressData=try Data(contentsOf:source.appendingPathComponent("contracts/fixtures/progress-mutation.json"))
+    let progress=try JSONDecoder().decode(ProgressMutation.self,from:progressData)
     let f=try JSONDecoder().decode(Fixture.self,from:data)
     let rootJSON=try JSONSerialization.jsonObject(with:data) as! [String:Any]
     let wire=rootJSON["wire"] as! [String:Any]
@@ -147,7 +150,8 @@ do {
         let expected=key=="events" ? f.events : key=="cancelled_events" ? f.cancelled_events : f.error_events
         try check(extensions.map {$0.event_id}==expected.map {$0.event_id},"Native extension subset")
     }
-    try check(f.contract_version=="0.1.0","Contract mismatch")
+    try check(f.contract_version=="0.2.0","Contract mismatch")
+    try check(progress.version_id==f.document.version_id && progress.page_index < f.document.page_count && progress.reading_seconds <= 300,"Progress mutation contract")
     try check(f.document.page_count==f.pages.count,"Page count")
     for page in f.pages {try check(page.display_page_number==page.page_index+1,"Page base")}
     for c in f.citations {

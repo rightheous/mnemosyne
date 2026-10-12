@@ -1,12 +1,12 @@
 {
-  "contract_version": "0.1.0",
-  "status": "source_backed_bootstrap",
+  "contract_version": "0.2.0",
+  "status": "integrated_not_product_ready",
   "ready_for_parallel_implementation": true,
   "product_ready": false,
-  "cloud_repository_access": "local_only_no_origin",
+  "cloud_repository_access": "github_remote_configured",
   "external_transport": "websocket",
   "wire_protocol_version": "2.0",
-  "contract_manifest_sha256": "18cb8893160a1c9069a27ceb340dd3fa377d4d26063ace21489deeef1d0ed5be",
+  "contract_manifest_sha256": "9cd6540bee7c4f0b194ca47d76e988b363e23d9fd5b6b5435c7ebe0900ff4cd1",
   "contract_copies": [
     "upstreams/Pumice/MnemosyneContracts",
     "upstreams/DeepTutor/MnemosyneContracts"
@@ -41,7 +41,7 @@
       ],
       "registration_path": "upstreams/DeepTutor/deeptutor/mnemosyne/library.py",
       "registration_symbol": "register_library",
-      "owned_file_count": 329
+      "owned_file_count": 330
     },
     "UNIT-02": {
       "source_paths": [
@@ -49,7 +49,7 @@
       ],
       "registration_path": "upstreams/DeepTutor/deeptutor/mnemosyne/tutor.py",
       "registration_symbol": "register_tutor",
-      "owned_file_count": 1738
+      "owned_file_count": 1739
     },
     "UNIT-03": {
       "source_paths": [
@@ -65,7 +65,7 @@
       ],
       "registration_path": "upstreams/Pumice/App/MnemosyneAppDependencies.swift",
       "registration_symbol": "makeIPadApp",
-      "owned_file_count": 82
+      "owned_file_count": 83
     },
     "UNIT-05": {
       "source_paths": [
@@ -88,5 +88,18 @@
   "assembly_symbol": "lifespan",
   "composition_path": "upstreams/DeepTutor/deeptutor/mnemosyne/bootstrap.py",
   "composition_symbol": "register_mnemosyne",
-  "source_gate_notes": "Readiness is for source-based local bootstrap, not product completion or GitHub/Cloud publication."
+  "source_gate_notes": "Readiness is for source-based local bootstrap, not product completion or GitHub/Cloud publication.",
+  "integration_branch": "codex/mnemosyne-integration",
+  "integration_base_sha": "16130d21410d1b2349ffee0757d44462c899ebbf",
+  "integration_preparation_sha": "5715a32927e3a73dc28782d306880e3dd1f62441",
+  "missing_unit_results": [],
+  "integration_blockers": [
+    "No configured LLM API credential was available for a live Tutor or quiz request.",
+    "The runtime lacks llama_index, so the real PDF vector/RAG indexing pipeline could not reach ready.",
+    "The managed Cloud runtime has no execution capability or configured secrets for an actual Cloud check.",
+    "The Docker daemon socket is inaccessible to this process; image build and container startup were not verified.",
+    "This Linux executor has no macOS, Xcode, Swift compiler, iPadOS SDK, simulator, or Pencil device.",
+    "The production web build could not fetch Google Fonts, and actual browser end-to-end acceptance remains unverified.",
+    "Node and web unit suites contain sandbox-limited subprocess failures recorded in docs/VALIDATION.md."
+  ]
 }

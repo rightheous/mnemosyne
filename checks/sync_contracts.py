@@ -23,7 +23,7 @@ def main():
         files = digest_files(source)
         files.pop("manifest.json", None)
         (source / "manifest.json").write_text(json.dumps({
-            "contract_version": "0.1.0", "status": "source-backed-bootstrap",
+            "contract_version": "0.2.0", "status": "integrated-source-contract",
             "algorithm": "sha256", "files": files}, ensure_ascii=False, indent=2)+"\n")
     expected = digest_files(source)
     for name in ("Pumice", "DeepTutor"):
@@ -39,7 +39,7 @@ def main():
                 shutil.copyfile(source / relative, output)
         if digest_files(destination) != expected:
             raise SystemExit(f"Contract bundle mismatch: {name}")
-    print(json.dumps({"result": "PASS", "contract_version": "0.1.0",
+    print(json.dumps({"result": "PASS", "contract_version": "0.2.0",
                       "copies": 2, "bundle_files": len(expected)}))
 
 

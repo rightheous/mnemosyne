@@ -20,7 +20,7 @@ except ImportError:
 
 ROOT = Path(__file__).resolve().parents[1]
 C = ROOT / 'contracts'
-V = '0.1.0'
+V = '0.2.0'
 COUNTS = {'schema_instances': 0, 'negative_cases': 0, 'sync_steps': 0}
 
 def read(path):
@@ -61,6 +61,8 @@ def negative(name, callback):
     raise ValueError(f'Invalid input accepted: {name}')
 
 F = read(C / 'fixtures/study-session.json')
+QUIZ_GENERATION_REQUEST = read(C / 'fixtures/quiz-generation-request.json')
+PROGRESS_MUTATION = read(C / 'fixtures/progress-mutation.json')
 DOC = F['document']
 PAGES = {page['page_index']: page for page in F['pages']}
 
@@ -249,6 +251,12 @@ def check_ownership():
     output = subprocess.check_output(['git','ls-files','--cached','--others','--exclude-standard','-z'], cwd=ROOT)
     actual = {x.decode() for x in output.split(b'\0') if x}
     ensure(set(owners) == actual, f'Ownership mismatch: unassigned={sorted(actual-set(owners))}; absent={sorted(set(owners)-actual)}')
+    for exception in ownership.get('integration_exceptions', []):
+        path = exception.get('path')
+        ensure(path in owners, f'Integration exception path is not owned: {path}')
+        ensure(exception.get('file_owner') == owners[path], f'Integration exception owner differs: {path}')
+        ensure(isinstance(exception.get('integrator_scope'), str) and exception['integrator_scope'].strip(),
+               f'Integration exception has no scope: {path}')
 
 def check_manifest():
     manifest = read(C/'manifest.json')
@@ -331,6 +339,23 @@ def source_gate():
             actual_digest = sha((ROOT/path).read_bytes())
             if actual_digest != digest:
                 snapshot_mismatches.append(f'{path}={actual_digest}')
+    ownership_data = read(ROOT/'integration/ownership.json')
+    ownership_by_path = {
+        path: unit
+        for unit, paths in ownership_data['owners'].items()
+        for path in paths
+    }
+    original_paths = {
+        item['path']
+        for source in provenance['sources'].values()
+        for item in source['files']
+    }
+    for added in provenance.get('integration_added_files', []):
+        path = added.get('path')
+        ensure(path not in original_paths, f'Integration-added file is already a pinned upstream original: {path}')
+        ensure(ownership_by_path.get(path) == added.get('owner'), f'Integration-added file owner differs: {path}')
+        ensure((ROOT/path).is_file(), f'Integration-added file is missing: {path}')
+        ensure(sha((ROOT/path).read_bytes()) == added.get('sha256'), f'Integration-added file digest differs: {path}')
     ensure((C/'native-turn.schema.json').read_bytes() == (ROOT/'upstreams/DeepTutor/web/contracts/schema/turn-protocol.json').read_bytes(), 'Native wire schema copy differs')
     for copy_path in state['contract_copies']:
         for path in C.rglob('*'):
@@ -410,6 +435,10 @@ def main():
     ensure(F['attempt']['quiz_id'] == F['quiz']['quiz_id'] and F['assessment']['attempt_id'] == F['attempt']['attempt_id'], 'Attempt linkage mismatch')
     ensure(F['learning_state']['quiz_attempts'][0]['attempt_id'] == F['attempt']['attempt_id'], 'Learning linkage mismatch')
     ensure(F['learning_state']['learning_revision'] == F['assessment']['learning_revision'], 'Learning revision mismatch')
+    validate('models.schema.json', QUIZ_GENERATION_REQUEST, 'QuizGenerationRequest')
+    ensure(QUIZ_GENERATION_REQUEST['version_id'] == DOC['version_id'] and QUIZ_GENERATION_REQUEST['page_index'] in PAGES, 'Quiz generation fixture target differs from the source PDF')
+    validate('models.schema.json', PROGRESS_MUTATION, 'ProgressMutation')
+    ensure(PROGRESS_MUTATION['version_id'] == DOC['version_id'] and PROGRESS_MUTATION['page_index'] in PAGES, 'Progress fixture target differs from the source PDF')
     for case in F['geometry_cases']:
         actual = to_view(case['point_pdf'], case['geometry'], case['scale'], case['offset'])
         ensure(actual == case['expected_viewport'], 'Geometry forward mismatch')

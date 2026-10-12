@@ -1,10 +1,10 @@
 # UNIT-06 — 환경·Docker·CI·통합 검증
 
-기준: 계약 `0.1.0`, 준비 tag `mnemosyne-bootstrap-v0.1.0` (`5715a32927e3a73dc28782d306880e3dd1f62441`), 작업 branch `codex/unit-06-cloud-runtime`. Registry는 공통 시작점 준비 `true`, 제품 준비 `false`다. 원격 Git remote는 현재 설정되어 있지 않아 PR은 만들 수 없다.
+기준: 계약 `0.1.0`, 준비 tag `mnemosyne-bootstrap-v0.1.0` (`5715a32927e3a73dc28782d306880e3dd1f62441`). 이전 UNIT-06 작업 branch는 `codex/unit-06-cloud-runtime`, 이번 문서 후속 branch는 `codex/unit-06-cloud-status`다. Registry는 공통 시작점 준비 `true`, 제품 준비 `false`다. 2026-10-12 현재 GitHub `origin`이 설정되어 있고 로컬 `origin/main`은 `16130d21410d1b2349ffee0757d44462c899ebbf`다. UNIT-06 lock commit `345510d33e6f788ec8463ad5bfbd1a83bee30ef8`은 그 이력에 포함되어 있다.
 
 ## Host와 Cloud 도구 상태
 
-2026-10-09 확인: 호스트는 macOS arm64, Python 3.14.7과 uv 0.11.21이 있다. Python 3.11 실행 파일은 PATH에 없다. 시스템 Node는 20.20.2/npm 10.8.2, 번들 Node는 24.19.0이며 로컬 Node 22는 없다. upstream Dockerfile/CI 기준은 Node 22다. `xcodebuild` shim은 active developer directory가 Command Line Tools뿐이라 실패하고 `xcodegen`도 없다. Docker CLI 29.4.1/Compose 5.1.3과 Docker Desktop daemon 29.4.1 ARM64는 승인된 socket access로 확인했다. Docker base image digest를 고정한 뒤 Docker build와 Compose readiness/stop smoke를 재실행했다. GitHub CLI는 있으나 `git remote -v`는 비어 있다.
+2026-10-09 확인: 호스트는 macOS arm64, Python 3.14.7과 uv 0.11.21이 있다. Python 3.11 실행 파일은 PATH에 없다. 시스템 Node는 20.20.2/npm 10.8.2, 번들 Node는 24.19.0이며 로컬 Node 22는 없다. upstream Dockerfile/CI 기준은 Node 22다. `xcodebuild` shim은 active developer directory가 Command Line Tools뿐이라 실패하고 `xcodegen`도 없다. Docker CLI 29.4.1/Compose 5.1.3과 Docker Desktop daemon 29.4.1 ARM64는 승인된 socket access로 확인했다. Docker base image digest를 고정한 뒤 Docker build와 Compose readiness/stop smoke를 재실행했다. GitHub CLI가 있다. Remote 상태는 2026-10-12 follow-up에서 확인했으며, `origin`은 GitHub 저장소를 가리키고 로컬 `origin/main`은 `16130d2`다.
 
 ## 이번 변경
 
@@ -61,7 +61,7 @@ fixture PASS는 표의 runtime 검사를 완료했다는 뜻이 아니다.
 
 ## Codex Cloud 및 재현 명령
 
-공식 Codex Cloud 환경은 web/desktop의 `Settings > Codex Cloud > Environments`에서 만들고, GitHub repository를 선택한 뒤 `Install script`와 `Start skill`을 검토·저장·게시한다. 현재 task 도구에는 실제 계정의 Cloud 환경을 편집하는 UI/API가 없고 `request_environment_input`/`finalize_environment`는 prototype catalog만 다룬다. `git remote -v`도 비어 있어 게시할 GitHub repository를 확인할 수 없으므로 Cloud 환경은 만들거나 게시하지 않았다. 공식 절차: [Cloud environments](https://learn.chatgpt.com/docs/environments/cloud-environments).
+공식 Codex Cloud 환경은 web/desktop의 `Settings > Codex Cloud > Environments`에서 만들고, GitHub repository를 선택한 뒤 `Install script`와 `Start skill`을 검토·저장·게시한다. 현재 task 도구에는 실제 계정의 Cloud 환경을 편집하는 UI/API가 없고 `request_environment_input`/`finalize_environment`는 prototype catalog만 다룬다. GitHub `origin`과 로컬 `origin/main`은 확인했지만, 저장소 remote 설정은 공식 Codex Cloud 환경 생성·게시와 별개다. 이 follow-up에서는 공식 Cloud 환경을 만들거나 게시하지 않았다. 공식 절차: [Cloud environments](https://learn.chatgpt.com/docs/environments/cloud-environments).
 
 환경 생성 시 upstream과 같은 Python 3.11, Node 22를 요청한다. 의존성 설치에는 Package managers 네트워크 정책(Python: PyPI, Web: npm)이 필요하다. 아래 fixture/server 검사에는 provider secret이 필요하지 않다.
 
@@ -144,6 +144,7 @@ docker compose -f compose.yaml start
    - `upstreams/DeepTutor/requirements.txt`: `c4c5917e5cb1288e80e21bafc6daab70b713eb39f89a59186cce07a2c44a32b5`
 5. 최종 통합에는 의도한 UNIT-01/03/04의 정확한 revision 또는 PR URL이 필요하다. 검사 당시 history에는 UNIT-02의 변경이 `bf174ab`까지, UNIT-05의 이전 커밋이 포함되어 있었다. 선택한 정확한 revision을 정한 뒤 소유 gate와 통합 검사를 다시 실행한다. UNIT-04는 iPad simulator/device 검증 결과도 제공해야 한다.
 6. `docs/VALIDATION.md`는 integrator 소유이며 설치 예시가 아직 `pip install -r checks/audit-environment.txt`를 가리킨다. 새 lock을 검증된 방식으로 쓰도록 `pip install --require-hashes -r checks/requirements.txt`로 갱신한다.
+7. `integration/registry.json`의 `cloud_repository_access`는 여전히 `local_only_no_origin`이다. 현재 GitHub `origin`과 로컬 `origin/main`이 확인됐으므로 integrator가 remote 접근 상태를 확인해 registry와 통합 문서를 갱신한다. `product_ready=false` 및 공식 Cloud 환경 게시 여부는 별도로 유지한다.
 
 ## 대기 인수
 
@@ -152,4 +153,4 @@ docker compose -f compose.yaml start
 - 실제 LLM provider 연결(명시적 테스트 자격증명 사용, 로그/fixture에 secret 금지)
 - Docker 단일 서비스 profile은 clean archive `5bb0a23`에서 image build, Compose up, `/health/ready`, healthy, graceful stop까지 PASS. 실제 자료를 이용한 upload/parse/sync/restart/backup recovery는 미검증이며 이 profile은 Redis를 사용하지 않는다.
 - Node 22 full `npm run check`는 full parallel suite의 5개 sidebar assertion/runtime 오류와 2개 timeout으로 중단되어 build와 perf step까지 도달하지 않았다. Timeout 두 건은 serial retry PASS, sidebar 다섯 건은 재현. Docker build는 PASS했고 별도 `perf:check`는 `/` → `/chat` 기대와 실제 `/learning/reading` redirect 차이로 FAIL. Root GitHub Linux/macOS/Xcode CI workflow는 현재 소유 배정이 없어 미추가·미실행.
-- 공식 Codex Cloud 환경은 생성·게시하지 않았다. Task 도구는 prototype catalog만 편집하며 GitHub remote/repository도 확인되지 않았다. Docker image도 로컬에서만 만들었고 push하지 않았다.
+- 공식 Codex Cloud 환경은 생성·게시하지 않았다. Task 도구는 prototype catalog만 편집하며 공식 환경 설정 UI/API에 연결되지 않는다. GitHub `origin`은 확인했고 prior UNIT-06 lock commit은 로컬 `origin/main` 이력에 있다. Docker image는 로컬에서만 만들었고 push하지 않았다.

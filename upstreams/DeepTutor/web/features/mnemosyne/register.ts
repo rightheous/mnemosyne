@@ -3,7 +3,7 @@
 import type { StreamEvent } from "../../contracts/generated/turn-protocol";
 import { apiFetch } from "@/shared/api/client";
 
-export const MNEMOSYNE_CONTRACT_VERSION = "0.1.0" as const;
+export const MNEMOSYNE_CONTRACT_VERSION = "0.2.0" as const;
 export const MNEMOSYNE_PROTOCOL_VERSION = "2.0" as const;
 
 export type PdfRect = [number, number, number, number];
@@ -13,6 +13,56 @@ export interface PageGeometry {
   crop_box: [number, number, number, number];
   rotation_degrees: 0 | 90 | 180 | 270;
   user_unit: number;
+}
+
+/** Map canonical PDF user-space coordinates to the rotated page's top-left unit square. */
+export function pdfPointToPageUnit(
+  point: [number, number],
+  geometry: PageGeometry,
+): [number, number] {
+  const [x0, y0, x1, y1] = geometry.crop_box;
+  const width = x1 - x0;
+  const height = y1 - y0;
+  const u = point[0] - x0;
+  const v = point[1] - y0;
+  let x = 0;
+  let y = 0;
+  let viewWidth = width;
+  let viewHeight = height;
+  switch (geometry.rotation_degrees) {
+    case 0: x = u; y = height - v; break;
+    case 90: x = v; y = u; viewWidth = height; viewHeight = width; break;
+    case 180: x = width - u; y = v; break;
+    case 270: x = height - v; y = width - u; viewWidth = height; viewHeight = width; break;
+  }
+  return [x / viewWidth, y / viewHeight];
+}
+
+/** Transform a PDF-space rectangle by all four corners so rotation keeps its bounds correct. */
+export function pdfRectToPageUnit(
+  rect: PdfRect,
+  geometry: PageGeometry,
+): [number, number, number, number] {
+  const [x, y, width, height] = rect;
+  const corners: Array<[number, number]> = [
+    [x, y],
+    [x + width, y],
+    [x, y + height],
+    [x + width, y + height],
+  ];
+  const unit = corners.map((point) => pdfPointToPageUnit(point, geometry));
+  const xs = unit.map(([pointX]) => pointX);
+  const ys = unit.map(([, pointY]) => pointY);
+  return [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)];
+}
+
+/** Normalize an ink width against the displayed page width, including /Rotate and /UserUnit. */
+export function pdfStrokeWidthToPageUnit(widthPt: number, geometry: PageGeometry): number {
+  const [llx, lly, urx, ury] = geometry.crop_box;
+  const pageWidth = geometry.rotation_degrees === 90 || geometry.rotation_degrees === 270
+    ? ury - lly
+    : urx - llx;
+  return widthPt / (pageWidth * geometry.user_unit);
 }
 
 export interface MnemosyneSubject {
@@ -110,6 +160,14 @@ export interface MnemosyneLearningState {
   activities: Array<{ activity_id: string; kind: string; turn_id: string | null; summary_ko: string; created_at: string }>;
 }
 
+export interface MnemosyneProgressMutation {
+  client_mutation_id: string;
+  version_id: string;
+  base_learning_revision: number;
+  page_index: number;
+  reading_seconds: number;
+}
+
 export interface MnemosyneQuiz {
   quiz_id: string;
   document_id: string;
@@ -144,6 +202,14 @@ export interface PublicSettings {
   response_language: string;
 }
 
+export interface MnemosyneQuizGenerationRequest {
+  client_mutation_id: string;
+  version_id: string;
+  page_index: number;
+  prompt: string;
+  response_language: string;
+}
+
 export interface ExportReceipt {
   export_id: string;
   download_path: string;
@@ -165,6 +231,31 @@ export interface MnemosyneTurnRequest {
     response_language: string;
   };
   response_language: string;
+}
+
+export type NativeTutorCapability =
+  | "chat"
+  | "immersive_reading"
+  | "deep_question"
+  | "mastery_path"
+  | "deep_solve";
+
+const NATIVE_TUTOR_CAPABILITIES: Partial<
+  Record<MnemosyneTurnRequest["capability"], NativeTutorCapability>
+> = {
+  chat: "chat",
+  reading: "immersive_reading",
+  quiz: "deep_question",
+  assessment: "deep_question",
+  mastery: "mastery_path",
+  solve: "deep_solve",
+};
+
+/** Map product actions onto capabilities accepted by the existing /ws protocol. */
+export function nativeTutorCapability(
+  capability: MnemosyneTurnRequest["capability"],
+): NativeTutorCapability | null {
+  return NATIVE_TUTOR_CAPABILITIES[capability] ?? null;
 }
 
 export interface SemanticEvent {
@@ -417,6 +508,23 @@ export class MnemosyneApi {
     return this.json(`/v1/quizzes/${encodeURIComponent(quizID)}`);
   }
 
+  async createQuiz(document: MnemosyneDocument, pageIndex: number, prompt: string, clientMutationID: string): Promise<MnemosyneQuiz> {
+    const normalizedPrompt = prompt.trim();
+    const quiz = await this.json<MnemosyneQuiz>(`/v1/documents/${encodeURIComponent(document.document_id)}/quizzes`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        client_mutation_id: clientMutationID,
+        version_id: document.version_id,
+        page_index: pageIndex,
+        prompt: normalizedPrompt,
+        response_language: "ko",
+      } satisfies MnemosyneQuizGenerationRequest),
+    });
+    if (!sameDocumentVersion(quiz, document)) throw new Error("다른 문서의 퀴즈 생성을 거부했습니다.");
+    return quiz;
+  }
+
   async submitAttempt(quizID: string, attempt: Record<string, unknown>): Promise<MnemosyneAssessment> {
     return this.json(`/v1/quizzes/${encodeURIComponent(quizID)}/attempts`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(attempt) });
   }
@@ -426,6 +534,30 @@ export class MnemosyneApi {
     const state = await this.json<MnemosyneLearningState>(`/v1/documents/${encodeURIComponent(document.document_id)}/learning?${query}`);
     if (!sameDocumentVersion(state, document)) throw new Error("학습 기록의 문서/version이 현재 Reader와 다릅니다.");
     return state;
+  }
+
+  async recordProgress(
+    document: MnemosyneDocument,
+    mutation: MnemosyneProgressMutation,
+  ): Promise<MnemosyneLearningState> {
+    if (mutation.version_id !== document.version_id) throw new Error("다른 문서 version의 진도를 저장하지 않습니다.");
+    const path = `/v1/documents/${encodeURIComponent(document.document_id)}/progress`;
+    const submit = (value: MnemosyneProgressMutation) => this.json<MnemosyneLearningState>(path, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(value),
+    });
+    try {
+      const state = await submit(mutation);
+      if (!sameDocumentVersion(state, document)) throw new Error("진도 응답의 문서/version이 현재 Reader와 다릅니다.");
+      return state;
+    } catch (error) {
+      if (!(error instanceof MnemosyneApiError) || error.code !== "conflict") throw error;
+      const latest = await this.learningState(document);
+      const retry = await submit({ ...mutation, base_learning_revision: latest.learning_revision });
+      if (!sameDocumentVersion(retry, document)) throw new Error("진도 재시도 응답의 문서/version이 현재 Reader와 다릅니다.");
+      return retry;
+    }
   }
 
   async reviewMemory(memoryID: string, review: Record<string, unknown>): Promise<MnemosyneLearningState> {

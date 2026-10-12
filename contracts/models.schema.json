@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "models.schema.json",
   "title": "Mnemosyne shared integration DTOs",
-  "x-contract-version": "0.1.0",
+  "x-contract-version": "0.2.0",
   "$defs": {
     "Point": {
       "type": "array",
@@ -550,7 +550,7 @@
       "type": "object",
       "properties": {
         "contract_version": {
-          "const": "0.1.0"
+          "const": "0.2.0"
         },
         "code": {
           "type": "string",
@@ -615,7 +615,7 @@
       "type": "object",
       "properties": {
         "contract_version": {
-          "const": "0.1.0"
+          "const": "0.2.0"
         },
         "status": {
           "type": "string",
@@ -1439,6 +1439,77 @@
         "download_path",
         "original_sha256",
         "export_sha256"
+      ],
+      "additionalProperties": false
+    },
+    "QuizGenerationRequest": {
+      "type": "object",
+      "properties": {
+        "client_mutation_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "version_id": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        },
+        "page_index": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "prompt": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000
+        },
+        "response_language": {
+          "type": "string",
+          "pattern": "^(und|[A-Za-z]{2,8}(-[A-Za-z0-9]{1,8})*)$"
+        }
+      },
+      "required": [
+        "client_mutation_id",
+        "version_id",
+        "page_index",
+        "prompt",
+        "response_language"
+      ],
+      "additionalProperties": false
+    },
+    "ProgressMutation": {
+      "type": "object",
+      "properties": {
+        "client_mutation_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "version_id": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        },
+        "base_learning_revision": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "page_index": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "reading_seconds": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 300
+        }
+      },
+      "required": [
+        "client_mutation_id",
+        "version_id",
+        "base_learning_revision",
+        "page_index",
+        "reading_seconds"
       ],
       "additionalProperties": false
     }

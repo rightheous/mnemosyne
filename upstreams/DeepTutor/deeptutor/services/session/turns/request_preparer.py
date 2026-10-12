@@ -190,8 +190,12 @@ class TurnRequestPreparer:
         if mnemosyne_reader_context is not None:
             if (
                 not isinstance(mnemosyne_reader_context, dict)
-                or set(mnemosyne_reader_context)
-                != {"document_id", "version_id", "page_index"}
+                or set(mnemosyne_reader_context).difference(
+                    {"document_id", "version_id", "page_index", "selection"}
+                )
+                or not {"document_id", "version_id", "page_index"}.issubset(
+                    mnemosyne_reader_context
+                )
             ):
                 raise RuntimeError("Mnemosyne reader context is malformed")
             try:
@@ -204,11 +208,21 @@ class TurnRequestPreparer:
                 raise RuntimeError("Mnemosyne reader version must be a full SHA-256 version")
             if isinstance(page_index, bool) or not isinstance(page_index, int) or page_index < 0:
                 raise RuntimeError("Mnemosyne reader page index must be a non-negative integer")
+            selection = mnemosyne_reader_context.get("selection")
             mnemosyne_reader_context = {
                 "document_id": document_id,
                 "version_id": version_id,
                 "page_index": page_index,
             }
+            if selection is not None:
+                if (
+                    not isinstance(selection, dict)
+                    or selection.get("document_id") != document_id
+                    or selection.get("version_id") != version_id
+                    or selection.get("page_index") != page_index
+                ):
+                    raise RuntimeError("Mnemosyne reader selection is malformed")
+                mnemosyne_reader_context["selection"] = selection
         linked_task_ids = raw_config.pop("linked_task_ids", None)
         resource_reuse = raw_config.pop("_resource_reuse", None)
         persistent_kbs = raw_config.pop("_persistent_knowledge_bases", None)

@@ -49,6 +49,7 @@ services:
       TZ: ${TZ:-UTC}
       DEEPTUTOR_WORKSPACE_ROOT: /workspace
       DEEPTUTOR_WORKSPACE_ALLOWED_ROOTS: /workspace
+      MNEMOSYNE_ALLOWED_ORIGINS: ${MNEMOSYNE_ALLOWED_ORIGINS:-}
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8001/health/ready"]
       interval: 30s

@@ -2,10 +2,10 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Mnemosyne integration API",
-    "version": "0.1.0",
-    "description": "Source-backed extension specification. x-implementation distinguishes required planned APIs from observed DeepTutor routes. Native /ws protocol 2.0 is the only external Tutor stream."
+    "version": "0.2.0",
+    "description": "Source-backed integration specification, contract 0.2.0. Mnemosyne quizzes are generated from verified PDF pages and private grading data remains server-side. Native /ws protocol 2.0 remains the only Tutor stream."
   },
-  "x-contract-status": "source-backed-bootstrap",
+  "x-contract-status": "integrated-source-contract",
   "servers": [
     {
       "url": "https://mnemosyne.invalid",
@@ -163,7 +163,7 @@
             "in": "header",
             "required": true,
             "schema": {
-              "const": "0.1.0"
+              "const": "0.2.0"
             }
           }
         ],
@@ -269,7 +269,7 @@
             }
           }
         },
-        "x-implementation": "planned-unit-extension"
+        "x-implementation": "integration-branch-guarded"
       }
     },
     "/v1/session/pair": {
@@ -329,7 +329,7 @@
             }
           }
         },
-        "x-implementation": "planned-unit-extension"
+        "x-implementation": "integration-branch-guarded"
       }
     },
     "/v1/session": {
@@ -341,7 +341,7 @@
             "in": "header",
             "required": true,
             "schema": {
-              "const": "0.1.0"
+              "const": "0.2.0"
             }
           }
         ],
@@ -456,7 +456,7 @@
             }
           }
         },
-        "x-implementation": "planned-unit-extension"
+        "x-implementation": "integration-branch-guarded"
       }
     },
     "/v1/subjects": {
@@ -468,7 +468,7 @@
             "in": "header",
             "required": true,
             "schema": {
-              "const": "0.1.0"
+              "const": "0.2.0"
             }
           }
         ],
@@ -577,7 +577,7 @@
             }
           }
         },
-        "x-implementation": "planned-unit-extension"
+        "x-implementation": "integration-branch-guarded"
       },
       "post": {
         "operationId": "createSubject",
@@ -587,7 +587,7 @@
             "in": "header",
             "required": true,
             "schema": {
-              "const": "0.1.0"
+              "const": "0.2.0"
             }
           }
         ],
@@ -703,7 +703,7 @@
             }
           }
         },
-        "x-implementation": "planned-unit-extension"
+        "x-implementation": "integration-branch-guarded"
       }
     },
     "/v1/subjects/{subject_id}": {
@@ -715,7 +715,7 @@
             "in": "header",
             "required": true,
             "schema": {
-              "const": "0.1.0"
+              "const": "0.2.0"
             }
           },
           {
@@ -849,7 +849,7 @@
             }
           }
         },
-        "x-implementation": "planned-unit-extension"
+        "x-implementation": "integration-branch-guarded"
       },
       "delete": {
         "operationId": "deleteSubject",
@@ -859,7 +859,7 @@
             "in": "header",
             "required": true,
             "schema": {
-              "const": "0.1.0"
+              "const": "0.2.0"
             }
           },
           {
@@ -993,7 +993,7 @@
           }
         },
         "description": "Detach documents from subject; do not delete PDF originals.",
-        "x-implementation": "planned-unit-extension"
+        "x-implementation": "integration-branch-guarded"
       }
     },
     "/v1/documents": {
@@ -1005,7 +1005,7 @@
             "in": "header",
             "required": true,
             "schema": {
-              "const": "0.1.0"
+              "const": "0.2.0"
             }
           },
           {
@@ -1123,7 +1123,7 @@
             }
           }
         },
-        "x-implementation": "planned-unit-extension"
+        "x-implementation": "integration-branch-guarded"
       },
       "post": {
         "operationId": "uploadDocument",
@@ -1133,7 +1133,7 @@
             "in": "header",
             "required": true,
             "schema": {
-              "const": "0.1.0"
+              "const": "0.2.0"
             }
           }
         ],
@@ -1269,7 +1269,7 @@
             }
           }
         },
-        "x-implementation": "planned-unit-extension"
+        "x-implementation": "integration-branch-guarded"
       }
     },
     "/v1/documents/{document_id}": {
@@ -1281,7 +1281,7 @@
             "in": "header",
             "required": true,
             "schema": {
-              "const": "0.1.0"
+              "const": "0.2.0"
             }
           },
           {
@@ -1396,7 +1396,7 @@
             }
           }
         },
-        "x-implementation": "planned-unit-extension"
+        "x-implementation": "integration-branch-guarded"
       },
       "patch": {
         "operationId": "updateDocumentMetadata",
@@ -1406,7 +1406,7 @@
             "in": "header",
             "required": true,
             "schema": {
-              "const": "0.1.0"
+              "const": "0.2.0"
             }
           },
           {
@@ -1540,7 +1540,7 @@
             }
           }
         },
-        "x-implementation": "planned-unit-extension"
+        "x-implementation": "integration-branch-guarded"
       },
       "delete": {
         "operationId": "deleteDocument",
@@ -1550,7 +1550,7 @@
             "in": "header",
             "required": true,
             "schema": {
-              "const": "0.1.0"
+              "const": "0.2.0"
             }
           },
           {
@@ -1692,7 +1692,7 @@
             }
           }
         },
-        "x-implementation": "planned-unit-extension"
+        "x-implementation": "integration-branch-guarded"
       }
     },
     "/v1/documents/{document_id}/file": {
@@ -1704,7 +1704,7 @@
             "in": "header",
             "required": true,
             "schema": {
-              "const": "0.1.0"
+              "const": "0.2.0"
             }
           },
           {
@@ -1829,7 +1829,7 @@
             }
           }
         },
-        "x-implementation": "planned-unit-extension"
+        "x-implementation": "integration-branch-guarded"
       }
     },
     "/v1/documents/{document_id}/pages/{page_index}": {
@@ -1841,7 +1841,7 @@
             "in": "header",
             "required": true,
             "schema": {
-              "const": "0.1.0"
+              "const": "0.2.0"
             }
           },
           {
@@ -1984,7 +1984,7 @@
             }
           }
         },
-        "x-implementation": "planned-unit-extension"
+        "x-implementation": "integration-branch-guarded"
       }
     },
     "/v1/documents/{document_id}/search": {
@@ -1996,7 +1996,7 @@
             "in": "header",
             "required": true,
             "schema": {
-              "const": "0.1.0"
+              "const": "0.2.0"
             }
           },
           {
@@ -2145,7 +2145,7 @@
             }
           }
         },
-        "x-implementation": "planned-unit-extension"
+        "x-implementation": "integration-branch-guarded"
       }
     },
     "/v1/citations/verify": {
@@ -2157,7 +2157,7 @@
             "in": "header",
             "required": true,
             "schema": {
-              "const": "0.1.0"
+              "const": "0.2.0"
             }
           }
         ],
@@ -2273,7 +2273,7 @@
             }
           }
         },
-        "x-implementation": "planned-unit-extension"
+        "x-implementation": "integration-branch-guarded"
       }
     },
     "/v1/documents/{document_id}/annotations/snapshot": {
@@ -2285,7 +2285,7 @@
             "in": "header",
             "required": true,
             "schema": {
-              "const": "0.1.0"
+              "const": "0.2.0"
             }
           },
           {
@@ -2409,7 +2409,7 @@
             }
           }
         },
-        "x-implementation": "planned-unit-extension"
+        "x-implementation": "integration-branch-guarded"
       }
     },
     "/v1/documents/{document_id}/annotations/changes": {
@@ -2421,7 +2421,7 @@
             "in": "header",
             "required": true,
             "schema": {
-              "const": "0.1.0"
+              "const": "0.2.0"
             }
           },
           {
@@ -2564,7 +2564,7 @@
             }
           }
         },
-        "x-implementation": "planned-unit-extension"
+        "x-implementation": "integration-branch-guarded"
       }
     },
     "/v1/documents/{document_id}/annotations/mutations": {
@@ -2576,7 +2576,7 @@
             "in": "header",
             "required": true,
             "schema": {
-              "const": "0.1.0"
+              "const": "0.2.0"
             }
           },
           {
@@ -2702,7 +2702,7 @@
           }
         },
         "description": "Sequential independent mutations; per-item conflicts are returned in HTTP 200 receipt. Invalid envelope is HTTP 400.",
-        "x-implementation": "planned-unit-extension"
+        "x-implementation": "integration-branch-guarded"
       }
     },
     "/v1/tutor/turns/{turn_id}": {
@@ -2714,7 +2714,7 @@
             "in": "header",
             "required": true,
             "schema": {
-              "const": "0.1.0"
+              "const": "0.2.0"
             }
           },
           {
@@ -2832,7 +2832,7 @@
             }
           }
         },
-        "x-implementation": "planned-unit-extension"
+        "x-implementation": "integration-branch-mounted"
       }
     },
     "/v1/quizzes/{quiz_id}": {
@@ -2844,7 +2844,7 @@
             "in": "header",
             "required": true,
             "schema": {
-              "const": "0.1.0"
+              "const": "0.2.0"
             }
           },
           {
@@ -2959,7 +2959,7 @@
             }
           }
         },
-        "x-implementation": "planned-unit-extension"
+        "x-implementation": "integration-branch-mounted-degraded"
       }
     },
     "/v1/quizzes/{quiz_id}/attempts": {
@@ -2971,7 +2971,7 @@
             "in": "header",
             "required": true,
             "schema": {
-              "const": "0.1.0"
+              "const": "0.2.0"
             }
           },
           {
@@ -3096,7 +3096,7 @@
             }
           }
         },
-        "x-implementation": "planned-unit-extension"
+        "x-implementation": "integration-branch-mounted-degraded"
       }
     },
     "/v1/documents/{document_id}/learning": {
@@ -3108,7 +3108,7 @@
             "in": "header",
             "required": true,
             "schema": {
-              "const": "0.1.0"
+              "const": "0.2.0"
             }
           },
           {
@@ -3232,7 +3232,7 @@
             }
           }
         },
-        "x-implementation": "planned-unit-extension"
+        "x-implementation": "integration-branch-mounted-degraded"
       }
     },
     "/v1/memory/{memory_id}/reviews": {
@@ -3244,7 +3244,7 @@
             "in": "header",
             "required": true,
             "schema": {
-              "const": "0.1.0"
+              "const": "0.2.0"
             }
           },
           {
@@ -3369,7 +3369,7 @@
             }
           }
         },
-        "x-implementation": "planned-unit-extension"
+        "x-implementation": "integration-branch-mounted-degraded"
       }
     },
     "/v1/settings": {
@@ -3381,7 +3381,7 @@
             "in": "header",
             "required": true,
             "schema": {
-              "const": "0.1.0"
+              "const": "0.2.0"
             }
           }
         ],
@@ -3487,7 +3487,7 @@
             }
           }
         },
-        "x-implementation": "planned-unit-extension"
+        "x-implementation": "integration-branch-mounted-degraded"
       },
       "put": {
         "operationId": "updateSettings",
@@ -3497,7 +3497,7 @@
             "in": "header",
             "required": true,
             "schema": {
-              "const": "0.1.0"
+              "const": "0.2.0"
             }
           },
           {
@@ -3630,7 +3630,7 @@
             }
           }
         },
-        "x-implementation": "planned-unit-extension"
+        "x-implementation": "integration-branch-mounted-degraded"
       }
     },
     "/v1/documents/{document_id}/exports": {
@@ -3642,7 +3642,7 @@
             "in": "header",
             "required": true,
             "schema": {
-              "const": "0.1.0"
+              "const": "0.2.0"
             }
           },
           {
@@ -3767,7 +3767,7 @@
             }
           }
         },
-        "x-implementation": "planned-unit-extension"
+        "x-implementation": "integration-branch-guarded"
       }
     },
     "/v1/exports/{export_id}/file": {
@@ -3779,7 +3779,7 @@
             "in": "header",
             "required": true,
             "schema": {
-              "const": "0.1.0"
+              "const": "0.2.0"
             }
           },
           {
@@ -3895,7 +3895,7 @@
             }
           }
         },
-        "x-implementation": "planned-unit-extension"
+        "x-implementation": "integration-branch-guarded"
       }
     },
     "/ready": {
@@ -3911,6 +3911,236 @@
             "description": "Native coordinator unavailable"
           }
         }
+      }
+    },
+    "/v1/documents/{document_id}/quizzes": {
+      "post": {
+        "operationId": "createDocumentQuiz",
+        "tags": [
+          "mnemosyne-learning"
+        ],
+        "parameters": [
+          {
+            "name": "X-Mnemosyne-Contract-Version",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "const": "0.2.0"
+            }
+          },
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "models.schema.json#/$defs/QuizGenerationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Generated public quiz; grading input is private",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "models.schema.json#/$defs/Quiz"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Typed error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "models.schema.json#/$defs/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Typed error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "models.schema.json#/$defs/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Typed error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "models.schema.json#/$defs/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Typed error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "models.schema.json#/$defs/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Typed error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "models.schema.json#/$defs/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Typed error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "models.schema.json#/$defs/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Typed error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "models.schema.json#/$defs/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation": "integration-branch-mounted"
+      }
+    },
+    "/v1/documents/{document_id}/progress": {
+      "post": {
+        "operationId": "recordReadingProgress",
+        "tags": [
+          "mnemosyne-learning"
+        ],
+        "parameters": [
+          {
+            "name": "X-Mnemosyne-Contract-Version",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "const": "0.2.0"
+            }
+          },
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "models.schema.json#/$defs/ProgressMutation"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Durable reading progress state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "models.schema.json#/$defs/LearningState"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Typed error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "models.schema.json#/$defs/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Typed error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "models.schema.json#/$defs/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Typed error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "models.schema.json#/$defs/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Typed error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "models.schema.json#/$defs/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Revision conflict or idempotency mismatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "models.schema.json#/$defs/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Progress storage is not ready",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "models.schema.json#/$defs/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation": "integration-branch-mounted-degraded"
       }
     }
   },
