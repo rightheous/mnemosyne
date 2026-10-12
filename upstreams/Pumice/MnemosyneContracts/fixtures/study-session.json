@@ -1,5 +1,5 @@
 {
-  "contract_version": "0.1.0",
+  "contract_version": "0.2.0",
   "subject": {
     "subject_id": "00000000-0000-0000-0000-000000000002",
     "name": "회로이론",
@@ -157,7 +157,7 @@
     }
   ],
   "annotation_snapshot": {
-    "contract_version": "0.1.0",
+    "contract_version": "0.2.0",
     "document_id": "00000000-0000-0000-0000-000000000001",
     "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
     "snapshot_revision": 4,
@@ -990,7 +990,7 @@
     }
   ],
   "change_page": {
-    "contract_version": "0.1.0",
+    "contract_version": "0.2.0",
     "document_id": "00000000-0000-0000-0000-000000000001",
     "version_id": "sha256:937c222f7a740adc5d5854b6f55e27dac49b251fa528ec1cdca6bdf1c5b23cb2",
     "changes": [
@@ -1084,7 +1084,7 @@
   },
   "events": [
     {
-      "contract_version": "0.1.0",
+      "contract_version": "0.2.0",
       "event_id": "turn_1791442800000_0000000001:1",
       "turn_id": "turn_1791442800000_0000000001",
       "seq": 1,
@@ -1096,7 +1096,7 @@
       }
     },
     {
-      "contract_version": "0.1.0",
+      "contract_version": "0.2.0",
       "event_id": "turn_1791442800000_0000000001:3",
       "turn_id": "turn_1791442800000_0000000001",
       "seq": 3,
@@ -1107,7 +1107,7 @@
       }
     },
     {
-      "contract_version": "0.1.0",
+      "contract_version": "0.2.0",
       "event_id": "turn_1791442800000_0000000001:4",
       "turn_id": "turn_1791442800000_0000000001",
       "seq": 4,
@@ -1140,7 +1140,7 @@
       }
     },
     {
-      "contract_version": "0.1.0",
+      "contract_version": "0.2.0",
       "event_id": "turn_1791442800000_0000000001:5",
       "turn_id": "turn_1791442800000_0000000001",
       "seq": 5,
@@ -1160,7 +1160,7 @@
       }
     },
     {
-      "contract_version": "0.1.0",
+      "contract_version": "0.2.0",
       "event_id": "turn_1791442800000_0000000001:6",
       "turn_id": "turn_1791442800000_0000000001",
       "seq": 6,
@@ -1186,7 +1186,7 @@
       }
     },
     {
-      "contract_version": "0.1.0",
+      "contract_version": "0.2.0",
       "event_id": "turn_1791442800000_0000000001:7",
       "turn_id": "turn_1791442800000_0000000001",
       "seq": 7,
@@ -1212,7 +1212,7 @@
       }
     },
     {
-      "contract_version": "0.1.0",
+      "contract_version": "0.2.0",
       "event_id": "turn_1791442800000_0000000001:8",
       "turn_id": "turn_1791442800000_0000000001",
       "seq": 8,
@@ -1253,7 +1253,7 @@
       }
     },
     {
-      "contract_version": "0.1.0",
+      "contract_version": "0.2.0",
       "event_id": "turn_1791442800000_0000000001:9",
       "turn_id": "turn_1791442800000_0000000001",
       "seq": 9,
@@ -1264,7 +1264,7 @@
       }
     },
     {
-      "contract_version": "0.1.0",
+      "contract_version": "0.2.0",
       "event_id": "turn_1791442800000_0000000001:10",
       "turn_id": "turn_1791442800000_0000000001",
       "seq": 10,
@@ -1276,7 +1276,7 @@
       }
     },
     {
-      "contract_version": "0.1.0",
+      "contract_version": "0.2.0",
       "event_id": "turn_1791442800000_0000000001:11",
       "turn_id": "turn_1791442800000_0000000001",
       "seq": 11,
@@ -1288,7 +1288,7 @@
       }
     },
     {
-      "contract_version": "0.1.0",
+      "contract_version": "0.2.0",
       "event_id": "turn_1791442800000_0000000001:12",
       "turn_id": "turn_1791442800000_0000000001",
       "seq": 12,
@@ -1303,7 +1303,7 @@
   "reconnect": {
     "last_event_id": "turn_1791442800000_0000000001:6",
     "duplicate_delivery": {
-      "contract_version": "0.1.0",
+      "contract_version": "0.2.0",
       "event_id": "turn_1791442800000_0000000001:6",
       "turn_id": "turn_1791442800000_0000000001",
       "seq": 6,
@@ -1330,7 +1330,7 @@
     },
     "replayed_events": [
       {
-        "contract_version": "0.1.0",
+        "contract_version": "0.2.0",
         "event_id": "turn_1791442800000_0000000001:7",
         "turn_id": "turn_1791442800000_0000000001",
         "seq": 7,
@@ -1356,7 +1356,7 @@
         }
       },
       {
-        "contract_version": "0.1.0",
+        "contract_version": "0.2.0",
         "event_id": "turn_1791442800000_0000000001:8",
         "turn_id": "turn_1791442800000_0000000001",
         "seq": 8,
@@ -1397,7 +1397,7 @@
         }
       },
       {
-        "contract_version": "0.1.0",
+        "contract_version": "0.2.0",
         "event_id": "turn_1791442800000_0000000001:9",
         "turn_id": "turn_1791442800000_0000000001",
         "seq": 9,
@@ -1408,7 +1408,7 @@
         }
       },
       {
-        "contract_version": "0.1.0",
+        "contract_version": "0.2.0",
         "event_id": "turn_1791442800000_0000000001:10",
         "turn_id": "turn_1791442800000_0000000001",
         "seq": 10,
@@ -1420,7 +1420,7 @@
         }
       },
       {
-        "contract_version": "0.1.0",
+        "contract_version": "0.2.0",
         "event_id": "turn_1791442800000_0000000001:11",
         "turn_id": "turn_1791442800000_0000000001",
         "seq": 11,
@@ -1432,7 +1432,7 @@
         }
       },
       {
-        "contract_version": "0.1.0",
+        "contract_version": "0.2.0",
         "event_id": "turn_1791442800000_0000000001:12",
         "turn_id": "turn_1791442800000_0000000001",
         "seq": 12,
@@ -1447,7 +1447,7 @@
   },
   "cancelled_events": [
     {
-      "contract_version": "0.1.0",
+      "contract_version": "0.2.0",
       "event_id": "turn_1791442800000_0000000002:1",
       "turn_id": "turn_1791442800000_0000000002",
       "seq": 1,
@@ -1459,7 +1459,7 @@
       }
     },
     {
-      "contract_version": "0.1.0",
+      "contract_version": "0.2.0",
       "event_id": "turn_1791442800000_0000000002:3",
       "turn_id": "turn_1791442800000_0000000002",
       "seq": 3,
@@ -1472,7 +1472,7 @@
   ],
   "error_events": [
     {
-      "contract_version": "0.1.0",
+      "contract_version": "0.2.0",
       "event_id": "turn_1791442800000_0000000003:1",
       "turn_id": "turn_1791442800000_0000000003",
       "seq": 1,
@@ -1484,7 +1484,7 @@
       }
     },
     {
-      "contract_version": "0.1.0",
+      "contract_version": "0.2.0",
       "event_id": "turn_1791442800000_0000000003:3",
       "turn_id": "turn_1791442800000_0000000003",
       "seq": 3,
@@ -1492,7 +1492,7 @@
       "type": "turn.error",
       "payload": {
         "error": {
-          "contract_version": "0.1.0",
+          "contract_version": "0.2.0",
           "code": "provider_error",
           "message_ko": "모델 응답을 완료하지 못했습니다.",
           "request_id": "00000000-0000-0000-0000-00000000005a",
@@ -1824,7 +1824,7 @@
         "timestamp": 1791442800.0,
         "metadata": {
           "mnemosyne": {
-            "contract_version": "0.1.0",
+            "contract_version": "0.2.0",
             "event_id": "turn_1791442800000_0000000001:1",
             "turn_id": "turn_1791442800000_0000000001",
             "seq": 1,
@@ -1856,7 +1856,7 @@
         "timestamp": 1791442800.0,
         "metadata": {
           "mnemosyne": {
-            "contract_version": "0.1.0",
+            "contract_version": "0.2.0",
             "event_id": "turn_1791442800000_0000000001:3",
             "turn_id": "turn_1791442800000_0000000001",
             "seq": 3,
@@ -1877,7 +1877,7 @@
         "timestamp": 1791442800.0,
         "metadata": {
           "mnemosyne": {
-            "contract_version": "0.1.0",
+            "contract_version": "0.2.0",
             "event_id": "turn_1791442800000_0000000001:4",
             "turn_id": "turn_1791442800000_0000000001",
             "seq": 4,
@@ -1920,7 +1920,7 @@
         "timestamp": 1791442800.0,
         "metadata": {
           "mnemosyne": {
-            "contract_version": "0.1.0",
+            "contract_version": "0.2.0",
             "event_id": "turn_1791442800000_0000000001:5",
             "turn_id": "turn_1791442800000_0000000001",
             "seq": 5,
@@ -1950,7 +1950,7 @@
         "timestamp": 1791442800.0,
         "metadata": {
           "mnemosyne": {
-            "contract_version": "0.1.0",
+            "contract_version": "0.2.0",
             "event_id": "turn_1791442800000_0000000001:6",
             "turn_id": "turn_1791442800000_0000000001",
             "seq": 6,
@@ -1986,7 +1986,7 @@
         "timestamp": 1791442800.0,
         "metadata": {
           "mnemosyne": {
-            "contract_version": "0.1.0",
+            "contract_version": "0.2.0",
             "event_id": "turn_1791442800000_0000000001:7",
             "turn_id": "turn_1791442800000_0000000001",
             "seq": 7,
@@ -2022,7 +2022,7 @@
         "timestamp": 1791442800.0,
         "metadata": {
           "mnemosyne": {
-            "contract_version": "0.1.0",
+            "contract_version": "0.2.0",
             "event_id": "turn_1791442800000_0000000001:8",
             "turn_id": "turn_1791442800000_0000000001",
             "seq": 8,
@@ -2073,7 +2073,7 @@
         "timestamp": 1791442800.0,
         "metadata": {
           "mnemosyne": {
-            "contract_version": "0.1.0",
+            "contract_version": "0.2.0",
             "event_id": "turn_1791442800000_0000000001:9",
             "turn_id": "turn_1791442800000_0000000001",
             "seq": 9,
@@ -2094,7 +2094,7 @@
         "timestamp": 1791442800.0,
         "metadata": {
           "mnemosyne": {
-            "contract_version": "0.1.0",
+            "contract_version": "0.2.0",
             "event_id": "turn_1791442800000_0000000001:10",
             "turn_id": "turn_1791442800000_0000000001",
             "seq": 10,
@@ -2116,7 +2116,7 @@
         "timestamp": 1791442800.0,
         "metadata": {
           "mnemosyne": {
-            "contract_version": "0.1.0",
+            "contract_version": "0.2.0",
             "event_id": "turn_1791442800000_0000000001:11",
             "turn_id": "turn_1791442800000_0000000001",
             "seq": 11,
@@ -2138,7 +2138,7 @@
         "timestamp": 1791442800.0,
         "metadata": {
           "mnemosyne": {
-            "contract_version": "0.1.0",
+            "contract_version": "0.2.0",
             "event_id": "turn_1791442800000_0000000001:12",
             "turn_id": "turn_1791442800000_0000000001",
             "seq": 12,
@@ -2163,7 +2163,7 @@
         "timestamp": 1791442800.0,
         "metadata": {
           "mnemosyne": {
-            "contract_version": "0.1.0",
+            "contract_version": "0.2.0",
             "event_id": "turn_1791442800000_0000000002:1",
             "turn_id": "turn_1791442800000_0000000002",
             "seq": 1,
@@ -2195,7 +2195,7 @@
         "timestamp": 1791442800.0,
         "metadata": {
           "mnemosyne": {
-            "contract_version": "0.1.0",
+            "contract_version": "0.2.0",
             "event_id": "turn_1791442800000_0000000002:3",
             "turn_id": "turn_1791442800000_0000000002",
             "seq": 3,
@@ -2219,7 +2219,7 @@
         "timestamp": 1791442800.0,
         "metadata": {
           "mnemosyne": {
-            "contract_version": "0.1.0",
+            "contract_version": "0.2.0",
             "event_id": "turn_1791442800000_0000000003:1",
             "turn_id": "turn_1791442800000_0000000003",
             "seq": 1,
@@ -2251,7 +2251,7 @@
         "timestamp": 1791442800.0,
         "metadata": {
           "mnemosyne": {
-            "contract_version": "0.1.0",
+            "contract_version": "0.2.0",
             "event_id": "turn_1791442800000_0000000003:3",
             "turn_id": "turn_1791442800000_0000000003",
             "seq": 3,
@@ -2259,7 +2259,7 @@
             "type": "turn.error",
             "payload": {
               "error": {
-                "contract_version": "0.1.0",
+                "contract_version": "0.2.0",
                 "code": "provider_error",
                 "message_ko": "모델 응답을 완료하지 못했습니다.",
                 "request_id": "00000000-0000-0000-0000-00000000005a",

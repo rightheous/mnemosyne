@@ -586,7 +586,7 @@ public struct MnemosyneLocalAnnotationEdit {
 
     public func commitReceipts(_ receipts: Data) throws {
         let receipt = try Self.object(receipts)
-        guard receipt["contract_version"] as? String == "0.1.0",
+        guard receipt["contract_version"] as? String == "0.2.0",
               let documentID = UUID(uuidString: receipt["document_id"] as? String ?? ""),
               let versionID = receipt["version_id"] as? String,
               Self.isValidVersionID(versionID),
@@ -682,7 +682,7 @@ public struct MnemosyneLocalAnnotationEdit {
 
     public func commitChangesAndCursor(_ page: Data) throws {
         let object = try Self.object(page)
-        guard object["contract_version"] as? String == "0.1.0",
+        guard object["contract_version"] as? String == "0.2.0",
               let documentID = UUID(uuidString: object["document_id"] as? String ?? ""),
               let versionID = object["version_id"] as? String,
               Self.isValidVersionID(versionID),
@@ -1126,7 +1126,7 @@ public struct MnemosyneLocalAnnotationEdit {
     public func applyReaderEvent(_ event: Data) throws {
         guard let activeDocument else { throw MnemosyneReaderError.cacheMissing }
         let object = try FileMnemosyneLocalStore.object(event)
-        guard object["contract_version"] as? String == "0.1.0",
+        guard object["contract_version"] as? String == "0.2.0",
               let type = object["type"] as? String,
               ["reader.goto", "reader.flash", "reader.highlight", "reader.annotate"].contains(type),
               let payload = object["payload"] as? [String: Any] else {
@@ -1155,7 +1155,7 @@ public struct MnemosyneLocalAnnotationEdit {
     public func approveAnnotationSuggestion(_ event: Data) throws -> Data {
         guard let activeDocument else { throw MnemosyneReaderError.cacheMissing }
         let object = try FileMnemosyneLocalStore.object(event)
-        guard object["contract_version"] as? String == "0.1.0",
+        guard object["contract_version"] as? String == "0.2.0",
               object["type"] as? String == "reader.annotate",
               let eventID = object["event_id"] as? String,
               let turnID = object["turn_id"] as? String,

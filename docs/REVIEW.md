@@ -1,42 +1,42 @@
-## 요약
+# 통합 검토 요약
 
-`origin/main` (`16130d21410d1b2349ffee0757d44462c899ebbf`)과 준비 커밋
-`5715a32927e3a73dc28782d306880e3dd1f62441`에서 만든
-`codex/mnemosyne-integration` 브랜치에 확인 가능한 UNIT-01/04/05/06 변경을
-통합하고, pairing/session 인증과 보호된 Library router를 실제 서버 수명 주기에
-연결했습니다. 계약 0.1.0의 DTO는 바꾸지 않았고 두 upstream 계약 사본의 digest를
-갱신했습니다.
+`codex/mnemosyne-integration`은 PR 기준 `main`
+`16130d21410d1b2349ffee0757d44462c899ebbf`와 준비 commit
+`5715a32927e3a73dc28782d306880e3dd1f62441`에서 분기한 별도 통합 브랜치다.
+UNIT-01~06의 사용자가 지정한 모든 결과 SHA를 실제 diff로 합쳤고,
+기본 브랜치에는 직접 반영하지 않았다. 계약 버전은 `0.2.0`이다.
 
 ## 적용한 정확한 unit refs
 
-- UNIT-01: `c1f1f16b1cf12c9e66da1b3f24755cdb1412550f`, PR #2
-- UNIT-02: baseline `main` commit `16130d21410d1b2349ffee0757d44462c899ebbf`; no separate branch/PR
-- UNIT-03: user-supplied branch `codex/unit-03-reader`, commit `ae202f0cf1096d5fcc0ab1ecd325ac20a0d8e4b1`; no PR
-- UNIT-04: `ced01afba5138598601c3b25933329d23a41282b`, PR #3
-- UNIT-05: `e22a0e9d421adf3020e5359dcbda541e5ba378e0`, branch `codex/unit-05-api-refresh`, Draft PR #4
-- UNIT-06: `e14c599cb9977a41f5f17358a9ca17f33bce2327`, PR #1
+- UNIT-01: `c1f1f16b1cf12c9e66da1b3f24755cdb1412550f`, [Draft PR #2](https://github.com/rightheous/mnemosyne/pull/2)
+- UNIT-02: `e024f81209a15b81630a5ab169013bdb868320d9`, PR 없음
+- UNIT-03: `ae202f0cf1096d5fcc0ab1ecd325ac20a0d8e4b1`, PR 없음(사용자 요청)
+- UNIT-04: `ced01afba5138598601c3b25933329d23a41282b`, [Draft PR #3](https://github.com/rightheous/mnemosyne/pull/3)
+- UNIT-05: `e22a0e9d421adf3020e5359dcbda541e5ba378e0`, [Draft PR #4](https://github.com/rightheous/mnemosyne/pull/4)
+- UNIT-06: `e14c599cb9977a41f5f17358a9ca17f33bce2327`, [Draft PR #1](https://github.com/rightheous/mnemosyne/pull/1)
 
-요청에 처음 포함된 값은 저장소 URL뿐이었으나 이후 UNIT-05 정확한 ref가 제공돼
-통합했습니다. UNIT-03의 정확한 식별 정보는 제공됐으나 현재 workspace의 local refs/object DB와 `origin` 어느 쪽에서도
-`ae202f0cf1096d5fcc0ab1ecd325ac20a0d8e4b1`를 가져오지 못했습니다. 정확한 branch fetch는 `couldn't find remote ref`, SHA fetch는 `not our ref`, GitHub commit API는 422 `No commit found for SHA`를 반환해 소스 diff는 통합되지 않았습니다. 사용자 보고에 따르면 UNIT-03 별도 PR 생성은 자동 승인 검토의 `429 Too Many Requests`로 중단됐습니다. 이 검토 제한을 우회하는 재시도는 하지 않았습니다. UNIT-02는 별도 결과가 아니라 기준 main의 `16130d21410d1b2349ffee0757d44462c899ebbf`를 사용했습니다. UNIT-01/#2, UNIT-04/#3, UNIT-06/#1은 현재 열린 draft PR이며 main에는 병합되지 않았습니다. UNIT-05는 위 exact commit으로 통합했습니다.
+UNIT-02는 제공된 전용 branch 결과로 포함했으며 별도 PR 링크는 제공되지 않았다.
+UNIT-03은 제공된 branch/SHA를 fetch해 포함했고 요청에 따라 PR을 만들지 않았다.
+통합 검토 PR은 [Draft PR #5](https://github.com/rightheous/mnemosyne/pull/5)다.
 
-## 검증
+## 구현 및 검증
 
-- 계약/source/ownership 검사, 계약 사본 동기화, Python source adapter 및 live
-  loopback PDF/annotation/export flow를 실행했습니다. flow는 업로드·파싱·검색·인용
-  검증·주석 retry/tombstone·export·SQLite 복구·원본 SHA 보존까지 통과했지만
-  `llama_index` 부재로 RAG indexing은 `failed`였습니다.
-- UNIT-05를 포함한 Web contract/typecheck, Node 1,310개, unit 656개, UNIT-05
-  화면 관련 12개 테스트가 통과했습니다. Google Fonts를 가져오지 못해 Next
-  production build는 완료되지 않았습니다.
-- Cloud 실행 capability/secrets, Docker daemon, LLM credential, macOS/Xcode/iPadOS
-  SDK 및 실제 iPad Pencil 기기는 이 환경에 없습니다. 각각의 통합 검증은 하지 않았습니다.
+서버 lifespan은 Library, Tutor, SQLite 학습 저장소, provider runtime 및 quiz
+generator를 등록한다. 웹/iPad Tutor 재접속용 receipt route를 실제 mount하고,
+native turn event 계약 버전을 `0.2.0`으로 맞췄다. SQLite는 Quiz/채점 입력,
+attempt/assessment, mastery, Memory, progress와 activity를 보존하며 web/iPad
+mutation ID 재전송은 멱등 처리한다. PDF/Reader/Pencil, 웹, compose/CI 변경도
+각 실제 앱 조립 및 route에 연결했다.
 
-## 미완료 필수 제품 기능
+검증의 정확한 범위와 제한은 [docs/VALIDATION.md](VALIDATION.md), 필수 요구사항별
+상태는 [통합 handoff](handoffs/integration.md)에 기록했다. 계약/source validator,
+contract sync, adapter check, 일부 통합 tests, web static checks와 loopback PDF
+HTTP 흐름이 통과했다. PDF 흐름은 업로드·파싱·검색·검증 인용·annotation
+retry/tombstone·export·원본 SHA 보존까지 확인했지만 `llama_index` 부재로 실제
+RAG index는 `failed`였다. 전체 targeted pytest의 최신 재실행은 executor에서
+완료되지 않아 이전 통과 결과 및 별도 quiz idempotency test와 구분해 기록했다.
 
-이 브랜치는 `product_ready=false`입니다. UNIT-03 durable Reader/local store/Pencil
-경로가 없고, durable Mnemosyne LearningStateStore와 Tutor/Quiz/Assessment/Memory/
-Progress HTTP route가 없습니다. Provider/settings callback도 실제 runtime에 연결되지
-않았습니다. 따라서 학습 상태 저장·복구나 웹/iPad 전체 사용자 흐름을 완료로 보고하지
-않으며 이 draft PR은 제품 출시 승인용이 아닙니다. Requirement별 구현/검증 상태와
-실행 명령은 `docs/handoffs/integration.md`, `docs/VALIDATION.md`에 기록했습니다.
+이 브랜치는 `product_ready=false`다. live LLM credential, vector index dependency,
+Cloud execution capability/secrets, Docker daemon socket, Google Fonts build
+network, macOS/Xcode/iPadOS SDK, Simulator 및 실제 Pencil device가 없어 해당
+검증은 미완료다. 실제 browser end-to-end도 실행하지 않았다.

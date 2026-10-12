@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
+import asyncio
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
-import asyncio
 import hashlib
 import inspect
 import json
@@ -169,7 +169,7 @@ def extract_pdf_pages(
     return pages
 
 
-CONTRACT_VERSION = "0.1.0"
+CONTRACT_VERSION = "0.2.0"
 MAX_PDF_BYTES = 100 * 1024 * 1024
 _SHA256_RE = re.compile(r"^[a-f0-9]{64}$")
 _LANGUAGE_RE = re.compile(r"^(und|[A-Za-z]{2,8}(-[A-Za-z0-9]{1,8})*)$")
@@ -564,7 +564,7 @@ class LibraryAdapter:
         rag_search: Callable[..., Any] | None = None,
         settings_defaults_provider: Callable[[], dict[str, Any]] | None = None,
         settings_secret_writer: Callable[[str], Any] | None = None,
-        settings_credential_reader: Callable[[], bool] | None = None,
+        settings_credential_reader: Callable[..., bool] | None = None,
         settings_base_url_validator: Callable[[str], bool] | None = None,
     ) -> None:
         self.store = store
@@ -759,11 +759,18 @@ class LibraryAdapter:
             raise LibraryError("api_key must be a non-empty string when supplied")
         return {"adapter": "openai-compatible", "base_url": base_url, "model": model.strip()}, api_key
 
-    def _credential_is_configured(self, fallback: bool = False) -> bool:
+    def _credential_is_configured(
+        self, provider: dict[str, str], fallback: bool = False
+    ) -> bool:
         if self.settings_credential_reader is None:
             return bool(fallback)
         try:
-            return bool(self.settings_credential_reader())
+            reader = self.settings_credential_reader
+            try:
+                inspect.signature(reader).bind(provider)
+            except (TypeError, ValueError):
+                return bool(reader())
+            return bool(reader(provider))
         except Exception as exc:
             raise LibraryError("secure credential status is unavailable") from exc
 
@@ -794,7 +801,9 @@ class LibraryAdapter:
             fallback_credential = bool(row["credential_configured"])
         if not isinstance(language, str) or not _LANGUAGE_RE.fullmatch(language):
             raise LibraryError("response_language setting is invalid")
-        provider["credential_configured"] = self._credential_is_configured(fallback_credential)
+        provider["credential_configured"] = self._credential_is_configured(
+            provider, fallback_credential
+        )
         return {
             "server_revision": revision,
             "provider": provider,
@@ -829,16 +838,32 @@ class LibraryAdapter:
         )
         with self.db.connect(write=True) as conn:
             row = conn.execute(
-                "SELECT server_revision, credential_configured FROM mnemosyne_public_settings "
+                "SELECT public_json, server_revision, credential_configured FROM mnemosyne_public_settings "
                 "WHERE settings_id='global'"
             ).fetchone()
             current_revision = int(row["server_revision"]) if row is not None else 1
             if current_revision != expected_revision:
                 raise RevisionConflict("public settings changed on another client", current_revision)
-            old_credential = bool(row["credential_configured"]) if row is not None else False
+            old_settings = json.loads(row["public_json"]) if row is not None else {}
+            old_provider = old_settings.get("provider") if isinstance(old_settings, dict) else None
+            same_provider = (
+                isinstance(old_provider, dict)
+                and old_provider.get("base_url") == provider.get("base_url")
+            )
+            old_credential = (
+                bool(row["credential_configured"]) and same_provider
+                if row is not None
+                else False
+            )
             if api_key is not None:
                 try:
-                    result = self.settings_secret_writer(api_key)
+                    writer = self.settings_secret_writer
+                    try:
+                        inspect.signature(writer).bind(api_key, provider)
+                    except (TypeError, ValueError):
+                        result = writer(api_key)
+                    else:
+                        result = writer(api_key, provider)
                 except Exception as exc:
                     raise LibraryError("secure credential storage failed") from exc
                 if inspect.isawaitable(result):
@@ -849,8 +874,9 @@ class LibraryAdapter:
                 if result is False:
                     raise LibraryError("secure credential storage failed")
             configured = (
-                True if api_key is not None
-                else self._credential_is_configured(old_credential)
+                self._credential_is_configured(provider, True)
+                if api_key is not None
+                else self._credential_is_configured(provider, old_credential)
             )
             revision = current_revision + 1
             conn.execute(
@@ -1065,6 +1091,27 @@ class LibraryAdapter:
             "index_error_code": row["index_error_code"],
             "index_error_detail": row["index_error_detail"],
         }
+
+    def resolve_reading_material(self, document_id: str, version_id: str) -> dict[str, Any]:
+        """Resolve an immutable Library version to its server-owned Tutor material."""
+        document_id, version_id = _uuid(document_id, "document"), _version(version_id)
+        document = self.get_document(document_id, version_id)
+        if document["parse_state"] != "ready":
+            raise LibraryError("document parsing is not ready")
+        with self.db.connect() as conn:
+            row = conn.execute(
+                "SELECT material_id FROM mnemosyne_versions "
+                "WHERE document_id=? AND version_id=?",
+                (document_id, version_id),
+            ).fetchone()
+        material_id = str(row["material_id"] or "") if row is not None else ""
+        if not material_id:
+            raise LibraryError("document has no indexed ReadingStore material")
+        manifest = self.store.manifest(material_id)
+        revision = int(manifest.revision)
+        if revision < 1:
+            raise LibraryError("ReadingStore material revision is invalid")
+        return {"material_id": material_id, "revision": revision}
 
     def update_document(
         self, document_id: str, *, title: str | None = None, subject_id: Any = _UNSET,
@@ -1812,7 +1859,7 @@ class LibraryAdapter:
             raise LibraryError("annotation must be an object")
         required = {"annotation_id", "document_id", "version_id", "page_index", "kind", "payload"}
         if set(draft) != required:
-            raise LibraryError("annotation fields do not match contract 0.1.0")
+            raise LibraryError("annotation fields do not match contract 0.2.0")
         annotation_id = _uuid(draft["annotation_id"], "annotation")
         if _uuid(draft["document_id"], "document") != document_id or _version(draft["version_id"]) != version_id:
             raise LibraryError("annotation document provenance mismatch")
@@ -2190,7 +2237,7 @@ def register_library(
     rag_search: Callable[..., Any] | None = None,
     settings_defaults_provider: Callable[[], dict[str, Any]] | None = None,
     settings_secret_writer: Callable[[str], Any] | None = None,
-    settings_credential_reader: Callable[[], bool] | None = None,
+    settings_credential_reader: Callable[..., bool] | None = None,
     settings_base_url_validator: Callable[[str], bool] | None = None,
 ) -> LibraryAdapter:
     """Build UNIT-01 services; no router, HTTP loopback, or fake success state."""

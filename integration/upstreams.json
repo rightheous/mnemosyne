@@ -23470,8 +23470,8 @@
       "source_commit": "5715a32927e3a73dc28782d306880e3dd1f62441"
     },
     "upstreams/Pumice/App/LaunchView.swift": {
-      "reason": "Integration attribution: source snapshot extension from ced01afba513 (feat(ipad): connect durable reader to study workspace); original pinned upstream SHA remains recorded in sources.files.",
-      "current_sha256": "5a225ea639c619ae36ee9dd5307664e5216632e5febf9feac132f1e552ee2325",
+      "reason": "Integration attribution: UNIT-04 app composition and actual Reader progress/quiz actions; original pinned upstream SHA remains recorded in sources.files.",
+      "current_sha256": "7c7c80e4a8902eebb1aee350c86a193806df16f77bf3114e19828e73b1b55818",
       "source_commit": "ced01afba5138598601c3b25933329d23a41282b"
     },
     "upstreams/Pumice/App/PumiceApp.swift": {
@@ -23496,7 +23496,7 @@
     },
     "upstreams/DeepTutor/compose.yaml": {
       "reason": "Integration attribution: source snapshot extension from f2e404919ed5 (fix(unit-06): align Compose with upstream single-worker mode); original pinned upstream SHA remains recorded in sources.files.",
-      "current_sha256": "a86bfe994c63763b93125f3c3861e32c9942a618fb2d191a83d9a0e3629a8bab",
+      "current_sha256": "6cca159600e56009d3833ebe84f94a3e431a051fb69bf04c0784bcb577be14fd",
       "source_commit": "f2e404919ed5ce13a4cfab54d73ab5c6f4bedeab"
     },
     "upstreams/DeepTutor/deeptutor/agents/_shared/tool_composition.py": {
@@ -23530,9 +23530,9 @@
       "source_commit": "0df7cdaa78fab21bb598334ce221de7f8bc2e794"
     },
     "upstreams/DeepTutor/deeptutor/api/routers/unified_ws.py": {
-      "reason": "Integration attribution: source snapshot extension from 755f4aae4f66 (feat: integrate native tutor routing and model purposes); original pinned upstream SHA remains recorded in sources.files.",
-      "current_sha256": "95ff4b67284b52f61ae694cfe332abebb3be75400d4e95ea0dbb8c23c92bce17",
-      "source_commit": "755f4aae4f66ef98414f87676556deed07a6b992"
+      "reason": "UNIT-02 learning routes now use the shared Mnemosyne pairing/session and exact-Origin guard; this source also contains the supplied native tutor API integration. Original pinned SHA remains recorded in sources.files.",
+      "current_sha256": "a1645a76533850af9e14aa7af1a7ab3e45768f5d6f94e7bbd257f267208ce561",
+      "source_commit": "e024f81209a15b81630a5ab169013bdb868320d9"
     },
     "upstreams/DeepTutor/deeptutor/capabilities/reading/_tool_base.py": {
       "reason": "Integration attribution: source snapshot extension from f62813b63e1c (feat(unit-02): emit verified reader contract events); original pinned upstream SHA remains recorded in sources.files.",
@@ -23626,12 +23626,12 @@
     },
     "upstreams/DeepTutor/deeptutor/services/session/turns/lifecycle.py": {
       "reason": "Integration attribution: source snapshot extension from 17d6e6b52457 (feat: add Mnemosyne tutor runtime); original pinned upstream SHA remains recorded in sources.files.",
-      "current_sha256": "abc7121d9f384fce738685740531ec16b8b85fc85805b3815ca868fb8716e3aa",
+      "current_sha256": "15844224fd5789178e2873cb42a0a2d584a8992aa1a74cbdc76f4d718ee837ca",
       "source_commit": "17d6e6b5245758aa824589327d6b92b5bfa62035"
     },
     "upstreams/DeepTutor/deeptutor/services/session/turns/request_preparer.py": {
       "reason": "Integration attribution: source snapshot extension from 7b9dbef992c0 (fix(unit-02): preserve tutor action selection); original pinned upstream SHA remains recorded in sources.files.",
-      "current_sha256": "41997c25f5bbe480a8b9fefef43848b2359a30c2b5f417a6f549f3a3ad9983ae",
+      "current_sha256": "5035d61fb2cad17a8e6bbc7e8830e5012b8efb43cde085692fd81c0d39f52625",
       "source_commit": "7b9dbef992c07245abfbc63efea4966fe92ffa7e"
     },
     "upstreams/DeepTutor/deeptutor/tools/builtin/__init__.py": {
@@ -23675,9 +23675,9 @@
       "source_commit": "0df7cdaa78fab21bb598334ce221de7f8bc2e794"
     },
     "upstreams/DeepTutor/tests/api/test_unified_ws_turn_runtime.py": {
-      "reason": "Integration attribution: source snapshot extension from 058344cf958b (fix(unit-02): verify persisted learning activity); original pinned upstream SHA remains recorded in sources.files.",
-      "current_sha256": "54cd8f387453aba237473a00859201bd8617c194e6c9d3bf05c8bec4dcadde40",
-      "source_commit": "058344cf958baeebe1351213be940d0104d0539c"
+      "reason": "UNIT-02 learning API fixtures plus integration coverage for pairing-session authentication, Origin rejection, contract-shaped errors, and readiness failures. Original pinned SHA remains recorded in sources.files.",
+      "current_sha256": "83af7d72e592896d25ff65d632def7b4f587df9e97793c31c45b149c5c3ffaf0",
+      "source_commit": "e024f81209a15b81630a5ab169013bdb868320d9"
     },
     "upstreams/DeepTutor/tests/core/agentic/test_tool_dispatch_events.py": {
       "reason": "Integration attribution: source snapshot extension from f62813b63e1c (feat(unit-02): emit verified reader contract events); original pinned upstream SHA remains recorded in sources.files.",
@@ -23906,12 +23906,12 @@
     },
     "upstreams/DeepTutor/web/features/mnemosyne/register.ts": {
       "reason": "Integration attribution: source snapshot extension from e22a0e9d421a (feat(unit-05): align reader surfaces with native tutor); original pinned upstream SHA remains recorded in sources.files when present.",
-      "current_sha256": "2fc0fbb3ff37bbd4fbba134a0f7553c37e33c50d06e805aa43a83cd329896e61",
+      "current_sha256": "10d3433101bec2ebfa851d2990342ebb7f73bd06ca03cdde445fa1625099e190",
       "source_commit": "e22a0e9d421adf3020e5359dcbda541e5ba378e0"
     },
     "upstreams/DeepTutor/web/features/mnemosyne/screens.tsx": {
       "reason": "Integration attribution: source snapshot extension from e22a0e9d421a (feat(unit-05): align reader surfaces with native tutor); original pinned upstream SHA remains recorded in sources.files when present.",
-      "current_sha256": "604a82f184f9038ed6ac899780c1f3acc0c0b4e41e9aa9891fca00165a4d81e1",
+      "current_sha256": "f2b566b5e5692b89b1934152c9232c28b3e69bf5e797fc45011938358089625a",
       "source_commit": "e22a0e9d421adf3020e5359dcbda541e5ba378e0"
     },
     "upstreams/DeepTutor/web/tests/pdf-reading-resize.spec.tsx": {
@@ -23923,6 +23923,84 @@
       "reason": "Integration attribution: source snapshot extension from e22a0e9d421a (feat(unit-05): align reader surfaces with native tutor); original pinned upstream SHA remains recorded in sources.files when present.",
       "current_sha256": "8c2c3cda8f158f5a0c012337e6b077232f17b0936063f5d892f9e2716a8495a8",
       "source_commit": "e22a0e9d421adf3020e5359dcbda541e5ba378e0"
+    },
+    "upstreams/Pumice/Packages/PumiceCore/Tests/PumiceCoreTests/PageGeometryTests.swift": {
+      "reason": "UNIT-03 integration: Add UNIT-03 regression coverage for canonical geometry, viewport restoration, persistence, selection invalidation, mutation outbox, and explicit conflict resolution. Original pinned SHA remains recorded in sources.files.",
+      "current_sha256": "aff0524e9821bdbf48cde8fa05de8d06aef3a4b55606cec570b65b2b458de31c",
+      "source_commit": "ae202f0cf1096d5fcc0ab1ecd325ac20a0d8e4b1"
+    },
+    "upstreams/Pumice/Sources/Reader/PDFReaderController.swift": {
+      "reason": "UNIT-03 integration: Add the PumiceReaderEngine adapter that connects the existing PDFKit Reader to the UNIT-03 facade and exposes local persistence failures separately from sync failures. Original pinned SHA remains recorded in sources.files.",
+      "current_sha256": "7050060e398ca9c5ff56d7947d3e27cba994969b68e2173c3378ac6188f0c43a",
+      "source_commit": "ae202f0cf1096d5fcc0ab1ecd325ac20a0d8e4b1"
+    },
+    "upstreams/Pumice/Sources/Reader/PDFReaderView.swift": {
+      "reason": "UNIT-03 integration: Inject and attach the shared Reader engine through the existing SwiftUI PDF view lifecycle. Original pinned SHA remains recorded in sources.files.",
+      "current_sha256": "e75208d987e2d291084cd37ffcb254195722505b5f113a9ea02b6d122a1764d0",
+      "source_commit": "ae202f0cf1096d5fcc0ab1ecd325ac20a0d8e4b1"
+    },
+    "upstreams/Pumice/Sources/Reader/PDFReaderViewController.swift": {
+      "reason": "UNIT-03 integration: Persist ink, highlights, and viewport in a hash-keyed sidecar; connect search, outline, context, annotation/outbox callbacks, viewport restore, and derived-PDF export without modifying the source PDF. Original pinned SHA remains recorded in sources.files.",
+      "current_sha256": "edba468810246ad17eeca798981f9666fabf57f1fc3248159f1661d156220755",
+      "source_commit": "ae202f0cf1096d5fcc0ab1ecd325ac20a0d8e4b1"
+    },
+    "upstreams/Pumice/Sources/Reader/PenSettings.swift": {
+      "reason": "UNIT-03 integration: Extend stroke records with stable identity and Pencil sample location, pressure, and elapsed time for durable geometry-backed mutations. Original pinned SHA remains recorded in sources.files.",
+      "current_sha256": "30e164a738f99c718c817c53743b2cf642cc7fcab76fbc14a9d74dcad5f5d8e0",
+      "source_commit": "ae202f0cf1096d5fcc0ab1ecd325ac20a0d8e4b1"
+    },
+    "upstreams/Pumice/Sources/Reader/PumiceCanvasView.swift": {
+      "reason": "UNIT-03 integration: Forward canvas bounds and Pencil samples to the Reader controller for canonical-coordinate conversion and viewport updates. Original pinned SHA remains recorded in sources.files.",
+      "current_sha256": "35dacbceb7b9a9d4df2d8021cb291f2d6634eee85dffa9d72eab155fec2c6edf",
+      "source_commit": "ae202f0cf1096d5fcc0ab1ecd325ac20a0d8e4b1"
+    },
+    "upstreams/Pumice/Sources/Reader/PumicePencilGestureRecognizer.swift": {
+      "reason": "UNIT-03 integration: Collect coalesced Pencil locations, pressure, and timestamps while allowing Pencil input alongside concurrent finger touches. Original pinned SHA remains recorded in sources.files.",
+      "current_sha256": "68efa71533b9e2933a35089111683839bd26883caab2a16ff0b33f0d73048f56",
+      "source_commit": "ae202f0cf1096d5fcc0ab1ecd325ac20a0d8e4b1"
+    },
+    "upstreams/Pumice/Tests/PumiceTests/RoundTripTests.swift": {
+      "reason": "UNIT-03 integration: Add a PDFKit regression test that exports a sidecar-only highlight and verifies the source PDF bytes remain unchanged. Original pinned SHA remains recorded in sources.files.",
+      "current_sha256": "c340a4352e95697ed586e49ac95ca1798ba6d145104a5173a5de862f6ae376aa",
+      "source_commit": "ae202f0cf1096d5fcc0ab1ecd325ac20a0d8e4b1"
     }
-  }
+  },
+  "integration_added_files": [
+    {
+      "path": "upstreams/DeepTutor/deeptutor/mnemosyne/learning_store.py",
+      "sha256": "453a15743e852246b756d46532aa138f00f2cdf9a7b35c184ebc2fe6bb110423",
+      "owner": "INTEGRATOR",
+      "purpose": "Durable SQLite quiz, private grading, assessment, mastery, memory, progress and activity state."
+    },
+    {
+      "path": "upstreams/DeepTutor/deeptutor/mnemosyne/provider.py",
+      "sha256": "9484d7f3bfae15558a223c3036a3d817aa32316c9d07d49470e219e532d789b7",
+      "owner": "INTEGRATOR",
+      "purpose": "Endpoint-scoped private OpenAI-compatible credentials and runtime configuration."
+    },
+    {
+      "path": "upstreams/DeepTutor/deeptutor/mnemosyne/quiz_generation.py",
+      "sha256": "312ecd53ccf01d5eb86ff937f005e2dc9b668cb737eb39beda2169aa0b9a2c5a",
+      "owner": "INTEGRATOR",
+      "purpose": "Source-verified quiz generation and idempotent public/private quiz persistence."
+    },
+    {
+      "path": "upstreams/DeepTutor/tests/mnemosyne/test_learning_store.py",
+      "sha256": "009ac4389d0d045e6c785999f394b7ec5a99a2560cc1105671905a4c1ead894c",
+      "owner": "INTEGRATOR",
+      "purpose": "Integration tests for durable and idempotent learning storage."
+    },
+    {
+      "path": "upstreams/DeepTutor/tests/mnemosyne/test_provider_runtime.py",
+      "sha256": "3cf59c91964292eb1d8afc5dbbb056ecb4d5ebdccd3cca93290e5b0fa5a26f1d",
+      "owner": "INTEGRATOR",
+      "purpose": "Integration tests for provider URL policy and credential scoping."
+    },
+    {
+      "path": "upstreams/DeepTutor/tests/mnemosyne/test_quiz_http.py",
+      "sha256": "38db05d9621b6eceea6f62a553b64b7570952f8eca57a0b677691da43e406e97",
+      "owner": "INTEGRATOR",
+      "purpose": "Integration tests for the paired and versioned quiz generation HTTP route."
+    }
+  ]
 }

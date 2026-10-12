@@ -1,12 +1,12 @@
 {
-  "contract_version": "0.1.0",
-  "status": "source_backed_bootstrap",
+  "contract_version": "0.2.0",
+  "status": "integrated_not_product_ready",
   "ready_for_parallel_implementation": true,
   "product_ready": false,
   "cloud_repository_access": "github_remote_configured",
   "external_transport": "websocket",
   "wire_protocol_version": "2.0",
-  "contract_manifest_sha256": "ba8a51148d1c8472d6c4e4a7407152806e9d04be9403e4297e2f626f8e6d5103",
+  "contract_manifest_sha256": "9cd6540bee7c4f0b194ca47d76e988b363e23d9fd5b6b5435c7ebe0900ff4cd1",
   "contract_copies": [
     "upstreams/Pumice/MnemosyneContracts",
     "upstreams/DeepTutor/MnemosyneContracts"
@@ -41,7 +41,7 @@
       ],
       "registration_path": "upstreams/DeepTutor/deeptutor/mnemosyne/library.py",
       "registration_symbol": "register_library",
-      "owned_file_count": 329
+      "owned_file_count": 330
     },
     "UNIT-02": {
       "source_paths": [
@@ -49,7 +49,7 @@
       ],
       "registration_path": "upstreams/DeepTutor/deeptutor/mnemosyne/tutor.py",
       "registration_symbol": "register_tutor",
-      "owned_file_count": 1738
+      "owned_file_count": 1739
     },
     "UNIT-03": {
       "source_paths": [
@@ -65,7 +65,7 @@
       ],
       "registration_path": "upstreams/Pumice/App/MnemosyneAppDependencies.swift",
       "registration_symbol": "makeIPadApp",
-      "owned_file_count": 82
+      "owned_file_count": 83
     },
     "UNIT-05": {
       "source_paths": [
@@ -92,7 +92,14 @@
   "integration_branch": "codex/mnemosyne-integration",
   "integration_base_sha": "16130d21410d1b2349ffee0757d44462c899ebbf",
   "integration_preparation_sha": "5715a32927e3a73dc28782d306880e3dd1f62441",
-  "missing_unit_results": [
-    "UNIT-03 ref supplied: branch codex/unit-03-reader at ae202f0cf1096d5fcc0ab1ecd325ac20a0d8e4b1; no PR. Exact branch/SHA cannot be fetched from the current workspace or origin, so its diff is not integrated."
+  "missing_unit_results": [],
+  "integration_blockers": [
+    "No configured LLM API credential was available for a live Tutor or quiz request.",
+    "The runtime lacks llama_index, so the real PDF vector/RAG indexing pipeline could not reach ready.",
+    "The managed Cloud runtime has no execution capability or configured secrets for an actual Cloud check.",
+    "The Docker daemon socket is inaccessible to this process; image build and container startup were not verified.",
+    "This Linux executor has no macOS, Xcode, Swift compiler, iPadOS SDK, simulator, or Pencil device.",
+    "The production web build could not fetch Google Fonts, and actual browser end-to-end acceptance remains unverified.",
+    "Node and web unit suites contain sandbox-limited subprocess failures recorded in docs/VALIDATION.md."
   ]
 }

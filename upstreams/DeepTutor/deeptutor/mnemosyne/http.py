@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import importlib.util
+import json
+import logging
 import uuid
 
 from fastapi import APIRouter, Cookie, Depends, Header, Request, Response
@@ -17,8 +19,9 @@ from deeptutor.mnemosyne.security import (
     request_token,
 )
 
-CONTRACT_VERSION = "0.1.0"
+CONTRACT_VERSION = "0.2.0"
 router = APIRouter(prefix="/v1", tags=["mnemosyne"])
+logger = logging.getLogger(__name__)
 
 
 class MnemosyneAuthError(Exception):
@@ -156,7 +159,11 @@ async def readiness(request: Request):
     credential_ready = False
     if library.settings_credential_reader is not None:
         try:
-            credential_ready = bool(library.settings_credential_reader())
+            settings = library.get_public_settings()
+            provider = settings.get("provider") if isinstance(settings, dict) else None
+            credential_ready = bool(
+                isinstance(provider, dict) and provider.get("credential_configured") is True
+            )
         except Exception:
             credential_ready = False
     tutor_ready = bool(getattr(tutor, "product_ready", False))
@@ -181,6 +188,104 @@ async def readiness(request: Request):
         },
         headers={"X-Request-ID": request_id, "X-Mnemosyne-Contract-Version": CONTRACT_VERSION},
     )
+
+
+@router.post(
+    "/documents/{document_id}/quizzes",
+    operation_id="createDocumentQuiz",
+    dependencies=[Depends(require_mnemosyne_session)],
+)
+async def create_document_quiz(request: Request, document_id: str):
+    request_id = _request_id(request)
+    headers = {
+        "X-Request-ID": request_id,
+        "X-Mnemosyne-Contract-Version": CONTRACT_VERSION,
+    }
+
+    def error(status_code: int, code: str, *, retryable: bool = False) -> JSONResponse:
+        messages = {
+            "contract_mismatch": "웹과 서버의 계약 버전이 다릅니다.",
+            "invalid_request": "요청 형식이나 값이 올바르지 않습니다.",
+            "idempotency_mismatch": "같은 요청 ID가 다른 내용으로 이미 사용되었습니다.",
+            "conflict": "요청이 이미 다른 내용으로 처리되었습니다.",
+            "not_found": "문서 또는 페이지를 찾을 수 없습니다.",
+            "not_ready": "PDF 분석이 끝난 뒤 다시 시도해 주세요.",
+            "provider_error": "퀴즈를 생성하지 못했습니다. 서버 모델 설정을 확인해 주세요.",
+            "internal_error": "요청을 처리하지 못했습니다.",
+        }
+        return JSONResponse(
+            {
+                "contract_version": CONTRACT_VERSION,
+                "code": code,
+                "message_ko": messages.get(code, "요청을 처리하지 못했습니다."),
+                "request_id": request_id,
+                "retryable": retryable,
+                "details": {},
+            },
+            status_code=status_code,
+            headers=headers,
+        )
+
+    if request.headers.get("x-mnemosyne-contract-version") != CONTRACT_VERSION:
+        return error(400, "contract_mismatch")
+    try:
+        raw = bytearray()
+        async for chunk in request.stream():
+            raw.extend(chunk)
+            if len(raw) > 16_384:
+                return error(413, "invalid_request")
+        body = json.loads(raw)
+    except (UnicodeDecodeError, json.JSONDecodeError, ValueError):
+        return error(400, "invalid_request")
+    if (
+        not isinstance(body, dict)
+        or set(body)
+        != {"client_mutation_id", "version_id", "page_index", "prompt", "response_language"}
+        or not isinstance(body.get("client_mutation_id"), str)
+        or not isinstance(body.get("version_id"), str)
+        or isinstance(body.get("page_index"), bool)
+        or not isinstance(body.get("page_index"), int)
+        or not isinstance(body.get("prompt"), str)
+        or not isinstance(body.get("response_language"), str)
+    ):
+        return error(400, "invalid_request")
+    services = getattr(request.app.state, "mnemosyne", None)
+    generator = getattr(services, "quiz_generation", None)
+    if generator is None:
+        return error(503, "not_ready", retryable=True)
+    try:
+        quiz = await generator.create_quiz(
+            document_id=document_id,
+            version_id=body["version_id"],
+            page_index=body["page_index"],
+            prompt=body["prompt"],
+            client_mutation_id=body["client_mutation_id"],
+            response_language=body["response_language"],
+        )
+    except LookupError:
+        return error(404, "not_found")
+    except ValueError:
+        return error(400, "invalid_request")
+    except Exception as exc:
+        from deeptutor.mnemosyne.learning_store import LearningIdempotencyMismatch
+        from deeptutor.mnemosyne.quiz_generation import MnemosyneQuizGenerationError
+
+        if isinstance(exc, LearningIdempotencyMismatch):
+            return error(409, "idempotency_mismatch")
+        if isinstance(exc, MnemosyneQuizGenerationError):
+            code = (
+                "not_ready"
+                if exc.code in {"source_not_ready", "learning_store_unavailable"}
+                else "provider_error"
+            )
+            return error(503, code, retryable=exc.retryable)
+        logger.error(
+            "Mnemosyne quiz generation failed request_id=%s exception_type=%s",
+            request_id,
+            type(exc).__name__,
+        )
+        return error(500, "internal_error", retryable=True)
+    return JSONResponse(status_code=201, content=quiz, headers=headers)
 
 
 class MnemosyneWebSocketBearerMiddleware:

@@ -1,10 +1,10 @@
 # 계약 묶음
 
-버전 `0.1.0`, 상태 `source-backed-bootstrap`. 모든 문서/API/event/fixture는 이 버전을 사용한다. `manifest.json`의 SHA-256은 묶음의 정확한 바이트를 고정한다. HTTP header `X-Mnemosyne-Contract-Version`으로 peer 버전을 확인하고 불일치 시 `contract_mismatch`로 거부한다. 버전 호환성이 확정되기 전 임의 fallback은 없다.
+버전 `0.2.0`, 상태 `integrated-source-contract`. 모든 문서/API/event/fixture는 이 버전을 사용한다. `manifest.json`의 SHA-256은 묶음의 정확한 바이트를 고정한다. HTTP header `X-Mnemosyne-Contract-Version`으로 peer 버전을 확인하고 불일치 시 `contract_mismatch`로 거부한다. 버전 호환성이 확정되기 전 임의 fallback은 없다.
 
 `openapi.yaml`은 **JSON으로 직렬화된 OpenAPI 3.1.0**이다. JSON은 YAML의 부분집합이므로 YAML/OpenAPI 도구가 읽을 수 있으며 별도 YAML runtime이 없어도 웹의 JSON parser와 Python stdlib가 같은 파일을 읽는다. JSON Schema는 draft 2020-12이며 외부 `$ref`는 이 묶음 안의 상대 경로만 사용한다. `models.schema.json`에 공통 DTO, `annotations.schema.json`에 주석/mutation, `events.schema.json`에 typed event가 있다. DeepTutor의 기존 OpenAPI/JSON Schema codegen 흐름을 유지한다. 신규 계약의 실제 TS/Swift 소비는 공통 fixture로 확인한다.
 
-지정 upstream을 확인한 통합 계약이다. 외부 Tutor 스트리밍은 **DeepTutor native `/ws` WebSocket protocol 2.0 하나**다. `native-turn.schema.json`은 upstream web/contracts/schema/turn-protocol.json의 바이트 동일 복사본이다. models/events/annotations는 새 Mnemosyne 경계이며 아직 제품 구현이 필요한 부분이 있다. OpenAPI의 `x-implementation`은 `observed-upstream`, `integration-branch-guarded`, `integration-branch-mounted-degraded`, `planned-unit-extension`으로 실제 등록 수준을 구별한다. guarded marker는 router가 등록되어 보호가 적용됐다는 뜻이며 provider, learning store, Reader 또는 제품 전체 준비 완료를 뜻하지 않는다. JSON Schema 검증은 HTTP handler 구현 완료를 뜻하지 않는다.
+지정 upstream을 확인한 통합 계약이다. 외부 Tutor 스트리밍은 **DeepTutor native `/ws` WebSocket protocol 2.0 하나**다. `native-turn.schema.json`은 upstream web/contracts/schema/turn-protocol.json의 바이트 동일 복사본이다. models/events/annotations는 이번 통합에서 연결한 Mnemosyne 경계다. OpenAPI의 `x-implementation`은 `observed-upstream`, `integration-branch-guarded`, `integration-branch-mounted`, `integration-branch-mounted-degraded`로 실제 등록 수준을 구별한다. guarded marker는 router가 등록되어 보호가 적용됐다는 뜻이고, mounted-degraded는 route가 등록됐지만 provider/index 같은 실행 의존성 때문에 readiness가 낮을 수 있다는 뜻이다. 어느 marker도 실제 브라우저·LLM·기기 검증이나 제품 전체 준비 완료를 대신하지 않는다. JSON Schema 검증은 HTTP handler 검증을 대신하지 않는다.
 
 DeepTutor locator는 1 기반이므로 `page_index+1`로 넘긴다. native material_id/16자 content hash를 document UUID/full SHA version으로 간주하지 않는다. UNIT-01이 durable 매핑을 제공한다. 현재 fixture adapter는 ReadingStore와 실제 PDF parser를 사용하고 whole-block anchor만 검증한다.
 

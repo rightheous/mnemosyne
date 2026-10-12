@@ -303,7 +303,7 @@ struct MnemosyneLocalStoreTests {
 
         let remote = annotationRecord(body: "remote value", revision: 5)
         try store.commitChangesAndCursor(try json([
-            "contract_version": "0.1.0",
+            "contract_version": "0.2.0",
             "document_id": documentID.uuidString.lowercased(),
             "version_id": versionID,
             "changes": [remote],
@@ -325,7 +325,7 @@ struct MnemosyneLocalStoreTests {
 
         let applied = annotationRecord(body: "local draft", revision: 6)
         try reopened.commitReceipts(try json([
-            "contract_version": "0.1.0",
+            "contract_version": "0.2.0",
             "document_id": documentID.uuidString.lowercased(),
             "version_id": versionID,
             "results": [[
@@ -352,7 +352,7 @@ struct MnemosyneLocalStoreTests {
         defer { try? FileManager.default.removeItem(at: root) }
         let store = try FileMnemosyneLocalStore(rootDirectory: root)
         try store.commitChangesAndCursor(try json([
-            "contract_version": "0.1.0",
+            "contract_version": "0.2.0",
             "document_id": documentID.uuidString.lowercased(),
             "version_id": versionID,
             "changes": [annotationRecord(body: "server value", revision: 5)],
@@ -369,7 +369,7 @@ struct MnemosyneLocalStoreTests {
         try store.commitEditAndOutbox(latest)
         let conflictRecord = annotationRecord(body: "remote conflict", revision: 6)
         try store.commitReceipts(try json([
-            "contract_version": "0.1.0",
+            "contract_version": "0.2.0",
             "document_id": documentID.uuidString.lowercased(),
             "version_id": versionID,
             "results": [[
@@ -385,7 +385,7 @@ struct MnemosyneLocalStoreTests {
 
         let newestRemoteRecord = annotationRecord(body: "newer remote value", revision: 7)
         try store.commitChangesAndCursor(try json([
-            "contract_version": "0.1.0",
+            "contract_version": "0.2.0",
             "document_id": documentID.uuidString.lowercased(),
             "version_id": versionID,
             "changes": [newestRemoteRecord],
@@ -427,7 +427,7 @@ struct MnemosyneLocalStoreTests {
         defer { try? FileManager.default.removeItem(at: root) }
         let store = try FileMnemosyneLocalStore(rootDirectory: root)
         try store.commitChangesAndCursor(try json([
-            "contract_version": "0.1.0",
+            "contract_version": "0.2.0",
             "document_id": documentID.uuidString.lowercased(),
             "version_id": versionID,
             "changes": [annotationRecord(body: "server value", revision: 5)],
@@ -442,7 +442,7 @@ struct MnemosyneLocalStoreTests {
         tombstone["deleted_at"] = "2026-10-09T00:00:00Z"
         tombstone["payload"] = NSNull()
         try store.commitReceipts(try json([
-            "contract_version": "0.1.0",
+            "contract_version": "0.2.0",
             "document_id": documentID.uuidString.lowercased(),
             "version_id": versionID,
             "results": [[
@@ -478,7 +478,7 @@ struct MnemosyneLocalStoreTests {
         defer { try? FileManager.default.removeItem(at: root) }
         let store = try FileMnemosyneLocalStore(rootDirectory: root)
         try store.commitChangesAndCursor(try json([
-            "contract_version": "0.1.0",
+            "contract_version": "0.2.0",
             "document_id": documentID.uuidString.lowercased(),
             "version_id": versionID,
             "changes": [annotationRecord(body: "server value", revision: 5)],
@@ -489,7 +489,7 @@ struct MnemosyneLocalStoreTests {
         try store.commitEditAndOutbox(local)
         let remote = annotationRecord(body: "remote choice", revision: 6)
         try store.commitReceipts(try json([
-            "contract_version": "0.1.0",
+            "contract_version": "0.2.0",
             "document_id": documentID.uuidString.lowercased(),
             "version_id": versionID,
             "results": [[
@@ -516,7 +516,7 @@ struct MnemosyneLocalStoreTests {
         let store = try FileMnemosyneLocalStore(rootDirectory: root)
         let initial = annotationRecord(body: "server value", revision: 5)
         try store.commitChangesAndCursor(try json([
-            "contract_version": "0.1.0",
+            "contract_version": "0.2.0",
             "document_id": documentID.uuidString.lowercased(),
             "version_id": versionID,
             "changes": [initial],
@@ -543,7 +543,7 @@ struct MnemosyneLocalStoreTests {
 
         let firstCurrent = annotationRecord(body: "first local value", revision: 6)
         try store.commitReceipts(try json([
-            "contract_version": "0.1.0",
+            "contract_version": "0.2.0",
             "document_id": documentID.uuidString.lowercased(),
             "version_id": versionID,
             "results": [[
@@ -563,7 +563,7 @@ struct MnemosyneLocalStoreTests {
 
         let secondCurrent = annotationRecord(body: "second local value", revision: 7)
         try store.commitReceipts(try json([
-            "contract_version": "0.1.0",
+            "contract_version": "0.2.0",
             "document_id": documentID.uuidString.lowercased(),
             "version_id": versionID,
             "results": [[

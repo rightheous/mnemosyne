@@ -299,6 +299,7 @@ private struct MnemosyneDocumentWorkspace: View {
     @EnvironmentObject private var model: MnemosyneAppModel
     let document: MnemosyneDocument
     @State private var tutorExpanded = true
+    @State private var tutorPrompt = ""
 
     var body: some View {
         GeometryReader { geometry in
@@ -366,7 +367,7 @@ private struct MnemosyneDocumentWorkspace: View {
                     .padding(.horizontal, 10).padding(.vertical, 8)
                     Divider()
                     PDFReaderView(pdfURL: url, controller: controller,
-                                  onPageChanged: { _ in model.saveReaderContext() },
+                                  onPageChanged: { index in model.readerPageChanged(index) },
                                   mnemosyneEngine: engine)
                         .onAppear { Task { await model.readerViewDidAppear(for: document) } }
                         .onDisappear { model.readerViewDidDisappear() }
@@ -457,17 +458,60 @@ private struct MnemosyneDocumentWorkspace: View {
                     .padding(16)
                 }
                 Spacer(minLength: 0)
-                HStack(spacing: 8) {
-                    Image(systemName: "text.book.closed").foregroundStyle(.secondary)
-                    Text("문서를 연 뒤 질문할 수 있습니다.")
-                        .font(.footnote).foregroundStyle(.secondary)
-                    Spacer(minLength: 0)
+                if model.canResumeTutor(for: document) {
+                    Button {
+                        model.resumeTutor(for: document)
+                    } label: {
+                        Label("이전 튜터 응답 이어보기", systemImage: "arrow.clockwise")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                    .padding(.horizontal, 12).padding(.top, 10)
+                } else if model.hasUnfinishedTutorTurn && !model.isTutorRunning {
+                    Label("다른 문서의 튜터 응답을 먼저 이어받아 주세요.", systemImage: "arrow.uturn.backward")
+                        .font(.footnote).foregroundStyle(.orange)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 12).padding(.top, 10)
+                }
+                HStack(alignment: .bottom, spacing: 9) {
+                    TextField("문서에 관해 질문하기", text: $tutorPrompt, axis: .vertical)
+                        .lineLimit(1...4)
+                        .textFieldStyle(.roundedBorder)
+                        .disabled(!document.isTutorReady || model.isTutorRunning || model.hasUnfinishedTutorTurn ||
+                                  model.activeReaderDocumentID != document.documentId ||
+                                  model.activeReaderVersionID != document.versionId)
+                        .accessibilityLabel("문서 튜터 질문")
+                    Button {
+                        Task { await model.askTutor(message: tutorPrompt) }
+                    } label: {
+                        Image(systemName: "arrow.up.circle.fill")
+                            .font(.title)
+                            .foregroundStyle(Color.mnemosyneAccent)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(tutorPrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+                              !document.isTutorReady || model.isTutorRunning || model.hasUnfinishedTutorTurn ||
+                              model.activeReaderDocumentID != document.documentId ||
+                              model.activeReaderVersionID != document.versionId)
+                    .accessibilityLabel("튜터에게 질문 보내기")
+                    Button {
+                        Task { await model.generateQuiz(prompt: tutorPrompt) }
+                    } label: {
+                        Image(systemName: "questionmark.square")
+                            .font(.title3)
+                            .foregroundStyle(Color.mnemosyneAccent)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(tutorPrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+                              document.parseState != .ready || model.busyMessage != nil ||
+                              model.activeReaderDocumentID != document.documentId ||
+                              model.activeReaderVersionID != document.versionId)
+                    .accessibilityLabel("현재 페이지 퀴즈 만들기")
                     if model.isTutorRunning {
                         Button("취소") { Task { await model.cancelTutor() } }
                     }
                 }
                 .padding(12).background(Color.white)
-                .accessibilityElement(children: .combine)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

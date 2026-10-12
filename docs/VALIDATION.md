@@ -1,66 +1,86 @@
-# Integrated branch checks and unresolved acceptance
-2026-10-12 · branch `codex/mnemosyne-integration` · contract `0.1.0`.
+# 통합 구현과 검증 결과
 
-The contract/source gate passes, but this branch is **not product ready**. Every
-result below reflects the merged source and the integrated wiring. A check of a
-fixture, source adapter, or bridge does not imply a complete app/device flow.
-UNIT-03's supplied branch/SHA is recorded in the integration handoff, but its
-commit is not reachable from this checkout or configured origin; no UNIT-03
-source diff was integrated or built.
-## Checks run
-| Check | Result and scope |
+2026-10-12 · `codex/mnemosyne-integration` · contract `0.2.0` ·
+`product_ready=false`.
+
+여섯 unit의 지정 commit은 모두 통합 기준의 조상이다. 통합 과정에서 서버
+Tutor 재접속 receipt route를 실제 등록하고, semantic turn event의 계약 버전을
+`0.2.0`으로 맞췄다. Quiz 생성, attempt, assessment, mastery, Memory, progress와
+activity는 SQLite에 보존한다. 아래 결과는 구현 확인과 실행 환경의 제품 검증을
+구분한다.
+
+## 실행한 검사
+
+| 검사 | 결과 |
 |---|---|
-| `python checks/validate_contracts.py --require-ready` | PASS: 30 OpenAPI operations, 4 schemas, 80 schema instances, 19 rejection cases, 10 annotation sync steps, 4 geometry cases, compose service, ownership, and source gates. This validates the shared bundle and integration metadata, not every planned endpoint. |
-| `python checks/sync_contracts.py --check` | PASS: both source copies have the same 10-file bundle and manifest. Contract remains 0.1.0; the integration changes did not change DTO schemas. |
-| `checks/source_adapters.py` | PASS: the two-page fixture parses and searches through pinned PyMuPDF 1.28.2; citation/page/rect rejection, native turn framing, SQLite replay after reopen, duplicate append, geometry, capability mapping, and local fake OpenAI-compatible streaming pass. No live LLM credential was used. The temporary audit used the pinned runtime packages needed by the check. |
-| `checks/integration_pdf_flow.py --allow-index-unavailable` | PARTIAL: live loopback HTTP exercised pairing, PDF upload, two parsed pages, search, source verification, annotation mutation/retry, deletion tombstone, derived export, SQLite reopen, original SHA preservation, session revocation, and WebSocket bearer bridge. Indexing reported `failed` because `llama_index` is not installed. Strict mode exits nonzero unless indexing reaches `ready`. |
-| Server import and OpenAPI routes | PASS: `deeptutor.api.main` imports and exposes `/v1/session/pair`, `/v1/session`, and `/v1/readiness`. Library routes are mounted in the actual lifespan after service registration; the flow check assembled the same authenticated router with a real Library service. Full application lifespan and background services were not started. |
-| Python `compileall` | PASS for `deeptutor/mnemosyne` and `deeptutor/api/main.py`. |
-| Ruff | PASS for the integration-auth modules, bootstrap and flow check; the scoped command ignores `I001` because UNIT-01-owned `library.py` has that import-order finding in the tracked merge base. Format checks pass on the integration-owned modules. No formatting was applied to unit-owned Library/Tutor files. |
-| Web contracts and typecheck | PASS: `npm run contracts:check` and `npm run typecheck` on the merged UNIT-05 source. |
-| `npm run test:node` | PASS: 1,310 tests with network capability enabled for the tracked-file and local-interface checks. No external LLM call is part of this suite. |
-| `npm run test:unit -- --maxWorkers=1 --reporter=dot` | PASS: 146 files, 656 tests. |
-| UNIT-05 web surface tests | PASS: 2 Vitest files, 12 tests (`pdf-reading-resize.spec.tsx`, `sidebar-lazy-history.spec.tsx`); the Reading V2 native capability/source test passed in the Node suite. |
-| `checks/web-consumer.mjs` | PASS: TypeScript wire decoder, PDF.js fixture pages, four geometry cases, native frame sequence and replay rules. `actualBrowserVerified=false`; this is not a browser UI test. The check transpiles only the source decoder and stubs its unused HTTP client import. |
-| Web production build | **BLOCKED**: rerun after UNIT-05 with network capability; Next.js could not fetch Google Fonts (Geist/Lora). The product build did not pass. |
-| `docker compose -f upstreams/DeepTutor/docker-compose.yml config --quiet` | PASS: Compose syntax/configuration only. |
-| Docker image build/start | **NOT RUN**: Docker socket access returned `permission denied` for `/var/run/docker.sock`. No container or Windows WSL2 acceptance was performed. |
-| Cloud runtime check | **NOT AVAILABLE**: the connected Cloud runtime reported no execution capability or configured secrets for this task. No Cloud deployment/check was run. |
-| Real LLM request | **NOT RUN**: no provider credentials were available. PDF indexing stopped at the missing `llama_index` dependency; the fake streaming adapter result above is a separate local transport check. |
-| macOS/Xcode/iPad | **NOT AVAILABLE**: no Swift compiler, Xcode/iPadOS SDK, Simulator, or iPad Pencil device is present in this Linux executor. |
+| `python checks/sync_contracts.py --check` | **PASS** — contract `0.2.0`, 12-file bundle, 두 downstream copy 일치. |
+| `python checks/validate_contracts.py --require-ready` | **PASS** — 32 OpenAPI operation, 4 schemas, 82 schema instance, 19 negative case, 10 sync step, 4 geometry case, Compose service 1개, ownership/source gate. Backend lock은 192 package와 3,587 hash를 확인했다. |
+| Python compileall 및 Ruff | **PASS** — 수정한 서버/API/test 모듈 문법 검사와 통합 소유 모듈 Ruff 검사. Ruff format 검사도 통과했다. upstream unit 소유 파일 전체를 임의 재포맷하지 않았다. |
+| 통합 Python tests | **PARTIAL** — `tests/mnemosyne` 및 Tutor reconnect tests targeted run에서 42 passed, 38 deselected. 별도 `test_sqlite_quiz_create_replays_duplicate_and_rejects_changed_request`도 1 passed. 이 추가 뒤 전체 targeted pytest 재실행은 async store test에서 완료되지 않아 전체 최신 suite 재실행 결과는 없다. |
+| 중복 Tutor turn tests | **PASS** — worker 재시작 뒤 같은 submission 재생과 다중 worker 원자 예약, 2 passed. |
+| `checks/source_adapters.py` | **PASS** — 2-page parser/search fixture, 12 native frames, 5 native commands, SQLite reopen/replay/duplicate append, capability map, credential 없는 loopback OpenAI-compatible fake stream을 확인했다. 실제 LLM 호출은 아니다. |
+| `checks/integration_pdf_flow.py --allow-index-unavailable` | **PARTIAL** — loopback HTTP로 pairing, 업로드, 2쪽 파싱, 검색, 인용 검증, 주석 retry/tombstone, derived export, SQLite reopen, 원본 PDF SHA 보존, session revoke/WebSocket bridge, progress retry/recovery를 확인했다. `llama_index` 부재로 index 상태는 `failed`다. 인덱싱 이후 Tutor 답변과 생성 Quiz까지 이어지는 제품 흐름은 실행되지 않았다. |
+| Web `npm run typecheck` / `npm run contracts:check` | **PASS**. |
+| Web `npm run architecture:check` | **PASS** — 913 modules, 2,844 dependencies. |
+| 변경한 화면의 scoped ESLint | **PASS WITH WARNINGS** — 0 errors, 38 `i18n/no-literal-ui-text` warnings. |
+| `checks/web-consumer.mjs` | **PASS** — PDF.js fixture 2쪽, geometry 4 case, 11 events, 12 native frames. `actualBrowserVerified=false`; browser 화면 테스트는 아니다. |
+| `npm run test:node` | **PARTIAL** — 206/209 통과. 나머지 3개는 sandbox가 `git` subprocess 및 `os.networkInterfaces()`를 차단해 실패했다. |
+| `npm run test:unit -- --maxWorkers=1 --reporter=dot` | **PARTIAL** — 146 files 중 145, 656 tests 중 652 통과. `i18n-audit`의 subprocess 실행 4개는 sandbox 제한으로 stdout/stderr 없이 실패했다. |
+| `npm run build` | **BLOCKED** — Next.js가 Google Fonts에서 Geist/Lora를 가져오지 못해 production build를 완료하지 못했다. |
+| `python scripts/docker_compose.py config --quiet` | **PASS** — Compose 설정 구문만 확인했다. |
 
-The web npm install succeeded with a fresh temporary cache and
-`--replace-registry-host=always --registry=https://registry.npmjs.org/`; the
-pinned lockfile includes a small number of `npmmirror.com` tarballs that the
-managed network rejected with HTTP 403. The repository lockfile was not changed.
-## Requirement implementation and verification
-See [the integration handoff](handoffs/integration.md) for the per-requirement
-implementation/verification table and the exact unit refs that were applied or
-remain inaccessible. The
-main product blockers in this branch are concrete missing code: UNIT-03's
-durable iPad Reader/local store, a durable Mnemosyne LearningStateStore and
-mounted Tutor/Quiz/Assessment/Memory APIs, and provider/settings callbacks.
-They are not reported as completed or as a later phase.
-## Repeat these checks
-From the repository root, install the audit dependencies and the DeepTutor
-development package. The web install needs Node 24 and may need the official
-registry override used above.
+Node/unit suite의 부분 실패와 마지막 pytest 재실행 정체를 숨기지 않는다.
+pytest 정체 중 thread dump에서는 worker가 대기 상태이고 async event loop가
+완료되지 않았다. Python executor 제한 또는 남아 있는 장기 실행 프로세스가 원인인지
+단정할 수 없으므로, 제한이 없는 실행기에서 suite를 다시 실행해야 한다. 현재
+통과한 개별 검사나 이전 pytest 결과가 최종 전체 suite의 통과를 뜻하지 않는다.
+
+## 실제 제품 환경에서 확인하지 못한 항목
+
+| 환경/흐름 | 상태와 근거 |
+|---|---|
+| Cloud 실행 | **미실행** — 이 task executor에 Cloud 실행 capability나 배포 secret이 없었다. |
+| 실제 LLM | **미실행** — provider credential이 없다. fake adapter 검사와 실제 provider 답변은 별개다. |
+| 실제 PDF RAG index | **미완료** — loopback 업로드/파싱/검색/출처 검증은 됐지만 `llama_index`가 없어 `ready`가 되지 않았다. |
+| Docker image/build/start | **미실행** — Compose config는 통과했지만 `/var/run/docker.sock` 접근이 거부됐다. Windows WSL2 복구도 확인하지 않았다. |
+| macOS/Xcode/Swift/iPad | **미실행** — Swift, Xcode, iPadOS SDK, Simulator가 없는 Linux 실행기다. |
+| 실제 Pencil | **미실행** — 기기 입력이 없었다. native Pencil sample capture는 코드와 fixture 검사 범위에 한정된다. |
+| 실제 browser E2E | **미실행** — production build가 외부 폰트 fetch에서 멈췄고 browser UI acceptance는 실행하지 않았다. |
+| 전체 작은 PDF 수락 흐름 | **부분 확인** — upload→parse/search→verified citation→annotation sync/tombstone→export와 원본 hash 보존까지 loopback으로 실행했다. 실제 인덱스/LLM Tutor 응답, Reader 선택 강조, 기기 필기, 웹에 복귀한 UI, 전체 퀴즈→Mastery/Memory 복구 흐름은 아직 한 번에 검증되지 않았다. |
+
+요구사항별 구현/검증 상태는 [통합 handoff](handoffs/integration.md)에 있다.
+제품 구현은 후속 phase로 미루지 않았지만, `product_ready`는 위 환경 및 수락
+검증이 끝날 때까지 false다.
+
+## 재실행
+
+저장소 root에서 Python audit 의존성과 backend 개발 의존성을 설치한다. 실제
+통합 검사에서는 해시 고정 `checks/requirements.txt` 환경과 임시
+`DEEPTUTOR_HOME`을 사용해 실행기 기본 설정/데이터와 분리했다.
+
 ```sh
-python -m pip install -r checks/audit-environment.txt
-cd upstreams/DeepTutor
-python -m pip install -e ".[dev]"
-cd ../..
-python checks/validate_contracts.py --require-ready
+python -m pip install -r checks/requirements.txt
+python -m pip install -e "upstreams/DeepTutor[dev]"
 python checks/sync_contracts.py --check
+python checks/validate_contracts.py --require-ready
 python checks/source_adapters.py
 python checks/integration_pdf_flow.py --allow-index-unavailable
 node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON checks/web-consumer.mjs
+```
+
+strict PDF run은 `--allow-index-unavailable` 없이 실행한다. 실제 인덱스가
+`ready`가 아니면 성공으로 처리하지 않는다. Web suite는 Node 24에서 실행한다.
+
+```sh
 cd upstreams/DeepTutor/web
+npm ci --replace-registry-host=always --registry=https://registry.npmjs.org
+npm run contracts:check
+npm run typecheck
+npm run architecture:check
 npm run test:node
 npm run test:unit -- --maxWorkers=1 --reporter=dot
 npm run build
 ```
-For a strict PDF flow run, omit `--allow-index-unavailable`; it exits with
-status 2 unless the configured DeepTutor index pipeline reports `ready`.
-Run the live LLM, Compose, Xcode, and device checks in their real configured
-environments. Do not interpret their absence here as a pass.
+
+Live LLM, 실제 Docker 기동, Cloud, macOS/Xcode, iPad/Pencil 검사는 각각 접근
+가능한 환경에서 수행해야 한다. 실행하지 않은 검사를 통과로 간주하지 않는다.

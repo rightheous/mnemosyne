@@ -31,6 +31,7 @@ SUPPORTED_CAPABILITIES = frozenset(
 )
 REQUIRED_LEARNING_SERVICES = ("assessment", "memory", "progress", "review")
 _VERSION_RE = re.compile(r"^sha256:[a-f0-9]{64}$")
+_TURN_ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,256}$")
 _CONTENT_LANGUAGE_RE = re.compile(r"^(und|[A-Za-z]{2,8}(-[A-Za-z0-9]{1,8})*)$")
 _CONTENT_LANGUAGE_CONFIG_KEY = "_mnemosyne_content_language"
 _READER_CONTEXT_CONFIG_KEY = "_mnemosyne_reader_context"
@@ -513,11 +514,23 @@ def _normalized_reader_context(value: dict[str, Any]) -> dict[str, Any]:
     page_index = value.get("page_index")
     if isinstance(page_index, bool) or not isinstance(page_index, int) or page_index < 0:
         raise ValueError("reader_context.page_index must be a non-negative integer")
-    return {
+    normalized = {
         "document_id": document_id,
         "version_id": version_id,
         "page_index": page_index,
     }
+    selection = value.get("selection")
+    if selection is not None:
+        if not isinstance(selection, dict):
+            raise ValueError("reader_context.selection must be an object or null")
+        if (
+            selection.get("document_id") != document_id
+            or selection.get("version_id") != version_id
+            or selection.get("page_index") != page_index
+        ):
+            raise ValueError("reader_context.selection must match the current document page")
+        normalized["selection"] = selection
+    return normalized
 
 
 def native_protocol_turn_request(
@@ -611,7 +624,9 @@ def native_protocol_turn_request(
     return TurnRequest.model_validate(payload)
 
 
-def _mnemosyne_web_turn_request(request: dict[str, Any]) -> TurnRequest | None:
+def _mnemosyne_web_turn_request(
+    request: dict[str, Any], library: Any = None
+) -> TurnRequest | None:
     """Normalize the versioned web envelope carried by native ``/ws``.
 
     The web client keeps the protocol-2.0 start command as its transport and
@@ -626,7 +641,7 @@ def _mnemosyne_web_turn_request(request: dict[str, Any]) -> TurnRequest | None:
     if (
         not isinstance(envelope, dict)
         or set(envelope) != {"contract_version", "turn_request"}
-        or envelope.get("contract_version") != "0.1.0"
+        or envelope.get("contract_version") != "0.2.0"
     ):
         raise ValueError("Unsupported Mnemosyne turn envelope")
     raw = envelope.get("turn_request")
@@ -694,13 +709,30 @@ def _mnemosyne_web_turn_request(request: dict[str, Any]) -> TurnRequest | None:
     if selection is not None and not isinstance(selection, dict):
         raise ValueError("reader_context.selection must be an object or null")
 
-    # Outer capability is a protocol placeholder in the current web client.
-    # Accept it or a matching native alias, but reject conflicting actions.
+    # The outer field selects DeepTutor's native capability; the versioned
+    # Mnemosyne field records the narrower product action. Accept only aliases
+    # that map to the same action.
     outer_capability = str(request.get("capability") or "chat").strip()
     if outer_capability not in {"chat", capability, CAPABILITY_MAP[capability]}:
         raise ValueError("Mnemosyne and native turn capabilities do not match")
 
     normalized_context = _normalized_reader_context(context)
+    selection = context.get("selection")
+    if selection is not None:
+        verifier = getattr(library, "verify_citation", None)
+        if not callable(verifier):
+            raise ValueError("verified reader selection is unavailable")
+        verified = verifier(selection)
+        if not isinstance(verified, dict) or not isinstance(verified.get("anchor"), dict):
+            raise ValueError("reader selection could not be verified")
+        verified_anchor = verified["anchor"]
+        if (
+            verified_anchor.get("document_id") != normalized_context["document_id"]
+            or verified_anchor.get("version_id") != normalized_context["version_id"]
+            or verified_anchor.get("page_index") != normalized_context["page_index"]
+        ):
+            raise ValueError("verified reader selection does not match the current page")
+        normalized_context["selection"] = verified_anchor
     payload = {
         key: value
         for key, value in request.items()
@@ -721,13 +753,27 @@ def _mnemosyne_web_turn_request(request: dict[str, Any]) -> TurnRequest | None:
             "config": sanitized_config,
         }
     )
-    # A browser-provided DeepTutor material key is not authoritative. Reading
-    # stays unavailable until the server adapter has a Library→ReadingStore
-    # resolver; native_protocol_turn_request will reject the missing mapping.
+    # Resolve the ReadingStore identity from the immutable Library version;
+    # client-provided material IDs or revisions are never trusted.
     payload.pop("reading_material_id", None)
     payload.pop("reading_material_revision", None)
     payload.pop("reading_workspace_id", None)
     payload.pop("reading_viewport", None)
+    if capability == "reading":
+        resolver = getattr(library, "resolve_reading_material", None)
+        if not callable(resolver):
+            raise ValueError("server-resolved material is unavailable")
+        material = resolver(
+            normalized_context["document_id"], normalized_context["version_id"]
+        )
+        if not isinstance(material, dict):
+            raise ValueError("server-resolved material is invalid")
+        payload["reading_material_id"] = material.get("material_id")
+        payload["reading_material_revision"] = material.get("revision")
+        payload["reading_viewport"] = {
+            "locator": normalized_context["page_index"] + 1,
+            "selection": None,
+        }
     return native_protocol_turn_request(
         payload,
         content_language=content_language,
@@ -869,7 +915,7 @@ def semantic_event(frame: dict[str, Any]) -> dict[str, Any] | None:
         raise ValueError("Incomplete Mnemosyne event extension") from exc
     if (
         protocol_version != "2.0"
-        or event_contract != "0.1.0"
+        or event_contract != "0.2.0"
         or event_seq != sequence
         or event_turn_id != turn_id
         or event_id != f"{turn_id}:{sequence}"
@@ -896,9 +942,16 @@ class TutorAdapter:
         store_ready = self.learning_store is not None and all(
             callable(getattr(self.learning_store, name, None))
             for name in (
+                "create_quiz",
+                "get_quiz_for_mutation",
                 "get_quiz",
+                "get_grading_input",
                 "get_state",
+                "begin_attempt",
+                "commit_assessment",
+                "release_attempt_for_retry",
                 "save_activity",
+                "record_progress",
                 "review_memory",
             )
         )
@@ -912,7 +965,16 @@ class TutorAdapter:
             callable(getattr(annotation_sync, name, None))
             for name in ("apply_mutations", "snapshot", "changes")
         )
-        return store_ready and assessment_service_ready and sync_ready
+        try:
+            settings = self.library.get_public_settings()
+            provider = settings.get("provider") if isinstance(settings, dict) else None
+            provider_ready = (
+                isinstance(provider, dict)
+                and provider.get("credential_configured") is True
+            )
+        except Exception:
+            provider_ready = False
+        return store_ready and assessment_service_ready and sync_ready and provider_ready
 
     @property
     def capabilities(self) -> tuple[str, ...]:
@@ -944,7 +1006,7 @@ class TutorAdapter:
         self, request: dict[str, Any]
     ) -> tuple[dict[str, Any], dict[str, Any]]:
         """Start a DeepTutor protocol command, including Mnemosyne's web envelope."""
-        normalized = _mnemosyne_web_turn_request(request)
+        normalized = _mnemosyne_web_turn_request(request, self.library)
         native = (
             native_protocol_turn_request(request)
             if normalized is None
@@ -973,6 +1035,63 @@ class TutorAdapter:
             )
         )
 
+    async def get_turn_receipt(self, turn_id: str) -> dict[str, Any]:
+        """Return a receipt from the native durable turn/event store."""
+        normalized_id = _required_id(turn_id, "turn_id")
+        if not _TURN_ID_RE.fullmatch(normalized_id):
+            raise ValueError("turn_id has an invalid format")
+        provider = getattr(self.turns, "store_provider", None)
+        store_getter = getattr(provider, "get", None)
+        if not callable(store_getter):
+            raise LearningStateNotReady("Native turn storage is unavailable")
+        store = store_getter()
+        get_turn = getattr(store, "get_turn", None)
+        get_events = getattr(store, "get_events", None)
+        if not callable(get_turn) or not callable(get_events):
+            raise LearningStateNotReady("Native turn replay storage is unavailable")
+        turn = await get_turn(normalized_id)
+        if turn is None:
+            raise KeyError("turn not found")
+        status = str(turn.get("status") or "")
+        states = {
+            "queued": "running",
+            "running": "running",
+            "waiting_input": "running",
+            "completed": "done",
+            "done": "done",
+            "failed": "error",
+            "error": "error",
+            "cancelled": "cancelled",
+        }
+        state = states.get(status)
+        if state is None:
+            raise LearningStateNotReady("Native turn has an unsupported persisted state")
+
+        # Before the first durable turn.started event, the app's Korean default
+        # is the only available value. Once that event exists, use its stored
+        # language rather than process-local state or the client's retry body.
+        response_language = "ko"
+        events = await get_events(normalized_id, 0)
+        if not isinstance(events, list):
+            raise LearningStateNotReady("Native turn event history is unavailable")
+        for event in events:
+            metadata = event.get("metadata") if isinstance(event, dict) else None
+            semantic = metadata.get("mnemosyne") if isinstance(metadata, dict) else None
+            if not isinstance(semantic, dict) or semantic.get("type") != "turn.started":
+                continue
+            payload = semantic.get("payload")
+            language = payload.get("response_language") if isinstance(payload, dict) else None
+            if not isinstance(language, str) or not _CONTENT_LANGUAGE_RE.fullmatch(language):
+                raise LearningStateNotReady("Native turn response language is invalid")
+            response_language = language
+            break
+        return {
+            "turn_id": normalized_id,
+            "state": state,
+            "event_path": "/ws",
+            "response_language": response_language,
+        }
+
     async def get_quiz(self, quiz_id: str) -> dict[str, Any]:
         store = _learning_store(self.learning_store)
         getter = getattr(store, "get_quiz", None)
@@ -997,6 +1116,54 @@ class TutorAdapter:
             state, document_id=normalized_document_id, version_id=normalized_version_id
         )
         return _verify_learning_state_citations(self.library, validated_state)
+
+    async def record_progress(self, document_id: str, mutation: dict[str, Any]) -> dict[str, Any]:
+        fields = {
+            "client_mutation_id",
+            "version_id",
+            "base_learning_revision",
+            "page_index",
+            "reading_seconds",
+        }
+        normalized = _exact_object(mutation, fields, "progress mutation")
+        normalized_document_id = _required_id(document_id, "document_id", uuid_value=True)
+        version_id = str(normalized["version_id"] or "")
+        if not _VERSION_RE.fullmatch(version_id):
+            raise ValueError("version_id must be a full SHA-256 version")
+        mutation_id = _required_id(
+            normalized["client_mutation_id"], "client_mutation_id", uuid_value=True
+        )
+        base_revision = _safe_integer(
+            normalized["base_learning_revision"], "base_learning_revision", minimum=0
+        )
+        page_index = _safe_integer(normalized["page_index"], "page_index", minimum=0)
+        reading_seconds = normalized["reading_seconds"]
+        if (
+            isinstance(reading_seconds, bool)
+            or not isinstance(reading_seconds, int)
+            or not 0 <= reading_seconds <= 300
+        ):
+            raise ValueError("reading_seconds must be an integer between 0 and 300")
+        document = self.library.get_document(normalized_document_id, version_id)
+        if document.get("parse_state") != "ready" or page_index >= int(document["page_count"]):
+            raise ValueError("progress page is not a parsed page of this document")
+        self.library.get_page(normalized_document_id, version_id, page_index)
+        store = _learning_store(self.learning_store)
+        recorder = getattr(store, "record_progress", None)
+        if not callable(recorder):
+            raise LearningStateNotReady("Learning state is not ready; progress storage is unavailable")
+        state = await recorder(
+            document_id=normalized_document_id,
+            version_id=version_id,
+            mutation_id=mutation_id,
+            base_revision=base_revision,
+            page_index=page_index,
+            reading_seconds=reading_seconds,
+        )
+        validated = _validate_learning_state(
+            state, document_id=normalized_document_id, version_id=version_id
+        )
+        return _verify_learning_state_citations(self.library, validated)
 
     async def submit_attempt(self, attempt: dict[str, Any]) -> dict[str, Any]:
         if not isinstance(attempt, dict):

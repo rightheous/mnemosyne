@@ -162,7 +162,7 @@ private func isISO8601Date(_ value: String) -> Bool {
 }
 
 enum MnemosyneContract {
-    static let version = "0.1.0"
+    static let version = "0.2.0"
     static let nativeProtocolVersion = "2.0"
 }
 
@@ -344,8 +344,16 @@ struct MnemosyneQuiz: Decodable, Identifiable, Sendable {
     var id: UUID { quizId }
 }
 
-struct MnemosyneAttempt: Encodable, Sendable {
-    struct Answer: Encodable, Sendable {
+struct MnemosyneQuizGenerationRequest: Encodable, Sendable {
+    let clientMutationId: UUID
+    let versionId: String
+    let pageIndex: Int
+    let prompt: String
+    let responseLanguage: String
+}
+
+struct MnemosyneAttempt: Codable, Sendable {
+    struct Answer: Codable, Sendable {
         let questionId: UUID
         let answer: String
     }
@@ -414,12 +422,20 @@ struct MnemosyneLearningState: Decodable, Sendable {
     let activities: [Activity]
 }
 
-struct MnemosyneMemoryReview: Encodable, Sendable {
+struct MnemosyneMemoryReview: Codable, Sendable {
     let clientMutationId: UUID
     let memoryId: UUID
     let baseLearningRevision: Int
     let grade: Int
     let reviewedAt: String
+}
+
+struct MnemosyneProgressMutation: Codable, Sendable {
+    let clientMutationId: UUID
+    let versionId: String
+    var baseLearningRevision: Int
+    let pageIndex: Int
+    let readingSeconds: Int
 }
 
 enum MnemosyneAPIError: Error, LocalizedError, Sendable {
@@ -507,7 +523,7 @@ private struct MnemosyneKeychainError: Error, Sendable {
 }
 
 /// Contract-backed client. `/health` and `/ready` are observed upstream endpoints;
-/// `/v1/*` methods are clients for the planned Mnemosyne HTTP extensions.
+/// `/v1/*` methods use the paired, versioned Mnemosyne HTTP API.
 actor MnemosyneAPIClient {
     private let baseURL: URL
     private let session: URLSession
@@ -551,7 +567,7 @@ actor MnemosyneAPIClient {
               body["status"] == "alive" else { throw MnemosyneAPIError.invalidResponse }
     }
 
-    /// Observed DeepTutor readiness endpoint; distinct from the planned typed Mnemosyne readiness API.
+    /// Legacy DeepTutor health check; `readiness()` reports Mnemosyne capabilities.
     func serverReady() async throws -> Bool {
         let (_, response) = try await perform(path: "ready", method: "GET", authenticated: false,
                                               contractHeader: false)
@@ -706,6 +722,10 @@ actor MnemosyneAPIClient {
         try await get("v1/quizzes/\(quizId.uuidString.lowercased())")
     }
 
+    func createQuiz(documentId: UUID, request: MnemosyneQuizGenerationRequest) async throws -> MnemosyneQuiz {
+        try await send("v1/documents/\(documentId.uuidString.lowercased())/quizzes", method: "POST", body: request)
+    }
+
     func submitAttempt(_ attempt: MnemosyneAttempt) async throws -> MnemosyneAssessment {
         try await send("v1/quizzes/\(attempt.quizId.uuidString.lowercased())/attempts", method: "POST", body: attempt)
     }
@@ -713,6 +733,10 @@ actor MnemosyneAPIClient {
     func learning(documentId: UUID, versionId: String) async throws -> MnemosyneLearningState {
         try await get("v1/documents/\(documentId.uuidString.lowercased())/learning",
                       query: [URLQueryItem(name: "version_id", value: versionId)])
+    }
+
+    func recordProgress(documentId: UUID, mutation: MnemosyneProgressMutation) async throws -> MnemosyneLearningState {
+        try await send("v1/documents/\(documentId.uuidString.lowercased())/progress", method: "POST", body: mutation)
     }
 
     func reviewMemory(_ review: MnemosyneMemoryReview) async throws -> MnemosyneLearningState {

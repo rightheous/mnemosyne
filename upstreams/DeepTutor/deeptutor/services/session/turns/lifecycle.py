@@ -84,7 +84,7 @@ def _mnemosyne_event_extension(
             request_id = str(uuid5(NAMESPACE_URL, f"mnemosyne:{execution.turn_id}:{seq}:error"))
             semantic_payload = {
                 "error": {
-                    "contract_version": "0.1.0",
+                    "contract_version": "0.2.0",
                     "code": code,
                     "message_ko": (
                         "요청을 처리하지 못했습니다. 잠시 후 다시 시도해 주세요."
@@ -117,7 +117,7 @@ def _mnemosyne_event_extension(
         timespec="milliseconds"
     ).replace("+00:00", "Z")
     return {
-        "contract_version": "0.1.0",
+        "contract_version": "0.2.0",
         "event_id": f"{execution.turn_id}:{seq}",
         "turn_id": execution.turn_id,
         "seq": seq,

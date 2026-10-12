@@ -13,7 +13,7 @@ import logging
 from typing import Any
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Header, Query, Request, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Depends, Header, Query, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse
 from pydantic import TypeAdapter, ValidationError
 
@@ -22,6 +22,7 @@ from deeptutor.api.contracts.turn_protocol import (
     ClientCommand,
     StartTurnCommand,
 )
+from deeptutor.mnemosyne.http import require_mnemosyne_session
 from deeptutor.services.workspace.models import WorkspaceError
 
 router = APIRouter()
@@ -230,7 +231,16 @@ async def unified_websocket(ws: WebSocket) -> None:
                         if key not in {"type", "protocol_version"}
                     }
                     start = tutor.start_native_turn if tutor is not None else turns.start_turn
-                    _, turn = await start(payload)
+                    config = payload.get("config")
+                    has_mnemosyne_envelope = (
+                        isinstance(config, dict) and "mnemosyne" in config
+                    )
+                    provider_runtime = getattr(mnemosyne, "provider_runtime", None)
+                    if tutor is not None and has_mnemosyne_envelope and provider_runtime is not None:
+                        with provider_runtime.llm_scope():
+                            _, turn = await start(payload)
+                    else:
+                        _, turn = await start(payload)
                 except (RuntimeError, ValueError, WorkspaceError):
                     await send_error(
                         "요청을 시작할 수 없습니다. capability, 언어와 문서 준비 상태를 확인해 주세요.",
@@ -392,10 +402,9 @@ async def unified_websocket(ws: WebSocket) -> None:
             reset_current_user(user_token)
 
 
-# Mnemosyne learning routes use the canonical contract DTOs and the existing
-# tutor registration. Their durable writes remain unavailable until the
-# integrator supplies UNIT-01's LearningStateStore.
-_MNEMOSYNE_CONTRACT_VERSION = "0.1.0"
+# Mnemosyne learning routes use the canonical contract DTOs, the shared
+# pairing boundary, and the durable SQLite store composed at application start.
+_MNEMOSYNE_CONTRACT_VERSION = "0.2.0"
 _LEARNING_ERROR_MESSAGES = {
     "unauthorized": "인증이 필요합니다.",
     "forbidden": "요청 권한이 없습니다.",
@@ -404,7 +413,7 @@ _LEARNING_ERROR_MESSAGES = {
     "not_ready": "학습 저장소가 아직 준비되지 않았습니다.",
     "conflict": "학습 상태가 변경되었습니다. 최신 상태를 불러온 뒤 다시 시도해 주세요.",
     "idempotency_mismatch": "같은 요청 ID가 다른 내용으로 이미 사용되었습니다.",
-    "contract_mismatch": "지원하는 계약 버전은 0.1.0입니다.",
+    "contract_mismatch": "지원하는 계약 버전은 0.2.0입니다.",
     "provider_error": "평가 처리에 실패했습니다. 잠시 후 다시 시도해 주세요.",
     "internal_error": "요청을 처리하지 못했습니다.",
 }
@@ -425,14 +434,20 @@ def _learning_error(
     code: str,
     retryable: bool = False,
 ) -> JSONResponse:
+    request_id = _learning_request_id(request)
     return JSONResponse(
         status_code=status_code,
         content={
             "contract_version": _MNEMOSYNE_CONTRACT_VERSION,
             "code": code,
             "message_ko": _LEARNING_ERROR_MESSAGES[code],
-            "request_id": _learning_request_id(request),
+            "request_id": request_id,
             "retryable": retryable,
+            "details": {},
+        },
+        headers={
+            "X-Request-ID": request_id,
+            "X-Mnemosyne-Contract-Version": _MNEMOSYNE_CONTRACT_VERSION,
         },
     )
 
@@ -441,37 +456,6 @@ async def _learning_api_tutor(
     request: Request,
     contract_version: str | None,
 ) -> tuple[Any | None, JSONResponse | None]:
-    from deeptutor.api.routers import auth
-
-    authorization = str(request.headers.get("authorization") or "")
-    scheme, separator, token = authorization.partition(" ")
-    if not separator or scheme.lower() != "bearer" or not token.strip():
-        return None, _learning_error(
-            request, status_code=401, code="unauthorized"
-        )
-    if not auth.AUTH_ENABLED:
-        return None, _learning_error(
-            request, status_code=503, code="not_ready", retryable=True
-        )
-    try:
-        await auth.require_auth(
-            authorization=authorization,
-            dt_token=None,
-            request=request,
-        )
-    except auth.HTTPException as exc:
-        if exc.status_code == 401:
-            code, status_code = "unauthorized", 401
-        elif exc.status_code == 403:
-            code, status_code = "forbidden", 403
-        elif exc.status_code == 404:
-            code, status_code = "not_found", 404
-        else:
-            code, status_code = "invalid_request", 400
-        return None, _learning_error(
-            request, status_code=status_code, code=code
-        )
-
     if contract_version != _MNEMOSYNE_CONTRACT_VERSION:
         return None, _learning_error(
             request, status_code=400, code="contract_mismatch"
@@ -511,8 +495,13 @@ def _same_uuid(left: Any, right: Any) -> bool:
 
 def _learning_exception_response(request: Request, exc: Exception) -> JSONResponse:
     from deeptutor.learning.service import MnemosyneAssessmentError
+    from deeptutor.mnemosyne.provider import MnemosyneProviderNotReady
     from deeptutor.mnemosyne.tutor import LearningStateNotReady
 
+    if isinstance(exc, MnemosyneProviderNotReady):
+        return _learning_error(
+            request, status_code=503, code="provider_error", retryable=True
+        )
     if isinstance(exc, LearningStateNotReady):
         return _learning_error(
             request, status_code=503, code="not_ready", retryable=True
@@ -576,13 +565,44 @@ async def _run_learning_operation(
         raise
     except Exception as exc:
         return _learning_exception_response(request, exc)
-    return JSONResponse(status_code=status_code, content=result)
+    request_id = _learning_request_id(request)
+    return JSONResponse(
+        status_code=status_code,
+        content=result,
+        headers={
+            "X-Request-ID": request_id,
+            "X-Mnemosyne-Contract-Version": _MNEMOSYNE_CONTRACT_VERSION,
+        },
+    )
+
+
+@router.get(
+    "/v1/tutor/turns/{turn_id}",
+    operation_id="getTurn",
+    tags=["mnemosyne-learning"],
+    dependencies=[Depends(require_mnemosyne_session)],
+)
+async def get_mnemosyne_turn_receipt(
+    request: Request,
+    turn_id: str,
+    contract_version: str | None = Header(
+        default=None, alias="X-Mnemosyne-Contract-Version"
+    ),
+) -> JSONResponse:
+    tutor, error = await _learning_api_tutor(request, contract_version)
+    if error is not None:
+        return error
+    return await _run_learning_operation(
+        request,
+        lambda: tutor.get_turn_receipt(turn_id),
+    )
 
 
 @router.get(
     "/v1/quizzes/{quiz_id}",
     operation_id="getQuiz",
     tags=["mnemosyne-learning"],
+    dependencies=[Depends(require_mnemosyne_session)],
 )
 async def get_mnemosyne_quiz(
     request: Request,
@@ -602,6 +622,7 @@ async def get_mnemosyne_quiz(
     operation_id="submitAttempt",
     status_code=201,
     tags=["mnemosyne-learning"],
+    dependencies=[Depends(require_mnemosyne_session)],
 )
 async def submit_mnemosyne_attempt(
     request: Request,
@@ -618,17 +639,22 @@ async def submit_mnemosyne_attempt(
         return error
     if not _same_uuid(attempt.get("quiz_id"), quiz_id):
         return _learning_error(request, status_code=400, code="invalid_request")
-    return await _run_learning_operation(
-        request,
-        lambda: tutor.submit_attempt(attempt),
-        status_code=201,
-    )
+    async def submit_with_provider():
+        services = getattr(request.app.state, "mnemosyne", None)
+        provider_runtime = getattr(services, "provider_runtime", None)
+        if provider_runtime is None:
+            return await tutor.submit_attempt(attempt)
+        with provider_runtime.llm_scope():
+            return await tutor.submit_attempt(attempt)
+
+    return await _run_learning_operation(request, submit_with_provider, status_code=201)
 
 
 @router.get(
     "/v1/documents/{document_id}/learning",
     operation_id="getLearningState",
     tags=["mnemosyne-learning"],
+    dependencies=[Depends(require_mnemosyne_session)],
 )
 async def get_mnemosyne_learning_state(
     request: Request,
@@ -650,9 +676,35 @@ async def get_mnemosyne_learning_state(
 
 
 @router.post(
+    "/v1/documents/{document_id}/progress",
+    operation_id="recordReadingProgress",
+    tags=["mnemosyne-learning"],
+    dependencies=[Depends(require_mnemosyne_session)],
+)
+async def record_mnemosyne_progress(
+    request: Request,
+    document_id: str,
+    contract_version: str | None = Header(
+        default=None, alias="X-Mnemosyne-Contract-Version"
+    ),
+) -> JSONResponse:
+    tutor, error = await _learning_api_tutor(request, contract_version)
+    if error is not None:
+        return error
+    mutation, error = await _learning_json_body(request)
+    if error is not None:
+        return error
+    return await _run_learning_operation(
+        request,
+        lambda: tutor.record_progress(document_id, mutation),
+    )
+
+
+@router.post(
     "/v1/memory/{memory_id}/reviews",
     operation_id="reviewMemory",
     tags=["mnemosyne-learning"],
+    dependencies=[Depends(require_mnemosyne_session)],
 )
 async def review_mnemosyne_memory(
     request: Request,

@@ -1860,6 +1860,44 @@ async def test_tutor_adapter_delegates_start_resume_and_idempotent_cancel_to_nat
 
 
 @pytest.mark.asyncio
+async def test_tutor_turn_receipt_reads_persisted_state_and_response_language():
+    from deeptutor.mnemosyne.tutor import TutorAdapter
+
+    class Store:
+        async def get_turn(self, turn_id):
+            assert turn_id == "turn_123_abcd"
+            return {"status": "completed"}
+
+        async def get_events(self, turn_id, after_seq):
+            assert (turn_id, after_seq) == ("turn_123_abcd", 0)
+            return [
+                {
+                    "metadata": {
+                        "mnemosyne": {
+                            "type": "turn.started",
+                            "payload": {"response_language": "ko"},
+                        }
+                    }
+                }
+            ]
+
+    store = Store()
+    turns = SimpleNamespace(
+        store_provider=SimpleNamespace(get=lambda: store),
+    )
+    adapter = TutorAdapter(turns, SimpleNamespace(), None)
+
+    assert await adapter.get_turn_receipt("turn_123_abcd") == {
+        "turn_id": "turn_123_abcd",
+        "state": "done",
+        "event_path": "/ws",
+        "response_language": "ko",
+    }
+    with pytest.raises(ValueError, match="invalid format"):
+        await adapter.get_turn_receipt("turn/123")
+
+
+@pytest.mark.asyncio
 async def test_learning_state_fails_closed_until_unit01_store_is_wired():
     from deeptutor.mnemosyne.tutor import TutorAdapter
 
@@ -2102,7 +2140,7 @@ async def test_native_tutor_consumes_versioned_mnemosyne_web_envelope():
         "config": {
             "_mnemosyne_content_language": "attacker-value",
             "mnemosyne": {
-                "contract_version": "0.1.0",
+                "contract_version": "0.2.0",
                 "turn_request": {
                     "client_mutation_id": "00000000-0000-0000-0000-000000000011",
                     "capability": "quiz",
@@ -2112,7 +2150,7 @@ async def test_native_tutor_consumes_versioned_mnemosyne_web_envelope():
                         "version_id": "sha256:" + "a" * 64,
                         "page_index": 1,
                         "viewport_rect": [0, 0, 612, 792],
-                        "selection": {"quote": "client supplied text"},
+                        "selection": None,
                         "content_language": "en",
                         "response_language": "ko",
                     },
@@ -2148,6 +2186,120 @@ async def test_native_tutor_consumes_versioned_mnemosyne_web_envelope():
     }
 
 
+@pytest.mark.asyncio
+async def test_web_reading_turn_uses_server_resolved_material_and_page():
+    from deeptutor.mnemosyne.tutor import TutorAdapter
+
+    captured = {}
+
+    class FakeTurns:
+        async def start_turn(self, request):
+            captured["request"] = request
+            return {"session_id": request.session_id}, {"id": "turn-reading"}
+
+    class FakeLibrary:
+        def resolve_reading_material(self, document_id, version_id):
+            assert document_id == "00000000-0000-0000-0000-000000000022"
+            assert version_id == "sha256:" + "b" * 64
+            return {"material_id": "server-material", "revision": 4}
+
+    request = {
+        "type": "start_turn",
+        "protocol_version": "2.0",
+        "content": "이 페이지를 설명해 줘",
+        "client_submission_id": "00000000-0000-0000-0000-000000000023",
+        "session_id": "session-reading",
+        "capability": "chat",
+        "config": {
+            "mnemosyne": {
+                "contract_version": "0.2.0",
+                "turn_request": {
+                    "client_mutation_id": "00000000-0000-0000-0000-000000000023",
+                    "capability": "reading",
+                    "message": "이 페이지를 설명해 줘",
+                    "reader_context": {
+                        "document_id": "00000000-0000-0000-0000-000000000022",
+                        "version_id": "sha256:" + "b" * 64,
+                        "page_index": 2,
+                        "viewport_rect": [0, 0, 612, 792],
+                        "selection": None,
+                        "content_language": "en",
+                        "response_language": "ko",
+                    },
+                    "response_language": "ko",
+                },
+            }
+        },
+    }
+    adapter = TutorAdapter(turns=FakeTurns(), library=FakeLibrary(), learning_store=None)
+    await adapter.start_native_turn(request)
+    native = captured["request"]
+    assert native.capability == "immersive_reading"
+    assert native.reading_material_id == "server-material"
+    assert native.reading_material_revision == 4
+    assert native.reading_viewport.model_dump() == {"locator": 3, "selection": None}
+
+
+@pytest.mark.asyncio
+async def test_web_reader_selection_is_verified_before_entering_private_context():
+    from deeptutor.mnemosyne.tutor import TutorAdapter
+
+    captured = {}
+    anchor = {
+        "document_id": "00000000-0000-0000-0000-000000000032",
+        "version_id": "sha256:" + "c" * 64,
+        "page_index": 0,
+        "parse_revision": "revision-1",
+        "text_sha256": "d" * 64,
+        "start_scalar": 0,
+        "end_scalar": 5,
+        "quote": "hello",
+        "rects": [[1, 2, 3, 4]],
+    }
+
+    class FakeTurns:
+        async def start_turn(self, request):
+            captured["request"] = request
+            return {}, {"id": "turn-selection"}
+
+    class FakeLibrary:
+        def verify_citation(self, client_anchor):
+            assert client_anchor == anchor
+            return {"verified": True, "anchor": anchor}
+
+    request = {
+        "type": "start_turn",
+        "protocol_version": "2.0",
+        "content": "이 선택 문장을 설명해 줘",
+        "client_submission_id": "00000000-0000-0000-0000-000000000033",
+        "session_id": "session-selection",
+        "capability": "chat",
+        "config": {
+            "mnemosyne": {
+                "contract_version": "0.2.0",
+                "turn_request": {
+                    "client_mutation_id": "00000000-0000-0000-0000-000000000033",
+                    "capability": "chat",
+                    "message": "이 선택 문장을 설명해 줘",
+                    "reader_context": {
+                        "document_id": anchor["document_id"],
+                        "version_id": anchor["version_id"],
+                        "page_index": anchor["page_index"],
+                        "viewport_rect": [0, 0, 612, 792],
+                        "selection": anchor,
+                        "content_language": "en",
+                        "response_language": "ko",
+                    },
+                    "response_language": "ko",
+                },
+            }
+        },
+    }
+    adapter = TutorAdapter(turns=FakeTurns(), library=FakeLibrary(), learning_store=None)
+    await adapter.start_native_turn(request)
+    assert captured["request"].config["_mnemosyne_reader_context"]["selection"] == anchor
+
+
 def test_assessment_action_keeps_its_event_and_model_identity():
     from deeptutor.services.model_selection.tasks import TaskKind
     from deeptutor.services.session.turns.executor import _mnemosyne_turn_selection
@@ -2169,7 +2321,7 @@ def test_assessment_action_keeps_its_event_and_model_identity():
 @pytest.mark.parametrize(
     ("mutate", "message"),
     [
-        (lambda request: request["config"]["mnemosyne"].update(contract_version="0.2.0"), "Unsupported Mnemosyne"),
+        (lambda request: request["config"]["mnemosyne"].update(contract_version="0.1.0"), "Unsupported Mnemosyne"),
         (lambda request: request["config"]["mnemosyne"]["turn_request"].update(client_mutation_id="00000000-0000-0000-0000-000000000099"), "submission IDs do not match"),
         (lambda request: request["config"]["mnemosyne"]["turn_request"].update(capability="memory"), "learning-state operation"),
         (lambda request: request["config"]["mnemosyne"]["turn_request"].update(capability="reading"), "server-resolved material"),
@@ -2192,7 +2344,7 @@ async def test_native_tutor_rejects_invalid_or_unresolved_mnemosyne_actions(muta
         "capability": "chat",
         "config": {
             "mnemosyne": {
-                "contract_version": "0.1.0",
+                "contract_version": "0.2.0",
                 "turn_request": {
                     "client_mutation_id": "00000000-0000-0000-0000-000000000011",
                     "capability": "quiz",
@@ -3226,14 +3378,19 @@ def _mnemosyne_learning_api_client(tutor, monkeypatch):
     from fastapi import FastAPI
     from fastapi.testclient import TestClient
 
-    from deeptutor.api.routers import auth, unified_ws
+    from deeptutor.api.routers import unified_ws
+    from deeptutor.mnemosyne import http as mnemosyne_http
 
-    async def authenticated(**_kwargs):
-        return None
+    class SessionStore:
+        def authenticate(self, token):
+            return "test-device" if token == "test-token" else None
 
-    monkeypatch.setattr(auth, "AUTH_ENABLED", True)
-    monkeypatch.setattr(auth, "require_auth", authenticated)
+    monkeypatch.setattr(mnemosyne_http, "MnemosyneSessionStore", SessionStore)
     app = FastAPI()
+    app.add_exception_handler(
+        mnemosyne_http.MnemosyneAuthError,
+        mnemosyne_http.auth_error_response,
+    )
     app.include_router(unified_ws.router)
     app.state.mnemosyne = SimpleNamespace(tutor=tutor)
     return TestClient(app)
@@ -3242,7 +3399,7 @@ def _mnemosyne_learning_api_client(tutor, monkeypatch):
 def _mnemosyne_learning_headers():
     return {
         "Authorization": "Bearer test-token",
-        "X-Mnemosyne-Contract-Version": "0.1.0",
+        "X-Mnemosyne-Contract-Version": "0.2.0",
     }
 
 
@@ -3257,11 +3414,13 @@ def test_mnemosyne_learning_api_requires_bearer_and_returns_contract_error(monke
     client = _mnemosyne_learning_api_client(Tutor(), monkeypatch)
     response = client.get(
         "/v1/quizzes/123e4567-e89b-42d3-a456-426614174000",
-        headers={"X-Mnemosyne-Contract-Version": "0.1.0"},
+        headers={"X-Mnemosyne-Contract-Version": "0.2.0"},
     )
     assert response.status_code == 401
     assert response.json()["code"] == "unauthorized"
-    assert response.json()["contract_version"] == "0.1.0"
+    assert response.json()["contract_version"] == "0.2.0"
+    assert response.json()["details"] == {}
+    assert response.headers["X-Request-ID"] == response.json()["request_id"]
     assert called == []
 
     response = client.get(
@@ -3273,6 +3432,29 @@ def test_mnemosyne_learning_api_requires_bearer_and_returns_contract_error(monke
     )
     assert response.status_code == 400
     assert response.json()["code"] == "contract_mismatch"
+    assert response.json()["details"] == {}
+    assert called == []
+
+
+def test_mnemosyne_learning_api_rejects_disallowed_origin(monkeypatch):
+    called = []
+
+    class Tutor:
+        async def get_quiz(self, quiz_id):
+            called.append(quiz_id)
+            return {"quiz_id": quiz_id}
+
+    client = _mnemosyne_learning_api_client(Tutor(), monkeypatch)
+    response = client.get(
+        "/v1/quizzes/123e4567-e89b-42d3-a456-426614174000",
+        headers={
+            **_mnemosyne_learning_headers(),
+            "Origin": "https://not-allowed.example",
+        },
+    )
+    assert response.status_code == 403
+    assert response.json()["code"] == "forbidden"
+    assert response.json()["details"] == {}
     assert called == []
 
 
@@ -3305,12 +3487,45 @@ def test_mnemosyne_learning_api_reads_quiz_and_version_scoped_state(monkeypatch)
 
     assert quiz.status_code == 200
     assert quiz.json() == {"quiz_id": quiz_id}
+    assert quiz.headers["X-Request-ID"]
+    assert quiz.headers["X-Mnemosyne-Contract-Version"] == "0.2.0"
     assert state.status_code == 200
     assert state.json() == {"document_id": document_id, "version_id": version_id}
     assert calls == [
         ("quiz", quiz_id),
         ("state", document_id, version_id),
     ]
+
+
+def test_mnemosyne_learning_api_reads_native_turn_receipt(monkeypatch):
+    turn_id = "turn_123_abcd"
+    calls = []
+
+    class Tutor:
+        async def get_turn_receipt(self, received_turn_id):
+            calls.append(received_turn_id)
+            return {
+                "turn_id": received_turn_id,
+                "state": "running",
+                "event_path": "/ws",
+                "response_language": "ko",
+            }
+
+    client = _mnemosyne_learning_api_client(Tutor(), monkeypatch)
+    response = client.get(
+        f"/v1/tutor/turns/{turn_id}",
+        headers=_mnemosyne_learning_headers(),
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "turn_id": turn_id,
+        "state": "running",
+        "event_path": "/ws",
+        "response_language": "ko",
+    }
+    assert response.headers["X-Mnemosyne-Contract-Version"] == "0.2.0"
+    assert calls == [turn_id]
 
 
 def test_mnemosyne_learning_api_submits_attempt_only_for_path_quiz(monkeypatch):

@@ -27,6 +27,7 @@ import {
   type MnemosyneAssessment,
   type MnemosyneDocument,
   type MnemosyneLearningState,
+  type MnemosyneProgressMutation,
   type MnemosyneQuiz,
   type MnemosyneSnapshot,
   type MnemosyneSubject,
@@ -616,6 +617,15 @@ export function MnemosyneReader({ documentID }: { documentID: string }) {
   const [learningRefresh, setLearningRefresh] = useState(0);
   const [panelMode, setPanelMode] = useState<"tutor" | "notes" | "quiz">("tutor");
   const [tutorCapability, setTutorCapability] = useState<MnemosyneTurnRequest["capability"]>("chat");
+  const progressMutationRef = useRef<{
+    key: string;
+    mutation: MnemosyneProgressMutation;
+    observed_until: number;
+  } | null>(null);
+  const progressFlushRef = useRef(false);
+  const learningRef = useRef(learning);
+  const currentGeometry = geometryByPage[currentPage] ?? null;
+  useEffect(() => { learningRef.current = learning; }, [learning]);
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -669,6 +679,96 @@ export function MnemosyneReader({ documentID }: { documentID: string }) {
     return () => { cancelled = true; };
   }, [api, document, learningRefresh]);
 
+  useEffect(() => {
+    if (!document || loading || !currentGeometry) return;
+    const activeDocument = document;
+    const key = `mnemosyne.progress.pending.${activeDocument.document_id}.${activeDocument.version_id}`;
+    let acknowledgedAt = Date.now();
+    if (progressMutationRef.current?.key !== key) {
+      progressMutationRef.current = null;
+      try {
+        const raw = browserStorage.readRaw("session", key);
+        if (raw) {
+          const pending = JSON.parse(raw) as {
+            mutation?: MnemosyneProgressMutation;
+            observed_until?: number;
+          };
+          if (
+            pending.mutation?.version_id === activeDocument.version_id
+            && pending.mutation.page_index >= 0
+            && pending.mutation.page_index < activeDocument.page_count
+            && Number.isInteger(pending.mutation.reading_seconds)
+            && Number.isFinite(pending.observed_until)
+          ) {
+            progressMutationRef.current = {
+              key,
+              mutation: pending.mutation,
+              observed_until: Number(pending.observed_until),
+            };
+          }
+        }
+      } catch {
+        browserStorage.removeRaw("session", key);
+      }
+    }
+
+    const flush = async (force = false) => {
+      if (progressFlushRef.current) return;
+      if (window.document.visibilityState === "hidden" && !force) return;
+      let pending = progressMutationRef.current;
+      if (pending && pending.key !== key) return;
+      if (!pending) {
+        const now = Date.now();
+        const elapsed = Math.floor((now - acknowledgedAt) / 1000);
+        if (elapsed <= 0 || (!force && elapsed < 15)) return;
+        const readingSeconds = Math.min(300, elapsed);
+        pending = {
+          key,
+          observed_until: acknowledgedAt + readingSeconds * 1000,
+          mutation: {
+            client_mutation_id: newUUID(),
+            version_id: activeDocument.version_id,
+            base_learning_revision: learningRef.current?.learning_revision ?? 1,
+            page_index: currentPage,
+            reading_seconds: readingSeconds,
+          },
+        };
+        progressMutationRef.current = pending;
+      }
+      if (!browserStorage.writeRaw("session", key, JSON.stringify(pending))) {
+        setReaderError("재전송 식별자를 브라우저에 보존하지 못해 진도 저장을 보류했습니다.");
+        return;
+      }
+      progressFlushRef.current = true;
+      try {
+        const updated = await api.recordProgress(activeDocument, pending.mutation);
+        setLearning(updated);
+        acknowledgedAt = Math.max(acknowledgedAt, pending.observed_until);
+        if (progressMutationRef.current?.key === key
+          && progressMutationRef.current.mutation.client_mutation_id === pending.mutation.client_mutation_id) {
+          progressMutationRef.current = null;
+          browserStorage.removeRaw("session", key);
+        }
+        setReaderError("");
+      } catch (caught) {
+        setReaderError(`읽기 진도를 저장하지 못했습니다: ${errorMessage(caught)}`);
+      } finally {
+        progressFlushRef.current = false;
+      }
+    };
+
+    const timer = window.setInterval(() => { void flush(); }, 15000);
+    const visibility = () => {
+      if (window.document.visibilityState === "hidden") void flush(true);
+    };
+    window.document.addEventListener("visibilitychange", visibility);
+    return () => {
+      window.clearInterval(timer);
+      window.document.removeEventListener("visibilitychange", visibility);
+      void flush(true);
+    };
+  }, [api, document, currentPage, currentGeometry, loading]);
+
   const geometryFor = useCallback((locator: number, geometry: { crop_box: [number, number, number, number]; rotation_degrees: 0 | 90 | 180 | 270; user_unit: number }) => {
     const pageIndex = locator - 1;
     setGeometryByPage((current) => {
@@ -678,7 +778,6 @@ export function MnemosyneReader({ documentID }: { documentID: string }) {
     });
   }, []);
   const sourceHeaders = useMemo(() => ({ "X-Mnemosyne-Contract-Version": MNEMOSYNE_CONTRACT_VERSION }), []);
-  const currentGeometry = geometryByPage[currentPage] ?? null;
   const readerAnnotations = useMemo(() => toReaderAnnotationItems(snapshot?.annotations ?? [], geometryByPage), [snapshot, geometryByPage]);
   const inkStrokes = useMemo(() => toReaderInk(snapshot?.annotations ?? [], geometryByPage), [snapshot, geometryByPage]);
 
@@ -933,6 +1032,15 @@ function TutorPanel({
   const [status, setStatus] = useState<TutorStatus>("idle");
   const [error, setError] = useState("");
   const [resumeCandidate, setResumeCandidate] = useState<{ turn_id: string; seq: number; session_id: string } | null>(null);
+  type StoredTurnCheckpoint = {
+    turn_id: string | null;
+    seq: number;
+    session_id: string;
+    request?: MnemosyneTurnRequest;
+    command?: Record<string, unknown>;
+    assistant_message_id?: string;
+    terminal?: boolean;
+  };
   const socketRef = useRef<WebSocket | null>(null);
   const timerRef = useRef<number | null>(null);
   const attemptsRef = useRef(0);
@@ -950,8 +1058,33 @@ function TutorPanel({
   const verifiedCitationRef = useRef<VerifiedCitation | null>(null);
   const citationMapRef = useRef(new Map<string, VerifiedCitation>());
   const resumeStorageKey = `mnemosyne.resume.${document.document_id}.${document.version_id}`;
+  const quizGenerationStorageKey = `mnemosyne.pending-quiz-generation.${document.document_id}.${document.version_id}`;
+  type PendingQuizGeneration = {
+    client_mutation_id: string;
+    document_id: string;
+    version_id: string;
+    page_index: number;
+    prompt: string;
+  };
+  const pendingQuizGenerationRef = useRef<PendingQuizGeneration | null>(null);
 
   useEffect(() => { setCapability(initialCapability); }, [initialCapability]);
+  useEffect(() => {
+    pendingQuizGenerationRef.current = null;
+    try {
+      const saved = browserStorage.readRaw("local", quizGenerationStorageKey);
+      if (!saved) return;
+      const pending = JSON.parse(saved) as PendingQuizGeneration;
+      if (
+        pending?.document_id === document.document_id
+        && pending.version_id === document.version_id
+        && typeof pending.client_mutation_id === "string"
+        && Number.isInteger(pending.page_index)
+        && typeof pending.prompt === "string"
+      ) pendingQuizGenerationRef.current = pending;
+      else browserStorage.removeRaw("local", quizGenerationStorageKey);
+    } catch { browserStorage.removeRaw("local", quizGenerationStorageKey); }
+  }, [document.document_id, document.version_id, quizGenerationStorageKey]);
 
   const bridge = useMemo(() => mountMnemosyneWeb({
     serverURL: api.baseURL,
@@ -962,8 +1095,18 @@ function TutorPanel({
     persistCheckpoint: async (turnID, seq) => {
       const runtime = runtimeRef.current;
       if (!runtime || runtime.turnID !== turnID) return;
-      const value = { turn_id: turnID, seq, session_id: runtime.sessionID };
-      browserStorage.writeRaw("local", resumeStorageKey, JSON.stringify(value));
+      const value: StoredTurnCheckpoint = {
+        turn_id: turnID,
+        seq,
+        session_id: runtime.sessionID,
+        request: runtime.request,
+        command: runtime.command,
+        assistant_message_id: runtime.assistantMessageID,
+        terminal: false,
+      };
+      if (!browserStorage.writeRaw("local", resumeStorageKey, JSON.stringify(value))) {
+        throw new Error("Tutor 재접속 checkpoint를 브라우저에 저장하지 못했습니다.");
+      }
     },
   }), [api, onReaderEvent, resumeStorageKey]);
 
@@ -972,11 +1115,40 @@ function TutorPanel({
       const saved = browserStorage.readRaw("local", resumeStorageKey);
       if (!saved) { setResumeCandidate(null); return; }
       const parsed: unknown = JSON.parse(saved);
-      if (isRecord(parsed) && typeof parsed.turn_id === "string" && Number.isInteger(parsed.seq) && typeof parsed.session_id === "string") {
-        setResumeCandidate({ turn_id: parsed.turn_id, seq: Number(parsed.seq), session_id: parsed.session_id });
+      if (isRecord(parsed) && (typeof parsed.turn_id === "string" || parsed.turn_id === null)
+        && Number.isInteger(parsed.seq) && typeof parsed.session_id === "string") {
+        const turnID = typeof parsed.turn_id === "string" ? parsed.turn_id : null;
+        const sequence = Number(parsed.seq);
+        if (turnID) setResumeCandidate({ turn_id: turnID, seq: sequence, session_id: parsed.session_id });
+        if (parsed.terminal !== true && isRecord(parsed.request) && isRecord(parsed.command)
+          && typeof parsed.assistant_message_id === "string"
+          && parsed.command.type === "start_turn"
+          && parsed.command.client_submission_id === parsed.request.client_mutation_id
+          && isRecord(parsed.request.reader_context)
+          && parsed.request.reader_context.document_id === document.document_id
+          && parsed.request.reader_context.version_id === document.version_id) {
+          const request = parsed.request as unknown as MnemosyneTurnRequest;
+          const assistantMessageID = parsed.assistant_message_id;
+          runtimeRef.current = {
+            request,
+            command: parsed.command,
+            sessionID: parsed.session_id,
+            turnID,
+            lastSeq: sequence,
+            reconnecting: true,
+            shouldReconnect: true,
+            assistantMessageID,
+          };
+          setMessages([
+            { id: newUUID(), role: "user", text: request.message },
+            { id: assistantMessageID, role: "assistant", text: "" },
+          ]);
+          setStatus("reconnecting");
+          window.setTimeout(() => connectRef.current(), 0);
+        }
       }
     } catch { setResumeCandidate(null); }
-  }, [resumeStorageKey]);
+  }, [document.document_id, document.version_id, resumeStorageKey]);
 
   const connectSocket = useCallback(() => {
     const runtime = runtimeRef.current;
@@ -1028,6 +1200,7 @@ function TutorPanel({
 
           try {
             const semantic = bridge.consumeNativeFrame(frame);
+            let terminalFrame = false;
             if (semantic) {
               if (semantic.turn_id !== (active.turnID ?? semantic.turn_id)) throw new Error("다른 Tutor turn의 이벤트를 거부했습니다.");
               if (semantic.type === "turn.started") {
@@ -1071,14 +1244,17 @@ function TutorPanel({
                 onLearningUpdated();
               } else if (semantic.type === "turn.done") {
                 active.shouldReconnect = false;
+                terminalFrame = true;
                 setStatus("completed");
                 onLearningUpdated();
               } else if (semantic.type === "turn.error") {
                 active.shouldReconnect = false;
+                terminalFrame = true;
                 setStatus("failed");
                 setError(typeof semantic.payload.message_ko === "string" ? semantic.payload.message_ko : "Tutor 요청이 실패했습니다.");
               } else if (semantic.type === "turn.cancelled") {
                 active.shouldReconnect = false;
+                terminalFrame = true;
                 setStatus("cancelled");
               }
             } else if (frame.type === "error") {
@@ -1089,6 +1265,18 @@ function TutorPanel({
               await bridge.dependencies.persistCheckpoint(frameTurnID, seq);
               active.lastSeq = seq;
               setResumeCandidate({ turn_id: frameTurnID, seq, session_id: active.sessionID });
+            }
+            if (terminalFrame) {
+              const checkpoint: StoredTurnCheckpoint = {
+                turn_id: active.turnID,
+                seq: active.lastSeq,
+                session_id: active.sessionID,
+                request: active.request,
+                command: active.command,
+                assistant_message_id: active.assistantMessageID,
+                terminal: true,
+              };
+              browserStorage.writeRaw("local", resumeStorageKey, JSON.stringify(checkpoint));
             }
           } catch (caught) {
             setError(errorMessage(caught));
@@ -1114,7 +1302,7 @@ function TutorPanel({
       setStatus("failed");
       setError(errorMessage(caught));
     }
-  }, [api, bridge, document, onLearningUpdated, onQuizReady]);
+  }, [api, bridge, document, onLearningUpdated, onQuizReady, resumeStorageKey]);
   connectRef.current = connectSocket;
 
   const makeSessionID = () => {
@@ -1129,7 +1317,45 @@ function TutorPanel({
   };
 
   const start = (message: string, selectedCapability = capability) => {
-    if (!message.trim() || !geometry) return;
+    if (!message.trim()) return;
+    if (selectedCapability === "quiz") {
+      const prompt = message.trim();
+      let pending = pendingQuizGenerationRef.current;
+      if (!pending || pending.document_id !== document.document_id
+        || pending.version_id !== document.version_id || pending.page_index !== pageIndex
+        || pending.prompt !== prompt) {
+        pending = {
+          client_mutation_id: newUUID(),
+          document_id: document.document_id,
+          version_id: document.version_id,
+          page_index: pageIndex,
+          prompt,
+        };
+      }
+      if (!browserStorage.writeRaw("local", quizGenerationStorageKey, JSON.stringify(pending))) {
+        setStatus("failed");
+        setError("퀴즈 생성 재전송 식별자를 브라우저에 저장하지 못했습니다.");
+        return;
+      }
+      pendingQuizGenerationRef.current = pending;
+      setMessages((current) => [...current, { id: newUUID(), role: "user", text: prompt }]);
+      setDraft("");
+      setError("");
+      setStatus("connecting");
+      void api.createQuiz(document, pageIndex, prompt, pending.client_mutation_id).then((quiz) => {
+        if (pendingQuizGenerationRef.current?.client_mutation_id === pending.client_mutation_id) {
+          pendingQuizGenerationRef.current = null;
+          browserStorage.removeRaw("local", quizGenerationStorageKey);
+        }
+        onQuizReady(quiz);
+        setStatus("completed");
+      }).catch((caught) => {
+        setStatus("failed");
+        setError(errorMessage(caught));
+      });
+      return;
+    }
+    if (!geometry) return;
     const nativeCapability = nativeTutorCapability(selectedCapability);
     if (!nativeCapability) {
       setError("기억 카드·진도·복습은 학습 화면의 저장된 학습 기능에서 이용해 주세요.");
@@ -1164,7 +1390,27 @@ function TutorPanel({
       language: "ko",
       skills: ["__mnemosyne_disabled__"],
       mcp: ["__mnemosyne_disabled__"],
+      config: {
+        mnemosyne: {
+          contract_version: MNEMOSYNE_CONTRACT_VERSION,
+          turn_request: request,
+        },
+      },
     };
+    const checkpoint: StoredTurnCheckpoint = {
+      turn_id: null,
+      seq: 0,
+      session_id: sessionID,
+      request,
+      command,
+      assistant_message_id: assistantMessageID,
+      terminal: false,
+    };
+    if (!browserStorage.writeRaw("local", resumeStorageKey, JSON.stringify(checkpoint))) {
+      setStatus("failed");
+      setError("Tutor 요청 재전송 식별자를 브라우저에 저장하지 못했습니다.");
+      return;
+    }
     runtimeRef.current = { request, command, sessionID, turnID: null, lastSeq: 0, reconnecting: false, shouldReconnect: true, assistantMessageID };
     citationMapRef.current.clear();
     setCitations([]);
@@ -1246,12 +1492,49 @@ function QuizPanel({
   onGenerate: () => void;
   onCitation: (citation: VerifiedCitation) => void;
 }) {
+  type AttemptRequest = {
+    attempt_id: string;
+    client_mutation_id: string;
+    quiz_id: string;
+    document_id: string;
+    version_id: string;
+    base_learning_revision: number;
+    submitted_at: string;
+    answers: Array<{ question_id: string; answer: string }>;
+  };
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [assessment, setAssessment] = useState<MnemosyneAssessment | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const pendingAttemptRef = useRef<AttemptRequest | null>(null);
+  const activeQuizID = quiz?.quiz_id;
 
-  useEffect(() => { setAnswers({}); setAssessment(null); setError(""); }, [quiz?.quiz_id]);
+  useEffect(() => {
+    setAnswers({});
+    setAssessment(null);
+    setError("");
+    pendingAttemptRef.current = null;
+    if (!activeQuizID) return;
+    const key = `mnemosyne.pending-quiz-attempt.${activeQuizID}`;
+    const saved = browserStorage.readRaw("local", key);
+    if (!saved) return;
+    try {
+      const pending = JSON.parse(saved) as AttemptRequest;
+      if (
+        pending.quiz_id !== activeQuizID
+        || pending.document_id !== document.document_id
+        || pending.version_id !== document.version_id
+        || !Array.isArray(pending.answers)
+      ) {
+        browserStorage.removeRaw("local", key);
+        return;
+      }
+      pendingAttemptRef.current = pending;
+      setAnswers(Object.fromEntries(pending.answers.map(({ question_id, answer }) => [question_id, answer])));
+    } catch {
+      browserStorage.removeRaw("local", key);
+    }
+  }, [activeQuizID, document.document_id, document.version_id]);
 
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -1262,20 +1545,62 @@ function QuizPanel({
     setError("");
     setAssessment(null);
     try {
-      const result = await api.submitAttempt(quiz.quiz_id, {
-        attempt_id: newUUID(),
-        client_mutation_id: newUUID(),
-        quiz_id: quiz.quiz_id,
-        document_id: document.document_id,
-        version_id: document.version_id,
-        base_learning_revision: learning.learning_revision,
-        submitted_at: new Date().toISOString(),
-        answers: response,
-      });
+      let pending = pendingAttemptRef.current;
+      if (!pending || JSON.stringify(pending.answers) !== JSON.stringify(response)) {
+        pending = {
+          attempt_id: newUUID(),
+          client_mutation_id: newUUID(),
+          quiz_id: quiz.quiz_id,
+          document_id: document.document_id,
+          version_id: document.version_id,
+          base_learning_revision: learning.learning_revision,
+          submitted_at: new Date().toISOString(),
+          answers: response,
+        };
+        if (!browserStorage.writeRaw(
+          "local",
+          `mnemosyne.pending-quiz-attempt.${quiz.quiz_id}`,
+          JSON.stringify(pending),
+        )) throw new Error("응시 재전송 식별자를 이 브라우저에 저장하지 못해 제출을 보류했습니다.");
+        pendingAttemptRef.current = pending;
+      }
+      const result = await api.submitAttempt(quiz.quiz_id, pending);
       if (result.attempt_id.length === 0 || !result.citations.length) throw new Error("평가 응답에 검증된 근거가 없습니다.");
       setAssessment(result);
+      pendingAttemptRef.current = null;
+      browserStorage.removeRaw("local", `mnemosyne.pending-quiz-attempt.${quiz.quiz_id}`);
       onLearningUpdated();
-    } catch (caught) { setError(errorMessage(caught)); }
+    } catch (caught) {
+      if (caught instanceof MnemosyneApiError && caught.code === "idempotency_mismatch") {
+        pendingAttemptRef.current = null;
+        browserStorage.removeRaw("local", `mnemosyne.pending-quiz-attempt.${quiz.quiz_id}`);
+      } else if (caught instanceof MnemosyneApiError && caught.code === "conflict" && !caught.retryable) {
+        try {
+          const latest = await api.learningState(document);
+          const pending = pendingAttemptRef.current;
+          if (pending) {
+            const refreshed: AttemptRequest = {
+              ...pending,
+              attempt_id: newUUID(),
+              client_mutation_id: newUUID(),
+              base_learning_revision: latest.learning_revision,
+              submitted_at: new Date().toISOString(),
+            };
+            if (!browserStorage.writeRaw("local", `mnemosyne.pending-quiz-attempt.${quiz.quiz_id}`, JSON.stringify(refreshed))) {
+              throw new Error("갱신된 응시 재전송 정보를 브라우저에 저장하지 못했습니다.");
+            }
+            pendingAttemptRef.current = refreshed;
+            onLearningUpdated();
+            setError("최신 학습 상태를 반영했습니다. 같은 답안을 다시 제출해 주세요.");
+            return;
+          }
+        } catch (refreshError) {
+          setError(errorMessage(refreshError));
+          return;
+        }
+      }
+      setError(errorMessage(caught));
+    }
     finally { setBusy(false); }
   };
 
@@ -1299,6 +1624,13 @@ function QuizPanel({
 }
 
 export function MnemosyneLearning() {
+  type PendingMemoryReview = {
+    client_mutation_id: string;
+    memory_id: string;
+    base_learning_revision: number;
+    grade: number;
+    reviewed_at: string;
+  };
   const api = useMnemosyneApi();
   const [documents, setDocuments] = useState<MnemosyneDocument[]>([]);
   const [documentID, setDocumentID] = useState("");
@@ -1308,7 +1640,11 @@ export function MnemosyneLearning() {
   const [busyMemory, setBusyMemory] = useState("");
   const [revealedMemory, setRevealedMemory] = useState("");
   const [notice, setNotice] = useState("");
+  const pendingMemoryReviewsRef = useRef<Record<string, PendingMemoryReview>>({});
   const activeDocument = documents.find((item) => item.document_id === documentID) ?? null;
+  const pendingMemoryReviewKey = activeDocument
+    ? `mnemosyne.pending-memory-reviews.${activeDocument.document_id}.${activeDocument.version_id}`
+    : "";
 
   const loadDocuments = useCallback(async () => {
     setLoading(true);
@@ -1332,18 +1668,66 @@ export function MnemosyneLearning() {
     return () => { cancelled = true; };
   }, [api, activeDocument]);
 
+  useEffect(() => {
+    pendingMemoryReviewsRef.current = {};
+    if (!pendingMemoryReviewKey) return;
+    try {
+      const raw = browserStorage.readRaw("local", pendingMemoryReviewKey);
+      if (!raw) return;
+      const pending = JSON.parse(raw) as Record<string, PendingMemoryReview>;
+      if (isRecord(pending)) pendingMemoryReviewsRef.current = pending as Record<string, PendingMemoryReview>;
+    } catch { browserStorage.removeRaw("local", pendingMemoryReviewKey); }
+  }, [pendingMemoryReviewKey]);
+
   const reviewMemory = async (memoryID: string, grade: number) => {
-    if (!activeDocument || !learning) return;
+    if (!activeDocument || !learning || !pendingMemoryReviewKey || !Number.isInteger(grade) || grade < 0 || grade > 3) return;
     setBusyMemory(memoryID);
     setError("");
     setNotice("");
+    const identity = `${memoryID}|${grade}`;
+    const review: PendingMemoryReview = pendingMemoryReviewsRef.current[identity] ?? {
+      client_mutation_id: newUUID(),
+      memory_id: memoryID,
+      base_learning_revision: learning.learning_revision,
+      grade,
+      reviewed_at: new Date().toISOString(),
+    };
+    pendingMemoryReviewsRef.current[identity] = review;
+    if (!browserStorage.writeRaw("local", pendingMemoryReviewKey, JSON.stringify(pendingMemoryReviewsRef.current))) {
+      setError("복습 재전송 식별자를 브라우저에 저장하지 못해 제출을 보류했습니다.");
+      setBusyMemory("");
+      return;
+    }
     try {
-      const updated = await api.reviewMemory(memoryID, { client_mutation_id: newUUID(), memory_id: memoryID, base_learning_revision: learning.learning_revision, grade, reviewed_at: new Date().toISOString() });
+      const updated = await api.reviewMemory(memoryID, review);
       if (!sameDocumentVersion(updated, activeDocument)) throw new Error("다른 문서의 복습 응답을 거부했습니다.");
       setLearning(updated);
+      delete pendingMemoryReviewsRef.current[identity];
+      if (Object.keys(pendingMemoryReviewsRef.current).length === 0) browserStorage.removeRaw("local", pendingMemoryReviewKey);
+      else browserStorage.writeRaw("local", pendingMemoryReviewKey, JSON.stringify(pendingMemoryReviewsRef.current));
       setRevealedMemory("");
       setNotice("복습 결과를 서버에 저장했습니다.");
-    } catch (caught) { setError(errorMessage(caught)); }
+    } catch (caught) {
+      if (caught instanceof MnemosyneApiError && caught.code === "conflict" && !caught.retryable) {
+        try {
+          const latest = await api.learningState(activeDocument);
+          setLearning(latest);
+          const refreshed: PendingMemoryReview = {
+            ...review,
+            client_mutation_id: newUUID(),
+            base_learning_revision: latest.learning_revision,
+            reviewed_at: new Date().toISOString(),
+          };
+          pendingMemoryReviewsRef.current[identity] = refreshed;
+          if (!browserStorage.writeRaw("local", pendingMemoryReviewKey, JSON.stringify(pendingMemoryReviewsRef.current))) {
+            throw new Error("갱신된 복습 재전송 정보를 브라우저에 저장하지 못했습니다.");
+          }
+          setError("최신 학습 상태를 반영했습니다. 같은 평가를 다시 눌러 주세요.");
+          return;
+        } catch (refreshError) { setError(errorMessage(refreshError)); return; }
+      }
+      setError(errorMessage(caught));
+    }
     finally { setBusyMemory(""); }
   };
 

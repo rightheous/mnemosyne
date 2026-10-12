@@ -37,6 +37,7 @@ def run(*, allow_index_unavailable: bool) -> int:
 
         import httpx
         import uvicorn
+        from deeptutor.api.routers.unified_ws import router as learning_router
         from deeptutor.mnemosyne import http as mnemosyne_http
         from deeptutor.mnemosyne.http import (
             MnemosyneAuthError,
@@ -47,6 +48,7 @@ def run(*, allow_index_unavailable: bool) -> int:
         from deeptutor.mnemosyne.http import (
             router as session_router,
         )
+        from deeptutor.mnemosyne.learning_store import SQLiteMnemosyneLearningStore
         from deeptutor.mnemosyne.library import build_library_router, register_library
         from deeptutor.mnemosyne.security import MnemosyneSessionStore
         from deeptutor.mnemosyne.tutor import register_tutor
@@ -56,11 +58,17 @@ def run(*, allow_index_unavailable: bool) -> int:
         sessions = MnemosyneSessionStore(runtime / "runtime/data/system/pairing.json")
         mnemosyne_http.MnemosyneSessionStore = lambda: sessions
         library = register_library(ReadingStore(runtime / "reading"))
-        tutor = register_tutor(SimpleNamespace(event_resume_seconds=60), library)
+        learning_store = SQLiteMnemosyneLearningStore(
+            runtime / "reading" / "mnemosyne-learning" / "learning.sqlite3"
+        )
+        tutor = register_tutor(
+            SimpleNamespace(event_resume_seconds=60), library, learning_store=learning_store
+        )
 
         app = FastAPI()
         app.add_exception_handler(MnemosyneAuthError, auth_error_response)
         app.include_router(session_router)
+        app.include_router(learning_router)
         app.include_router(
             build_library_router(library),
             dependencies=[Depends(require_mnemosyne_session)],
@@ -88,7 +96,7 @@ def run(*, allow_index_unavailable: bool) -> int:
 
         port = server.servers[0].sockets[0].getsockname()[1]
         base_url = f"http://127.0.0.1:{port}"
-        contract_headers = {"X-Mnemosyne-Contract-Version": "0.1.0"}
+        contract_headers = {"X-Mnemosyne-Contract-Version": "0.2.0"}
 
         try:
             pairing_code, _ = sessions.issue_pairing_code()
@@ -152,6 +160,33 @@ def run(*, allow_index_unavailable: bool) -> int:
                 assert document["parse_state"] == "ready"
                 assert document["page_count"] == 2
 
+                progress_path = f"/v1/documents/{document_id}/progress"
+                progress_mutation = {
+                    "client_mutation_id": str(uuid4()),
+                    "version_id": version_id,
+                    "base_learning_revision": 1,
+                    "page_index": 0,
+                    "reading_seconds": 15,
+                }
+                progress = client.post(
+                    progress_path, json=progress_mutation, headers=auth_headers
+                )
+                assert progress.status_code == 200, progress.text
+                assert progress.json()["progress"]["pages_read"] == [0]
+                assert progress.json()["progress"]["reading_seconds"] == 15
+                progress_retry = client.post(
+                    progress_path, json=progress_mutation, headers=auth_headers
+                )
+                assert progress_retry.status_code == 200, progress_retry.text
+                assert progress_retry.json() == progress.json()
+                persisted_learning = client.get(
+                    f"/v1/documents/{document_id}/learning",
+                    params={"version_id": version_id},
+                    headers=auth_headers,
+                )
+                assert persisted_learning.status_code == 200, persisted_learning.text
+                assert persisted_learning.json()["progress"] == progress.json()["progress"]
+
                 page_response = client.get(
                     f"/v1/documents/{document_id}/pages/0",
                     params={"version_id": version_id},
@@ -202,7 +237,7 @@ def run(*, allow_index_unavailable: bool) -> int:
                     "annotation": note,
                 }
                 batch = {
-                    "contract_version": "0.1.0",
+                    "contract_version": "0.2.0",
                     "document_id": document_id,
                     "version_id": version_id,
                     "mutations": [mutation],
@@ -332,6 +367,11 @@ def run(*, allow_index_unavailable: bool) -> int:
             raise RuntimeError("Mnemosyne integration HTTP server did not stop")
 
         reopened = register_library(ReadingStore(runtime / "reading"))
+        from deeptutor.mnemosyne.learning_store import SQLiteMnemosyneLearningStore
+
+        reopened_learning = SQLiteMnemosyneLearningStore(
+            runtime / "reading" / "mnemosyne-learning" / "learning.sqlite3"
+        )
         stored_document = reopened.list_documents()[0]
         restored = asyncio.run(
             reopened.snapshot(
@@ -352,6 +392,13 @@ def run(*, allow_index_unavailable: bool) -> int:
             ).hexdigest()
             == source_hash
         )
+        restored_learning = asyncio.run(
+            reopened_learning.get_state(
+                stored_document["document_id"], stored_document["version_id"]
+            )
+        )
+        assert restored_learning["progress"]["pages_read"] == [0]
+        assert restored_learning["progress"]["reading_seconds"] == 15
 
         websocket_code, _ = sessions.issue_pairing_code()
         websocket_session = sessions.pair(websocket_code, "integration-ipad")
@@ -402,6 +449,7 @@ def run(*, allow_index_unavailable: bool) -> int:
             "original_sha256_preserved": True,
             "tombstone_persisted": True,
             "session_revocation_and_websocket_bridge": True,
+            "progress_retry_and_restart_recovery": True,
         }
         print(json.dumps(result, ensure_ascii=False))
         if index_state != "ready" and not allow_index_unavailable:

@@ -776,7 +776,7 @@ final class PDFReaderViewController: UIViewController {
         guard let document = pdfView.document,
               let documentIdentifier, let documentVersionID,
               let value = try JSONSerialization.jsonObject(with: event) as? [String: Any],
-              value["contract_version"] as? String == "0.1.0",
+              value["contract_version"] as? String == "0.2.0",
               let type = value["type"] as? String,
               let payload = value["payload"] as? [String: Any] else {
             throw MnemosyneReaderError.malformedContractData

@@ -20,6 +20,11 @@ import PumiceCore
     func commitTutorFrame(turnID: String, sequence: Int) throws
 }
 
+private struct PendingMnemosyneProgress: Codable {
+    let documentId: UUID
+    var mutation: MnemosyneProgressMutation
+}
+
 @MainActor struct MnemosyneAppDependencies {
     let localStore: any MnemosyneLocalStore
     let reader: any MnemosyneReaderFacade
@@ -27,6 +32,20 @@ import PumiceCore
     let readerController: PDFReaderController
     let syncStateStore: any MnemosyneSyncStateStore
     let tutorCheckpointStore: any MnemosyneTutorCheckpointStore
+}
+
+private enum MnemosyneTutorInputError: LocalizedError {
+    case readerContextUnavailable
+    case selectionNotVerified
+
+    var errorDescription: String? {
+        switch self {
+        case .readerContextUnavailable:
+            "열린 PDF의 페이지 문맥을 읽을 수 없습니다. 문서를 다시 열어 주세요."
+        case .selectionNotVerified:
+            "선택한 문장을 서버 원문과 대조하지 못했습니다. 문장 선택을 확인한 뒤 다시 시도해 주세요."
+        }
+    }
 }
 
 /// Build the durable Reader and Pencil path at the app boundary.
@@ -186,6 +205,7 @@ final class MnemosyneAppModel: ObservableObject {
     @Published private(set) var activeReaderURL: URL?
     @Published private(set) var activeReaderDocumentID: UUID?
     @Published private(set) var activeReaderVersionID: String?
+    @Published private(set) var activeReaderPageIndex = 0
 
     private(set) var reader: (any MnemosyneReaderFacade)?
     private(set) var syncWorker: (any MnemosyneSyncWorker)?
@@ -201,12 +221,43 @@ final class MnemosyneAppModel: ObservableObject {
     private var currentTurnId = UserDefaults.standard.string(forKey: "mnemosyne.lastTurnId")
     private var currentTurnDocumentId = UserDefaults.standard.string(forKey: "mnemosyne.lastTurnDocumentId")
         .flatMap(UUID.init(uuidString:))
+    private let pendingTutorSubmissionKey = "mnemosyne.pendingTutorSubmissionId"
+    private let pendingTutorDigestKey = "mnemosyne.pendingTutorRequestDigest"
+    private let pendingProgressKey = "mnemosyne.pendingReadingProgress.v2"
+    private let legacyPendingProgressKey = "mnemosyne.pendingReadingProgress"
+    private let pendingQuizAttemptsKey = "mnemosyne.pendingQuizAttempts"
+    private let pendingMemoryReviewsKey = "mnemosyne.pendingMemoryReviews"
+    private let pendingQuizGenerationsKey = "mnemosyne.pendingQuizGenerations"
     private var cancelCommandId: UUID?
     private var pendingQuizAttempts: [String: MnemosyneAttempt] = [:]
     private var pendingMemoryReviews: [String: MnemosyneMemoryReview] = [:]
+    private var pendingQuizGenerations: [String: UUID] = [:]
+    private var pendingProgressMutations: [PendingMnemosyneProgress] = []
+    private var legacyPendingProgressMutations: [MnemosyneProgressMutation] = []
+    private var progressFlushInFlight = false
     private var openedReaderKey: String?
 
     init() {
+        if let data = UserDefaults.standard.data(forKey: pendingProgressKey),
+           let pending = try? JSONDecoder.mnemosyne.decode([PendingMnemosyneProgress].self, from: data) {
+            pendingProgressMutations = pending
+        }
+        if let data = UserDefaults.standard.data(forKey: legacyPendingProgressKey),
+           let pending = try? JSONDecoder.mnemosyne.decode([MnemosyneProgressMutation].self, from: data) {
+            legacyPendingProgressMutations = pending
+        }
+        if let data = UserDefaults.standard.data(forKey: pendingQuizAttemptsKey),
+           let pending = try? JSONDecoder.mnemosyne.decode([String: MnemosyneAttempt].self, from: data) {
+            pendingQuizAttempts = pending
+        }
+        if let data = UserDefaults.standard.data(forKey: pendingMemoryReviewsKey),
+           let pending = try? JSONDecoder.mnemosyne.decode([String: MnemosyneMemoryReview].self, from: data) {
+            pendingMemoryReviews = pending
+        }
+        if let data = UserDefaults.standard.data(forKey: pendingQuizGenerationsKey),
+           let pending = try? JSONDecoder.mnemosyne.decode([String: UUID].self, from: data) {
+            pendingQuizGenerations = pending
+        }
         do {
             let dependencies = try makeIPadApp()
             localStore = dependencies.localStore
@@ -230,6 +281,11 @@ final class MnemosyneAppModel: ObservableObject {
 
     var hasReaderFacade: Bool { reader != nil }
     var isTutorRunning: Bool { tutorTask != nil }
+    var hasUnfinishedTutorTurn: Bool { currentTurnId != nil }
+
+    func canResumeTutor(for document: MnemosyneDocument) -> Bool {
+        currentTurnId != nil && currentTurnDocumentId == document.documentId && !isTutorRunning
+    }
 
     func dismissAlert() { alertMessage = nil }
     func presentError(_ message: String) { alertMessage = message }
@@ -286,7 +342,7 @@ final class MnemosyneAppModel: ObservableObject {
                     tutorStatus = "이전 튜터 응답을 이어 받을 수 있습니다."
                 }
         } catch {
-            // /health is observed upstream; typed Mnemosyne routes are planned extensions.
+            // Health can be available while the paired Mnemosyne API is unavailable.
             alertMessage = "서버는 응답하지만 Mnemosyne API를 사용할 수 없습니다. \(error.localizedDescription)"
         }
     }
@@ -329,6 +385,7 @@ final class MnemosyneAppModel: ObservableObject {
         async let fetchedDocuments = api.documents(subjectId: selectedSubjectId)
         subjects = try await fetchedSubjects
         documents = try await fetchedDocuments
+        await migrateLegacyProgressMutations()
         if let reader {
             for document in documents {
                 guard let state = try? reader.downloadState(documentID: document.documentId,
@@ -464,6 +521,12 @@ final class MnemosyneAppModel: ObservableObject {
             try await reader.openCached(documentID: document.documentId, versionID: document.versionId)
             openedReaderKey = key
             saveReaderContext()
+            if let context = try? reader.readerContext(),
+               let value = try? JSONSerialization.jsonObject(with: context) as? [String: Any],
+               let pageIndex = value["page_index"] as? Int {
+                activeReaderPageIndex = pageIndex
+                enqueueReadPage(pageIndex)
+            }
         } catch {
             activeReaderURL = nil
             activeReaderDocumentID = nil
@@ -485,7 +548,183 @@ final class MnemosyneAppModel: ObservableObject {
         activeReaderVersionID = nil
     }
 
-    func saveReaderContext() { _ = try? reader?.readerContext() }
+    func saveReaderContext() {
+        guard let context = try? reader?.readerContext(),
+              let value = try? JSONSerialization.jsonObject(with: context) as? [String: Any],
+              let pageIndex = value["page_index"] as? Int else { return }
+        activeReaderPageIndex = pageIndex
+    }
+    func readerPageChanged(_ pageIndex: Int) {
+        activeReaderPageIndex = pageIndex
+        saveReaderContext()
+        enqueueReadPage(pageIndex)
+    }
+
+    func generateQuiz(prompt: String) async {
+        guard let api, isPaired, let document = selectedDocument,
+              activeReaderDocumentID == document.documentId,
+              activeReaderVersionID == document.versionId,
+              document.parseState == .ready,
+              (0..<document.pageCount).contains(activeReaderPageIndex) else {
+            alertMessage = "분석된 PDF를 Reader에서 연 뒤 현재 페이지 퀴즈를 만들 수 있습니다."
+            return
+        }
+        let normalizedPrompt = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalizedPrompt.isEmpty else { alertMessage = "퀴즈 생성 요청을 입력해 주세요."; return }
+        let identity = [document.documentId.uuidString.lowercased(), document.versionId,
+                        String(activeReaderPageIndex), normalizedPrompt, "ko"].joined(separator: "\u{0}")
+        let key = SHA256.hash(data: Data(identity.utf8)).map { String(format: "%02x", $0) }.joined()
+        let mutationID = pendingQuizGenerations[key] ?? UUID()
+        pendingQuizGenerations[key] = mutationID
+        persistPendingLearningMutations()
+        busyMessage = "문서 근거 퀴즈를 만들고 있습니다"
+        defer { busyMessage = nil }
+        do {
+            let quiz = try await api.createQuiz(documentId: document.documentId, request: MnemosyneQuizGenerationRequest(
+                clientMutationId: mutationID, versionId: document.versionId, pageIndex: activeReaderPageIndex,
+                prompt: normalizedPrompt, responseLanguage: "ko"
+            ))
+            guard quiz.documentId == document.documentId, quiz.versionId == document.versionId else {
+                throw MnemosyneAPIError.invalidResponse
+            }
+            pendingQuizGenerations.removeValue(forKey: key)
+            persistPendingLearningMutations()
+            activeQuiz = quiz
+            lastAssessment = nil
+        } catch { alertMessage = error.localizedDescription }
+    }
+
+    private func enqueueReadPage(_ pageIndex: Int) {
+        guard let document = selectedDocument,
+              activeReaderDocumentID == document.documentId,
+              activeReaderVersionID == document.versionId,
+              (0..<document.pageCount).contains(pageIndex) else { return }
+        if learningState?.progress.pagesRead.contains(pageIndex) == true,
+           !pendingProgressMutations.contains(where: {
+               $0.documentId == document.documentId && $0.mutation.pageIndex == pageIndex
+                   && $0.mutation.versionId == document.versionId
+           }) {
+            return
+        }
+        if pendingProgressMutations.last?.documentId == document.documentId,
+           pendingProgressMutations.last?.mutation.pageIndex == pageIndex,
+           pendingProgressMutations.last?.mutation.versionId == document.versionId {
+            return
+        }
+        pendingProgressMutations.append(PendingMnemosyneProgress(
+            documentId: document.documentId,
+            mutation: MnemosyneProgressMutation(
+                clientMutationId: UUID(),
+                versionId: document.versionId,
+                baseLearningRevision: learningState?.learningRevision ?? 1,
+                pageIndex: pageIndex,
+                readingSeconds: 0
+            )
+        ))
+        persistPendingProgress()
+        Task { await flushPendingProgress() }
+    }
+
+    private func persistPendingProgress() {
+        if let data = try? JSONEncoder.mnemosyne.encode(pendingProgressMutations) {
+            UserDefaults.standard.set(data, forKey: pendingProgressKey)
+        }
+    }
+
+    private func migrateLegacyProgressMutations() async {
+        guard !legacyPendingProgressMutations.isEmpty, let api else { return }
+        do {
+            let allDocuments = try await api.documents(subjectId: nil)
+            var unresolved: [MnemosyneProgressMutation] = []
+            for mutation in legacyPendingProgressMutations {
+                let matches = allDocuments.filter { $0.versionId == mutation.versionId }
+                guard matches.count == 1,
+                      let document = matches.first,
+                      (0..<document.pageCount).contains(mutation.pageIndex) else {
+                    unresolved.append(mutation)
+                    continue
+                }
+                if !pendingProgressMutations.contains(where: {
+                    $0.documentId == document.documentId
+                        && $0.mutation.clientMutationId == mutation.clientMutationId
+                }) {
+                    pendingProgressMutations.append(PendingMnemosyneProgress(
+                        documentId: document.documentId, mutation: mutation
+                    ))
+                }
+            }
+            legacyPendingProgressMutations = unresolved
+            persistPendingProgress()
+            if unresolved.isEmpty {
+                UserDefaults.standard.removeObject(forKey: legacyPendingProgressKey)
+            } else {
+                if let data = try? JSONEncoder.mnemosyne.encode(unresolved) {
+                    UserDefaults.standard.set(data, forKey: legacyPendingProgressKey)
+                }
+                syncSummary = "이전 읽기 진도 중 같은 원본 문서가 여러 개라 안전하게 연결하지 못한 기록이 있습니다. 해당 문서를 확인한 뒤 동기화해 주세요."
+            }
+        } catch {
+            syncSummary = "이전 읽기 진도 기록의 문서를 확인하지 못했습니다. 연결이 복구되면 다시 확인합니다."
+        }
+    }
+
+    private func persistPendingLearningMutations() {
+        if let data = try? JSONEncoder.mnemosyne.encode(pendingQuizAttempts) {
+            UserDefaults.standard.set(data, forKey: pendingQuizAttemptsKey)
+        }
+        if let data = try? JSONEncoder.mnemosyne.encode(pendingMemoryReviews) {
+            UserDefaults.standard.set(data, forKey: pendingMemoryReviewsKey)
+        }
+        if let data = try? JSONEncoder.mnemosyne.encode(pendingQuizGenerations) {
+            UserDefaults.standard.set(data, forKey: pendingQuizGenerationsKey)
+        }
+    }
+
+    private func flushPendingProgress() async {
+        guard !progressFlushInFlight,
+              let api, isPaired, let document = selectedDocument else { return }
+        progressFlushInFlight = true
+        defer { progressFlushInFlight = false }
+        while let index = pendingProgressMutations.firstIndex(where: {
+            $0.documentId == document.documentId && $0.mutation.versionId == document.versionId
+        }) {
+            var mutation = pendingProgressMutations[index].mutation
+            mutation.baseLearningRevision = learningState?.learningRevision
+                ?? (try? await api.learning(documentId: document.documentId, versionId: document.versionId).learningRevision)
+                ?? mutation.baseLearningRevision
+            pendingProgressMutations[index].mutation = mutation
+            persistPendingProgress()
+            do {
+                learningState = try await api.recordProgress(documentId: document.documentId, mutation: mutation)
+                pendingProgressMutations.remove(at: index)
+                persistPendingProgress()
+                syncSummary = "읽기 진도 저장 완료"
+            } catch let MnemosyneAPIError.server(status: 409, code: "conflict", _, _, _, _) {
+                do {
+                    learningState = try await api.learning(documentId: document.documentId, versionId: document.versionId)
+                    mutation.baseLearningRevision = learningState?.learningRevision ?? mutation.baseLearningRevision
+                    pendingProgressMutations[index].mutation = mutation
+                    persistPendingProgress()
+                    do {
+                        learningState = try await api.recordProgress(documentId: document.documentId, mutation: mutation)
+                        pendingProgressMutations.remove(at: index)
+                        persistPendingProgress()
+                        syncSummary = "읽기 진도 저장 완료"
+                    } catch {
+                        syncSummary = "읽기 진도 저장 대기 · 네트워크 복구 후 재전송"
+                        return
+                    }
+                } catch {
+                    syncSummary = "읽기 진도 저장 대기 · 학습 상태를 다시 불러와 주세요"
+                    return
+                }
+            } catch {
+                syncSummary = "읽기 진도 저장 대기 · 네트워크 복구 후 재전송"
+                return
+            }
+        }
+    }
+
     func undoReader() { try? reader?.undo() }
     func redoReader() { try? reader?.redo() }
 
@@ -514,7 +753,10 @@ final class MnemosyneAppModel: ObservableObject {
 
     func refreshLearning() async {
         guard let api, let document = selectedDocument, isPaired else { return }
-        do { learningState = try await api.learning(documentId: document.documentId, versionId: document.versionId) }
+        do {
+            learningState = try await api.learning(documentId: document.documentId, versionId: document.versionId)
+            await flushPendingProgress()
+        }
         catch { alertMessage = error.localizedDescription }
     }
 
@@ -556,7 +798,7 @@ final class MnemosyneAppModel: ObservableObject {
         }
         var attemptFingerprintData = Data([
             quiz.quizId.uuidString.lowercased(), document.documentId.uuidString.lowercased(),
-            document.versionId, String(learningState.learningRevision)
+            document.versionId
         ].joined(separator: "|").utf8)
         attemptFingerprintData.append(answerData)
         let attemptKey = SHA256.hash(data: attemptFingerprintData)
@@ -571,6 +813,7 @@ final class MnemosyneAppModel: ObservableObject {
                 submittedAt: ISO8601DateFormatter().string(from: Date()),
                 answers: orderedAnswers.map { .init(questionId: $0.key, answer: $0.value) })
             pendingQuizAttempts[attemptKey] = attempt
+            persistPendingLearningMutations()
         }
         busyMessage = "서버에서 답을 평가하고 있습니다"
         defer { busyMessage = nil }
@@ -580,13 +823,28 @@ final class MnemosyneAppModel: ObservableObject {
             guard assessment.attemptId == attempt.attemptId else { throw MnemosyneAPIError.invalidResponse }
             lastAssessment = assessment
             pendingQuizAttempts.removeValue(forKey: attemptKey)
+            persistPendingLearningMutations()
             await refreshLearning()
+        } catch let MnemosyneAPIError.server(status: 409, code: "conflict", _, _, retryable: true, _) {
+            alertMessage = "서버에서 같은 퀴즈 응시를 처리 중입니다. 잠시 후 같은 답안을 다시 제출해 주세요."
+        } catch let MnemosyneAPIError.server(status: 409, code: "conflict", _, _, retryable: false, _) {
+            do {
+                self.learningState = try await api.learning(documentId: document.documentId, versionId: document.versionId)
+                pendingQuizAttempts[attemptKey] = MnemosyneAttempt(
+                    attemptId: UUID(), clientMutationId: UUID(), quizId: quiz.quizId,
+                    documentId: document.documentId, versionId: document.versionId,
+                    baseLearningRevision: self.learningState?.learningRevision ?? attempt.baseLearningRevision,
+                    submittedAt: ISO8601DateFormatter().string(from: Date()), answers: attempt.answers
+                )
+                persistPendingLearningMutations()
+                alertMessage = "최신 학습 상태를 불러왔습니다. 같은 답안을 다시 제출해 주세요."
+            } catch { alertMessage = error.localizedDescription }
         } catch { alertMessage = error.localizedDescription }
     }
 
     func reviewMemory(_ memory: MnemosyneLearningState.Memory, grade: Int) async {
-        guard let api, let learningState, (0...3).contains(grade) else { return }
-        let reviewKey = "\(memory.memoryId.uuidString.lowercased())|\(grade)|\(learningState.learningRevision)"
+        guard let api, let learningState, let document = selectedDocument, (0...3).contains(grade) else { return }
+        let reviewKey = "\(memory.memoryId.uuidString.lowercased())|\(grade)"
         let review: MnemosyneMemoryReview
         if let pending = pendingMemoryReviews[reviewKey] {
             review = pending
@@ -595,16 +853,172 @@ final class MnemosyneAppModel: ObservableObject {
                 baseLearningRevision: learningState.learningRevision, grade: grade,
                 reviewedAt: ISO8601DateFormatter().string(from: Date()))
             pendingMemoryReviews[reviewKey] = review
+            persistPendingLearningMutations()
         }
         do {
-            learningState = try await api.reviewMemory(review)
+            self.learningState = try await api.reviewMemory(review)
             pendingMemoryReviews.removeValue(forKey: reviewKey)
+            persistPendingLearningMutations()
         }
-        catch { alertMessage = error.localizedDescription }
+        catch let MnemosyneAPIError.server(status: 409, code: "conflict", _, _, retryable: true, _) {
+            alertMessage = "서버에서 이 복습을 처리 중입니다. 잠시 후 같은 평가를 다시 눌러 주세요."
+        } catch let MnemosyneAPIError.server(status: 409, code: "conflict", _, _, retryable: false, _) {
+            do {
+                self.learningState = try await api.learning(documentId: document.documentId, versionId: document.versionId)
+                pendingMemoryReviews[reviewKey] = MnemosyneMemoryReview(
+                    clientMutationId: UUID(), memoryId: memory.memoryId,
+                    baseLearningRevision: self.learningState?.learningRevision ?? review.baseLearningRevision,
+                    grade: grade, reviewedAt: ISO8601DateFormatter().string(from: Date())
+                )
+                persistPendingLearningMutations()
+                alertMessage = "최신 학습 상태를 불러왔습니다. 같은 카드를 다시 복습해 주세요."
+            } catch { alertMessage = error.localizedDescription }
+        } catch { alertMessage = error.localizedDescription }
     }
 
-    /// The caller builds a native start_turn only after UNIT-02/integrator
-    /// provides the documented ReaderContext-to-native mapping.
+    /// Build the native protocol command and the versioned Mnemosyne envelope
+    /// from the open Reader. Any selected text is attached only after the
+    /// server verifies its source anchor for this exact document version/page.
+    func askTutor(message: String) async {
+        let prompt = message.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !prompt.isEmpty else { return }
+        guard currentTurnId == nil else {
+            tutorStatus = "이전 튜터 응답을 먼저 이어받아 주세요."
+            alertMessage = currentTurnDocumentId == selectedDocument?.documentId
+                ? "이전 튜터 응답을 이어받은 뒤 새 질문을 보낼 수 있습니다."
+                : "이전 문서의 튜터 응답을 먼저 이어받아 완료해 주세요."
+            return
+        }
+        guard let api, let reader, let document = selectedDocument,
+              activeReaderDocumentID == document.documentId,
+              activeReaderVersionID == document.versionId,
+              document.isTutorReady else {
+            alertMessage = "문서를 열고 분석이 완료된 뒤 튜터를 사용할 수 있습니다."
+            return
+        }
+
+        do {
+            // selectedText() invalidates any previous verified anchor. The
+            // Reader therefore never forwards a stale selection as evidence.
+            let selectedText = try reader.selectedText()?.trimmingCharacters(in: .whitespacesAndNewlines)
+            if let selectedText, !selectedText.isEmpty {
+                guard let contextData = try? reader.readerContext(),
+                      let context = try JSONSerialization.jsonObject(with: contextData) as? [String: Any],
+                      let pageIndex = context["page_index"] as? Int else {
+                    throw MnemosyneTutorInputError.readerContextUnavailable
+                }
+                let candidates = try await api.search(documentId: document.documentId,
+                    versionId: document.versionId, query: selectedText, limit: 50)
+                let normalizedSelection = Self.normalizedSelection(selectedText)
+                guard let candidate = candidates.first(where: {
+                    $0.documentId == document.documentId && $0.versionId == document.versionId &&
+                    $0.pageIndex == pageIndex &&
+                    Self.normalizedSelection($0.quote).contains(normalizedSelection)
+                }) else {
+                    throw MnemosyneTutorInputError.selectionNotVerified
+                }
+                let verified = try await api.verifyCitation(candidate)
+                guard verified.verified, verified.anchor == candidate,
+                      verified.anchor.documentId == document.documentId,
+                      verified.anchor.versionId == document.versionId,
+                      verified.anchor.pageIndex == pageIndex else {
+                    throw MnemosyneTutorInputError.selectionNotVerified
+                }
+                try reader.setVerifiedSelectionAnchor(Self.anchorData(verified.anchor))
+            } else {
+                try reader.setVerifiedSelectionAnchor(nil)
+            }
+
+            guard let contextData = try? reader.readerContext(),
+                  var readerContext = try JSONSerialization.jsonObject(with: contextData) as? [String: Any],
+                  readerContext["document_id"] as? String == document.documentId.uuidString.lowercased(),
+                  readerContext["version_id"] as? String == document.versionId,
+                  let contentLanguage = readerContext["content_language"] as? String,
+                  readerContext["page_index"] as? Int != nil,
+                  let viewport = readerContext["viewport_rect"] as? [NSNumber], viewport.count == 4,
+                  readerContext["selection"] != nil else {
+                throw MnemosyneTutorInputError.readerContextUnavailable
+            }
+            readerContext["response_language"] = "ko"
+            let digestInput: [String: Any] = [
+                "capability": "chat",
+                "message": prompt,
+                "reader_context": readerContext,
+                "response_language": "ko"
+            ]
+            let digestData = try JSONSerialization.data(withJSONObject: digestInput, options: [.sortedKeys])
+            let digest = SHA256.hash(data: digestData).map { String(format: "%02x", $0) }.joined()
+            let defaults = UserDefaults.standard
+            let submissionId: String
+            if let pendingId = defaults.string(forKey: pendingTutorSubmissionKey),
+               let pendingDigest = defaults.string(forKey: pendingTutorDigestKey) {
+                guard pendingDigest == digest else {
+                    alertMessage = "이전 질문의 서버 접수 여부를 확인할 수 없습니다. 같은 질문과 문서 위치로 다시 시도해 주세요."
+                    return
+                }
+                guard UUID(uuidString: pendingId) != nil else {
+                    alertMessage = "이전 튜터 요청의 재전송 식별자를 읽을 수 없습니다. 앱을 다시 연결한 뒤 재시도해 주세요."
+                    return
+                }
+                submissionId = pendingId
+            } else {
+                submissionId = UUID().uuidString.lowercased()
+                defaults.set(digest, forKey: pendingTutorDigestKey)
+                defaults.set(submissionId, forKey: pendingTutorSubmissionKey)
+            }
+
+            let envelopeRequest: [String: Any] = [
+                "client_mutation_id": submissionId,
+                "capability": "chat",
+                "message": prompt,
+                "reader_context": readerContext,
+                "response_language": "ko"
+            ]
+            let command: [String: Any] = [
+                "type": "start_turn",
+                "protocol_version": MnemosyneContract.nativeProtocolVersion,
+                "client_submission_id": submissionId,
+                "content": prompt,
+                "capability": "chat",
+                "language": contentLanguage,
+                "reply_language_override": "ko",
+                "auto_route": false,
+                "config": ["mnemosyne": [
+                    "contract_version": MnemosyneContract.version,
+                    "turn_request": envelopeRequest
+                ]]
+            ]
+            let startCommand = try JSONSerialization.data(withJSONObject: command, options: [.sortedKeys])
+            startTutor(startCommand: startCommand)
+        } catch {
+            tutorStatus = "튜터 요청을 준비하지 못했습니다."
+            alertMessage = error.localizedDescription
+        }
+    }
+
+    private static func normalizedSelection(_ value: String) -> String {
+        String(value.filter { !$0.isWhitespace })
+    }
+
+    private static func anchorData(_ anchor: MnemosyneTextAnchor) throws -> Data {
+        try JSONSerialization.data(withJSONObject: [
+            "document_id": anchor.documentId.uuidString.lowercased(),
+            "version_id": anchor.versionId,
+            "page_index": anchor.pageIndex,
+            "parse_revision": anchor.parseRevision,
+            "text_sha256": anchor.textSha256,
+            "start_scalar": anchor.startScalar,
+            "end_scalar": anchor.endScalar,
+            "quote": anchor.quote,
+            "rects": anchor.rects
+        ], options: [.sortedKeys])
+    }
+
+    func resumeTutor(for document: MnemosyneDocument) {
+        guard canResumeTutor(for: document) else { return }
+        startTutor(startCommand: Data())
+    }
+
     func startTutor(startCommand: Data) {
         guard let api, let reader, let document = selectedDocument,
               let checkpointStore = tutorCheckpointStore,
@@ -632,6 +1046,10 @@ final class MnemosyneAppModel: ObservableObject {
                     checkpoint: { turnId, sequence, _ in
                         try checkpointStore.commitTutorFrame(turnID: turnId, sequence: sequence)
                         currentTurnId = turnId
+                        // Once a turn identity is durably checkpointed, future
+                        // reconnects resume it instead of submitting it again.
+                        UserDefaults.standard.removeObject(forKey: pendingTutorSubmissionKey)
+                        UserDefaults.standard.removeObject(forKey: pendingTutorDigestKey)
                         UserDefaults.standard.set(turnId, forKey: "mnemosyne.lastTurnId")
                         UserDefaults.standard.set(document.documentId.uuidString, forKey: "mnemosyne.lastTurnDocumentId")
                     },
