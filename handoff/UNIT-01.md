@@ -61,13 +61,20 @@
 
 7. **upstream 출처 예외** — Unit01이 변경한 tracked fixture test `upstreams/DeepTutor/tests/reading/test_ingestion.py`는 `integration/upstreams.json`에 원래 SHA `8878f4000c042d9480289c1a2823d56db09630eb4776d437ed29498d808fad23`, 원래 git blob `b44b1ed3d358e8b44546e728729d282e21e33c17`로 등록돼 있다. 현재 파일 SHA-256은 `b3a909c74be29aa442708ec8636ed24b3270671c9bd8f928ec74a9178beb95d7`다. 통합 담당은 SHA를 갱신하고 원 upstream commit/blob provenance를 유지하면서 Unit01 fixture 변경 예외를 기록한 뒤 source/provenance 검사를 실행한다. `integration/upstreams.json`은 Unit01 수정 권한 밖이라 여기서는 갱신하지 않았다.
 
-### 실제 로컬 통합 브랜치 확인 (2026-10-09 재확인)
+### 실제 로컬 통합 브랜치 확인 (2026-10-12 branch snapshot)
 
 - `codex/unit-05-api-integration` (`11b0c3c6310cf5c0913c760d3e23c9a256080bd6`)에는 `build_library_router` 구현과 router 단독 TestClient 검사가 있지만 `deeptutor/api/main.py`, `mnemosyne/bootstrap.py` 어디에도 mount가 없다.
-- 현재 root checkout의 `codex/unit-06-cloud-runtime` (`75115193250f6b8ec1721bfe25b416f4705b5329`)은 selector UI 커밋까지 포함하지만 제품 main에 Library router를 mount하지 않는다. committed `register_mnemosyne`는 `register_library`에 store/annotation_sync만 전달하고, `ports.py::DocumentRepository`에는 `get_page_assets`가 없다. `tutor.py`에는 document search/page/asset/citation verification 소비 호출이 없다.
+- 로컬 ref `codex/unit-06-cloud-runtime` (`75115193250f6b8ec1721bfe25b416f4705b5329`)은 selector UI 커밋까지 포함하지만 제품 main에 Library router를 mount하지 않는다. committed `register_mnemosyne`는 `register_library`에 store/annotation_sync만 전달하고, `ports.py::DocumentRepository`에는 `get_page_assets`가 없다. `tutor.py`에는 document search/page/asset/citation verification 소비 호출이 없다.
 - root checkout은 현재 미커밋 상태이며 `library.py`와 `test_ingestion.py`도 Unit01 경로에서 수정돼 있다. 그 dirty 파일 SHA-256은 각각 `5f26309a0d27616866b14b7ec16946aebade550d3c0d129403523c617ec016d7`, `b410facbf879de9568ba130040ffca84034c24394ae1b0669c822a4104738678`로 이 Unit01 branch 파일과 다르다. root checkout의 다른 미커밋 UNIT-02 learning service와 UNIT-03/Pumice 변경도 그대로 보존했고 Unit01 branch에 복사하지 않았다. 두 library 구현을 통합할 때 dirty copy 전체로 덮어쓰지 말고 항목별로 reconcile해야 한다.
 - 파일 비교에서 Unit01 branch의 `library.py` (`2d7247c0ea0d014ae6b5b9f82ac3f13562f93437b46f82ebf4d653710d870909`, 2,610줄)는 root dirty 사본(2,456줄)보다 DB/asset 권한, schema v3 `index_started_at` migration과 stuck-index recovery, 엄격한 RAG ready 응답, `get_page_assets`, async upload-index 경계, settings URL validator, 폴더 검증/전체 pagination, parse revision/page SQL binding, citation 만료 정리, mutation 입력 방어를 포함한다. Unit01의 `test_ingestion.py` (`b3a909c74be29aa442708ec8636ed24b3270671c9bd8f928ec74a9178beb95d7`, 1,437줄)에는 root dirty 사본(1,124줄)에 없는 replay mismatch, stale edit/delete 및 tombstone, parser/index 실패, 이미지 asset hash, schema migration, 폴더 pagination 회귀 검사가 있다. root 사본은 그대로 채택하지 말고 이 차이를 보존해 reconcile한다.
-- registry는 여전히 계약 0.1.0, `product_ready=false`, `cloud_repository_access=local_only_no_origin`이다. `integration/ownership.json`의 `owners.UNIT-01` 배열에 `docs/handoffs/unit-01.md`를 추가한 뒤 `checks/validate_contracts.py`와 `--require-ready`를 다시 실행해야 ownership preflight를 통과한다. 현재 공통 validator는 이 경로의 미배정 때문에 중단된다. 두 branch tip 모두 계약이나 준비 gate를 바꾸지 않았다. origin이 없어 PR도 만들지 않았다.
+- registry는 여전히 계약 0.1.0, `product_ready=false`, `cloud_repository_access=local_only_no_origin`이다. `integration/ownership.json`의 `owners.UNIT-01` 배열에 `docs/handoffs/unit-01.md`를 추가한 뒤 `checks/validate_contracts.py`와 `--require-ready`를 다시 실행해야 ownership preflight를 통과한다. 현재 공통 validator는 이 경로의 미배정 때문에 중단된다. 두 branch tip 모두 계약이나 준비 gate를 바꾸지 않았다.
+
+### 원격 게시 및 draft PR 준비 재확인 (2026-10-12)
+
+- `origin`은 `rightheous/mnemosyne` public repository를 가리킨다. GitHub 연결의 push 권한을 확인했고 `codex/unit-01-library-sync` 원격 branch가 존재한다.
+- 원격 `main`은 `16130d21410d1b2349ffee0757d44462c899ebbf`이며 Unit01 branch와 공통 시작 commit `5715a32927e3a73dc28782d306880e3dd1f62441`에서 갈라져 있다. GitHub compare는 diverged history와 변경 파일 4개(`library.py`, fixture test, 두 handoff)를 보여준다. 로컬 `git merge-tree --trivial-merge <start> origin/main HEAD`는 exit 0으로 파일 충돌 없이 결합 가능함을 확인했다.
+- registry는 `cloud_repository_access=local_only_no_origin`으로 남아 원격 설정/branch 게시 상태와 어긋난다. registry는 통합 소유이므로 여기서 고치지 않았다. remote branch 게시, product readiness, Cloud/device 운영 검증은 서로 다른 상태다.
+- `integration/ownership.json`은 여전히 `docs/handoffs/unit-01.md`를 배정하지 않는다. 이전 `validate_contracts.py` 실행은 그 ownership preflight에서 중단됐고, `source_adapters.py`는 임시 환경의 `aiohttp` 누락으로 시작하지 못해 PASS를 주장하지 않는다.
 
 ## 검증 결과와 남은 검증
 
